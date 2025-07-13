@@ -1,1 +1,7 @@
 numpy
+colorama
+pytest
+rich
+tqdm
+accelerate
+colorlog
