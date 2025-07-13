@@ -37,7 +37,7 @@ Documentation = "https://open-dataflow.github.io/DataFlow-Doc/"
 "Bug Reports" = "https://github.com/Open-DataFlow/DataFlow/issues"
 
 [project.scripts]
-dataflow = "dataflow.cli:main"
+dataflowmm = "dataflow.cli:main"
 
 [tool.setuptools]
 include-package-data = true
