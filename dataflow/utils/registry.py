@@ -1,3 +1,5 @@
+import re
+from difflib import SequenceMatcher
 import importlib
 import importlib.util
 import sys
@@ -193,8 +195,34 @@ class Registry():
             'conversations': conversations_operators,
             'db': db_operators
         }
+    def find_best_match_by_model_str(self, model_name: str):
+        """
+        Given a model name (e.g., 'Qwen2.5-vl-7B'), find the registered object whose `.model_str`
+        most closely matches the input.
+        """
+        best_score = -1
+        best_obj = None
+
+        for obj in self._obj_map.values():
+            print(obj)
+            model_str = getattr(obj, "model_str", None)
+            print(model_str)
+            if model_str is None:
+                continue
+            # Lowercase and alphanumeric normalize both sides
+            norm_input = re.sub(r"[^a-zA-Z0-9]", "", model_name.lower())
+            norm_model = re.sub(r"[^a-zA-Z0-9]", "", model_str.lower())
+
+            score = SequenceMatcher(None, norm_input, norm_model).ratio()
+            print(score)
+            if score > best_score:
+                best_score = score
+                best_obj = obj
+
+        return best_obj
 
 OPERATOR_REGISTRY = Registry(name='operators', sub_modules=['eval', 'filter', 'generate', 'refine', 'conversations'])
+IO_REGISTRY = Registry(name='io', sub_modules=['qwen_vl2_5', 'qwen_vl2_5_io'])
 class LazyLoader(types.ModuleType):
 
     def __init__(self, name, path, import_structure):

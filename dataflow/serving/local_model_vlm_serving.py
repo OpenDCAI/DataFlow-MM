@@ -2,11 +2,13 @@ import os
 import torch
 from dataflow import get_logger
 from huggingface_hub import snapshot_download
-from dataflow.core import LLMServingABC
-from transformers import AutoTokenizer
+from dataflow.core import VLMServingABC
+from dataflow.utils.registry import IO_REGISTRY
 from transformers import AutoProcessor
 
-class LocalModelVLMServing_vllm(LLMServingABC):
+from qwen_vl_utils import process_vision_info
+
+class LocalModelVLMServing_vllm(VLMServingABC):
     '''
     A class for generating text using vllm, with model from huggingface or local directory
     '''
@@ -67,6 +69,13 @@ class LocalModelVLMServing_vllm(LLMServingABC):
                 cache_dir=hf_cache_dir,
                 local_dir=hf_local_dir,
             )
+        # get the model name from the real_model_path
+        self.model_name = os.path.basename(self.real_model_path)
+        print(f"Model name: {self.model_name}")
+        print(IO_REGISTRY)
+        self.IO = IO_REGISTRY.find_best_match_by_model_str(self.model_name)()
+        print(f"IO: {self.IO}")
+
 
         # Import vLLM and set up the environment for multiprocessing
         # vLLM requires the multiprocessing method to be set to spawn
@@ -93,7 +102,6 @@ class LocalModelVLMServing_vllm(LLMServingABC):
             max_model_len=vllm_max_model_len,
             gpu_memory_utilization=vllm_gpu_memory_utilization,
         )
-        #self.tokenizer = AutoTokenizer.from_pretrained(self.real_model_path, cache_dir=hf_cache_dir)
         self.processor = AutoProcessor.from_pretrained(self.real_model_path, cache_dir=hf_cache_dir)
         self.logger.success(f"Model loaded from {self.real_model_path} by vLLM backend")
     
@@ -142,9 +150,45 @@ class LocalModelVLMServing_vllm(LLMServingABC):
         responses = self.llm.generate(full_prompts, self.sampling_params)
         return [output.outputs[0].text for output in responses]
 
-    def generate_embedding_from_input(self, texts: list[str]) -> list[list[float]]:
-        outputs = self.llm.embed(texts)
-        return [output.outputs.embedding for output in outputs]
+
+    def generate_from_input_messages(
+        self,
+        messages: list[list[dict]],
+        # image_list: list[list[str]] = None,
+        # video_list: list[list[str]] = None,
+        # audio_list: list[list[str]] = None
+    ) -> list[str]:
+        # self.logger.info("Generating from input conversations...")
+        # for obj_type, func in self.IO.function_map.items():
+        #     if obj_type == "image" and image_list is not None:
+        #         self.logger.info(f"Fetching {obj_type} inputs...")
+        #         image_list = func(image_list)
+        #     elif obj_type == "video" and video_list is not None:
+        #         self.logger.info(f"Fetching {obj_type} inputs...")
+        #         video_list = func(video_list)
+        #     elif obj_type == "audio" and audio_list is not None:
+        #         self.logger.info(f"Fetching {obj_type} inputs...")
+        #         audio_list = func()
+        full_prompts = []
+        for i, i_message in enumerate(messages):
+            if not isinstance(i_message, list):
+                raise ValueError(f"Message at index {i} is not a list: {i_message}")
+            # io class for different models
+            multimodal_entry = self.IO.read_media(i_message)
+            prompt = self.processor.apply_chat_template(
+                i_message, 
+                tokenize=False,
+                add_generation_prompt=True
+            )
+            full_prompts.append({
+                'prompt': prompt,
+                'multi_modal_data': multimodal_entry
+            })
+        outputs = self.llm.generate(
+            full_prompts, 
+            self.sampling_params
+        )
+        return [output.outputs[0].text for output in outputs]
 
     def cleanup(self):
         del self.llm
