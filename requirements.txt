@@ -5,3 +5,6 @@ rich
 tqdm
 accelerate
 colorlog
+
+# IO class
+qwen_vl_utils
