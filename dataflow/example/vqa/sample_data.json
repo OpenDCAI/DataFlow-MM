@@ -1,0 +1,21 @@
+
+[
+    {
+        "image": ["./static/images/Face.jpg"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<image>\nPlease provide a detailed and comprehensive description of the image."
+            }
+        ]
+    },
+    {
+        "image": ["./dataflow/example/vqa/ggbond.png"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<image>\nPlease provide a detailed and comprehensive description of the image."
+            }
+        ]
+    }
+]

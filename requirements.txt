@@ -5,3 +5,8 @@ rich
 tqdm
 accelerate
 colorlog
+pandas
+
+# IO class
+torchvision
+qwen_vl_utils
