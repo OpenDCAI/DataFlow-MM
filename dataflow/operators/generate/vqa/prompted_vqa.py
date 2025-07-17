@@ -56,19 +56,28 @@ class PromptedVQA(OperatorABC):
         # image_column = dataframe.get(self.input_image_key, pd.Series([])).tolist()
         # video_column = dataframe.get(self.input_video_key, pd.Series([])).tolist()
         # audio_column = dataframe.get(self.input_audio_key, pd.Series([])).tolist()
-        messages = dataframe.get(self.input_conversation_key, pd.Series([])).tolist()
+        # conversations = []
+        # for _, row in dataframe.iterrows():
+        #     conversations.append({
+        #         "conversation": row["conversation"],
+        #         "image": row.get("image", []),
+        #         "video": row.get("video", []),
+        #         "audio": row.get("audio", [])
+        #     })
+        conversation_list = dataframe.to_dict(orient="records")
+        #conversations = dataframe.get(self.input_conversation_key, pd.Series([])).tolist()
 
         # print(f"Image column: {image_column}")
         # print(f"Video column: {video_column}")
         # print(f"Audio column: {audio_column}")
         # print(f"Conversation column: {messages}")
 
-        resoponse = self.vlm_serving.generate_from_input_messages(
-            messages=messages,
+        response = self.vlm_serving.generate_from_input_messages(
+            conversations=conversation_list,
             # image_list=image_column,
             # video_list=video_column,
             # audio_list=audio_column
         )
-        dataframe[self.output_answer_key] = resoponse
+        dataframe[self.output_answer_key] = response
         storage.write(dataframe)
         return output_answer_key
