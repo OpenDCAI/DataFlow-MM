@@ -128,28 +128,3 @@ class Conversation2Message(OperatorABC):
 
         self.logger.info(f"Loading, number of rows: {len(dataframe)}")
 
-
-        # print(dataframe)
-        # # print each line of the dataframe
-        # for index, row in dataframe.iterrows():
-        #     print(f"Row {index}: {row.to_dict()}")
-        # # get each column with a list
-
-        # image_column = dataframe.get(self.input_image_key, pd.Series([])).tolist()
-        # video_column = dataframe.get(self.input_video_key, pd.Series([])).tolist()
-        # audio_column = dataframe.get(self.input_audio_key, pd.Series([])).tolist()
-        # conversation_column = dataframe.get(self.input_conversation_key, pd.Series([])).tolist()
-
-        # print(f"Image column: {image_column}")
-        # print(f"Video column: {video_column}")
-        # print(f"Audio column: {audio_column}")
-        # print(f"Conversation column: {conversation_column}")
-
-        # resoponse = self.vlm_serving.generate_from_input_conversations(
-        #     conversations=conversation_column,
-        #     image_list=image_column,
-        #     video_list=video_column,
-        #     audio_list=audio_column
-        # )
-
-        # return response

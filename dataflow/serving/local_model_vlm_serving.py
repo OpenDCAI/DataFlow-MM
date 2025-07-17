@@ -71,9 +71,10 @@ class LocalModelVLMServing_vllm(VLMServingABC):
             )
         # get the model name from the real_model_path
         self.model_name = os.path.basename(self.real_model_path)
+        self.processor = AutoProcessor.from_pretrained(self.real_model_path, cache_dir=hf_cache_dir)
         print(f"Model name: {self.model_name}")
         print(IO_REGISTRY)
-        self.IO = IO_REGISTRY.find_best_match_by_model_str(self.model_name)()
+        self.IO = IO_REGISTRY.find_best_match_by_model_str(self.model_name)(self.processor)
         print(f"IO: {self.IO}")
 
 
@@ -102,7 +103,6 @@ class LocalModelVLMServing_vllm(VLMServingABC):
             max_model_len=vllm_max_model_len,
             gpu_memory_utilization=vllm_gpu_memory_utilization,
         )
-        self.processor = AutoProcessor.from_pretrained(self.real_model_path, cache_dir=hf_cache_dir)
         self.logger.success(f"Model loaded from {self.real_model_path} by vLLM backend")
     
     def generate_from_input(self, 
@@ -153,41 +153,17 @@ class LocalModelVLMServing_vllm(VLMServingABC):
 
     def generate_from_input_messages(
         self,
-        messages: list[list[dict]],
+        conversations: list[list[dict]],
         # image_list: list[list[str]] = None,
         # video_list: list[list[str]] = None,
         # audio_list: list[list[str]] = None
     ) -> list[str]:
-        # self.logger.info("Generating from input conversations...")
-        # for obj_type, func in self.IO.function_map.items():
-        #     if obj_type == "image" and image_list is not None:
-        #         self.logger.info(f"Fetching {obj_type} inputs...")
-        #         image_list = func(image_list)
-        #     elif obj_type == "video" and video_list is not None:
-        #         self.logger.info(f"Fetching {obj_type} inputs...")
-        #         video_list = func(video_list)
-        #     elif obj_type == "audio" and audio_list is not None:
-        #         self.logger.info(f"Fetching {obj_type} inputs...")
-        #         audio_list = func()
-        full_prompts = []
-        for i, i_message in enumerate(messages):
-            if not isinstance(i_message, list):
-                raise ValueError(f"Message at index {i} is not a list: {i_message}")
-            # io class for different models
-            multimodal_entry = self.IO.read_media(i_message)
-            prompt = self.processor.apply_chat_template(
-                i_message, 
-                tokenize=False,
-                add_generation_prompt=True
-            )
-            full_prompts.append({
-                'prompt': prompt,
-                'multi_modal_data': multimodal_entry
-            })
-        outputs = self.llm.generate(
-            full_prompts, 
-            self.sampling_params
-        )
+
+        messages = self.IO._conversation_to_message(conversations) 
+        full_prompts = self.IO.build_full_prompts(messages)
+
+        # 直接调用LLM生成
+        outputs = self.llm.generate(full_prompts, self.sampling_params)
         return [output.outputs[0].text for output in outputs]
 
     def cleanup(self):
