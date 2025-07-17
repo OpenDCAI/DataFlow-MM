@@ -8,18 +8,12 @@ class Qwen2_5VLIO(object):
     model_str = "qwen2.5-vl"  # 用于匹配模型
 
     def __init__(self, processor, 
-            image_list_key: str = "image",
-            video_list_key: str = "video",
-            audio_list_key: str = "audio",
             system_prompt: str = "You are a helpful agent."):
         """
         processor: 传入apply_chat_template等处理文本的工具
         """
         self.processor = processor
         self.logger = get_logger()
-        self.image_list_key = image_list_key
-        self.video_list_key = video_list_key
-        self.audio_list_key = audio_list_key
         self.system_prompt = system_prompt
 
     def read_media(self, message):
@@ -65,21 +59,25 @@ class Qwen2_5VLIO(object):
     def write_media(self, media_dict):
         raise NotImplementedError("Qwen2_5VLIO does not support write_media operation.")
 
-    def _conversation_to_message(self, conversation_list, input_conversation_key: str = "conversation", output_message_key: str = "message",):
+    def _conversation_to_message(
+            self,
+            conversations: list[list[dict]],
+            image_list: list[list[str]] = None,
+            video_list: list[list[str]] = None,
+            audio_list: list[list[str]] = None
+        ):
         """
         将格式1的数据转换为格式2。
         支持多轮对话和多模态（图片、视频、音频），并验证token数量。
         """
         message_list = []
-        for item1 in conversation_list:
+        for i, conversation in enumerate(conversations):
             # 收集所有模态路径
             all_modal_paths = {
-                "image": item1.get(self.image_list_key, []),
-                "video": item1.get(self.video_list_key, []),
-                "audio": item1.get(self.audio_list_key, [])
+                "image": image_list[i] if image_list else [],
+                "video": video_list[i] if video_list else [],
+                "audio": audio_list[i] if audio_list else []
             }
-            
-            conversation = item1[input_conversation_key]
 
             messages = [
                 {

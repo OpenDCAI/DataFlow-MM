@@ -14,7 +14,7 @@ class VQAGenerator():
         self.model_cache_dir = './dataflow_cache'
 
         self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/data0/models/Qwen2.5-VL-3B-Instruct",
+            hf_model_name_or_path="/mnt/public/model/huggingface/Qwen2.5-VL-7B-Instruct",
             hf_cache_dir=self.model_cache_dir,
             vllm_tensor_parallel_size=1,
             vllm_temperature=0.7,
@@ -42,7 +42,10 @@ class VQAGenerator():
 
         self.prompt_generator.run(
             storage = self.storage.step(),
-            input_conversation_key="messages",
+            input_image_key="image",
+            input_video_key="video",
+            input_audio_key="audio",
+            input_conversation_key="conversation",
             output_answer_key="answer",
         )
 
