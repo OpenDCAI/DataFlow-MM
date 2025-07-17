@@ -14,7 +14,7 @@ class VQAGenerator():
         self.model_cache_dir = './dataflow_cache'
 
         self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/mnt/public/model/huggingface/Qwen2.5-VL-7B-Instruct",
+            hf_model_name_or_path="/data0/public_models/Qwen2.5-7B-Instruct",
             hf_cache_dir=self.model_cache_dir,
             vllm_tensor_parallel_size=1,
             vllm_temperature=0.7,

@@ -299,7 +299,8 @@ class LocalModelVLMServing_sglang(VLMServingABC):
 
         # 2. 根据模型名选 IO 类
         self.model_name = os.path.basename(self.real_model_path)
-        self.IO = IO_REGISTRY.find_best_match_by_model_str(self.model_name)()
+        self.processor = AutoProcessor.from_pretrained(self.real_model_path, cache_dir=hf_cache_dir)
+        self.IO = IO_REGISTRY.find_best_match_by_model_str(self.model_name)(self.processor)
 
         # 3. 导入 sglang 并创建 Engine
         try:
@@ -371,16 +372,34 @@ class LocalModelVLMServing_sglang(VLMServingABC):
             video_list,
             audio_list
         ) 
+        
         print(f"messages: {messages}")
         full_prompts = self.IO.build_full_prompts(messages)
         print(f"full_prompts: {full_prompts}")
         
+        prompt_list = []
+        image_data_list = []
+        video_data_list = []
+        audio_data_list = []
+        # See here for the entrypoint format:
+        # not support for video and audio yet
+        # https://github.com/sgl-project/sglang/blob/42960214994461d93dec2fc3e00383e33c9f0401/python/sglang/srt/entrypoints/engine.py#L138
+        for entry in full_prompts:
+            prompt_list.append(entry['prompt'])
+            image_data_list.append(entry.get('multi_modal_data', {}).get('image', None))
+            video_data_list.append(entry.get('multi_modal_data', {}).get('video', None))
+            audio_data_list.append(entry.get('multi_modal_data', {}).get('audio', None))
 
         # 调用 sglang Engine 生成
-        outputs = self.llm.generate(full_prompts, self.sampling_params)
+        outputs = self.llm.generate(
+            prompt=prompt_list,
+            image_data=image_data_list,
+            # video_data=video_data_list,
+            sampling_params=self.sampling_params
+        )
         
         # 输出取 text 字段
-        return [output.outputs[0].text for output in outputs]
+        return [output['text'] for output in outputs]
 
     def cleanup(self):
         # 结束 engine

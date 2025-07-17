@@ -41,6 +41,9 @@ class Qwen2_5VLIO(object):
 
             # 多模态数据解析
             multimodal_entry = self.read_media(i_message)
+            # from pprint import pprint
+            # pprint(i_message)
+            # pprint(multimodal_entry)
 
             # 生成 prompt
             prompt = self.processor.apply_chat_template(
