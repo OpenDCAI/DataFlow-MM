@@ -154,16 +154,23 @@ class LocalModelVLMServing_vllm(VLMServingABC):
     def generate_from_input_messages(
         self,
         conversations: list[list[dict]],
-        # image_list: list[list[str]] = None,
-        # video_list: list[list[str]] = None,
-        # audio_list: list[list[str]] = None
+        image_list: list[list[str]] = None,
+        video_list: list[list[str]] = None,
+        audio_list: list[list[str]] = None
     ) -> list[str]:
 
-        messages = self.IO._conversation_to_message(conversations) 
+        messages = self.IO._conversation_to_message(
+            conversations,
+            image_list,
+            video_list,
+            audio_list
+        ) 
+        print(f"messages: {messages}")
         full_prompts = self.IO.build_full_prompts(messages)
-
+        print(f"full_prompts: {full_prompts}")
         # 直接调用LLM生成
         outputs = self.llm.generate(full_prompts, self.sampling_params)
+        print(outputs)
         return [output.outputs[0].text for output in outputs]
 
     def cleanup(self):
