@@ -366,10 +366,14 @@ class LocalModelVLMServing_sglang(VLMServingABC):
         self.logger.success(f"Model loaded from {self.real_model_path} by SGLang VLM backend")
     def generate_from_input(self):
         pass
+    
     def generate_from_input_messages(
         self,
-        messages: List[List[Dict[str, Any]]]
-    ) -> List[str]:
+        conversations: list[list[dict]],
+        image_list: list[list[str]] = None,
+        video_list: list[list[str]] = None,
+        audio_list: list[list[str]] = None
+    ) -> list[str]:
         """
         messages: [
             [ {"type":"text","data":"..."},
@@ -378,33 +382,22 @@ class LocalModelVLMServing_sglang(VLMServingABC):
             ...
         ]
         """
-        full_requests = []
-        for idx, msg in enumerate(messages):
-            if not isinstance(msg, list):
-                raise ValueError(f"Message at index {idx} is not a list: {msg}")
-
-            # 1) 读取多模态数据（image/video/audio）
-            multimodal_data = self.IO.read_media(msg)
-            # 2) 构造 prompt 模板，不做 tokenize，后面由 engine 处理
-            prompt = self.processor.apply_chat_template(
-                msg,
-                tokenize=False,
-                add_generation_prompt=True
-            )
-            full_requests.append({
-                "prompt": prompt,
-                "multi_modal_data": multimodal_data
-            })
+        messages = self.IO._conversation_to_message(
+            conversations,
+            image_list,
+            video_list,
+            audio_list
+        ) 
+        print(f"messages: {messages}")
+        full_prompts = self.IO.build_full_prompts(messages)
+        print(f"full_prompts: {full_prompts}")
+        
 
         # 调用 sglang Engine 生成
-        try:
-            outputs = self.llm.generate(full_requests, self.sampling_params)
-        except Exception as e:
-            self.logger.error(f"SGLang VLM generate error: {e}")
-            raise
-
+        outputs = self.llm.generate(full_prompts, self.sampling_params)
+        
         # 输出取 text 字段
-        return [out["text"] for out in outputs]
+        return [output.outputs[0].text for output in outputs]
 
     def cleanup(self):
         # 结束 engine
