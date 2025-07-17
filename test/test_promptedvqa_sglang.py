@@ -1,6 +1,6 @@
 from dataflow.operators.generate import PromptedVQA
 from dataflow.operators.conversations import Conversation2Message
-from dataflow.serving import LocalModelVLMServing_vllm
+from dataflow.serving import LocalModelVLMServing_sglang
 from dataflow.utils.storage import FileStorage
 
 class VQAGenerator():
@@ -13,14 +13,11 @@ class VQAGenerator():
         )
         self.model_cache_dir = './dataflow_cache'
 
-        self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/data0/public_models/Qwen2.5-7B-Instruct",
+        self.vlm_serving = LocalModelVLMServing_sglang(
+            hf_model_name_or_path="/data0/public_models/Qwen2.5-VL-7B-Instruct",
             hf_cache_dir=self.model_cache_dir,
-            vllm_tensor_parallel_size=1,
-            vllm_temperature=0.7,
-            vllm_top_p=0.9,
-            vllm_max_tokens=512,
-            vllm_gpu_memory_utilization=0.9
+            sgl_dp_size=2,  # data parallel size
+            sgl_tp_size=4,  # tensor parallel size
         )
         # self.format_converter = Conversation2Message(
         #     image_list_key="image",
@@ -52,4 +49,4 @@ class VQAGenerator():
 if __name__ == "__main__":
     # This is the entry point for the pipeline
     model = VQAGenerator()
-    model.forward()
+    model.forward()  
