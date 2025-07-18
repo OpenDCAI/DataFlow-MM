@@ -1,11 +1,10 @@
-
 [
     {
         "image": ["./static/images/Face.jpg"],
         "conversation": [
             {
                 "from": "human",
-                "value": "<image>\nPlease provide a detailed and comprehensive description of the image."
+                "value": "<image>\nCan you analyze the features and elements present in this image?"
             }
         ]
     },
@@ -14,7 +13,61 @@
         "conversation": [
             {
                 "from": "human",
-                "value": "<image>\nPlease provide a detailed and comprehensive description of the image."
+                "value": "<image>\nWhat are the key characteristics of this image?"
+            }
+        ]
+    },
+    {
+        "image": ["./static/images/Face.jpg"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<image>\nDescribe the scene depicted in this image in detail."
+            }
+        ]
+    },
+    {
+        "image": ["./dataflow/example/vqa/ggbond.png"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<image>\nCould you provide an overview of what's happening in this image?"
+            }
+        ]
+    },
+    {
+        "image": ["./static/images/Face.jpg"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<image>\nWhat details can you observe in this image?"
+            }
+        ]
+    },
+    {
+        "image": ["./dataflow/example/vqa/ggbond.png"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<image>\nPlease summarize the visual content of this image."
+            }
+        ]
+    },
+    {
+        "image": ["./static/images/Face.jpg"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<image>\nWhat are the notable features you see in this image?"
+            }
+        ]
+    },
+    {
+        "image": ["./dataflow/example/vqa/ggbond.png"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<image>\nProvide a detailed breakdown of the elements in this image."
             }
         ]
     }

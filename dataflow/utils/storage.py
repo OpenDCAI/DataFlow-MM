@@ -21,7 +21,15 @@ class DataFlowStorage(ABC):
     @abstractmethod
     def write(self, data: Any) -> Any:
         pass
-
+    
+class DummyStorage(DataFlowStorage):
+    def __init__(self,):
+        self._data = None
+    def read(self, output_type: Literal["dataframe", "dict"] = "dataframe") -> Any:
+        return self._data
+    def write(self, data):
+        self._data = data
+        
 class FileStorage(DataFlowStorage):
     """
     Storage for file system.
@@ -80,7 +88,7 @@ class FileStorage(DataFlowStorage):
             return dataframe.to_dict(orient="records")
         raise ValueError(f"Unsupported output type: {output_type}")
 
-    def read(self, output_type: Literal["dataframe", "dict"]) -> Any:
+    def read(self, output_type: Literal["dataframe", "dict"]="dataframe") -> Any:
         """
         Read data from current file managed by storage.
         
