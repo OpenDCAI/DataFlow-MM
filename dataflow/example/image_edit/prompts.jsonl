@@ -1,0 +1,3 @@
+{"conversations": [{"content": "turn this image into cybor style", "role": "user"}], "images": ["./dataflow/example/image_edit/image.png"], "edited_images": [""]}
+{"conversations": [{"content": "Change the vase to red.", "role": "user"}], "images": ["./dataflow/example/image_edit/image.png"], "edited_images": [""]}
+{"conversations": [{"content": "Turn this cow into a dog.", "role": "user"}], "images": ["./dataflow/example/image_edit/image.png"], "edited_images": [""]}
