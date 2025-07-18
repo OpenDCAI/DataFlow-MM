@@ -19,7 +19,7 @@ if __name__ == "__main__":
     op = PromptedVQA(vlm_serving=vlm_serving)
 
     # 这里 batch_op.run(...) 在 PyCharm / Pylance 就能自动补全 PromptedVQA.run 的签名了
-    batched_op = BatchWrapper(op, batch_size=3)
+    batched_op = BatchWrapper(op, batch_size=3, batch_cache=True)
     
     batched_op.run(
         # storage.step(),
