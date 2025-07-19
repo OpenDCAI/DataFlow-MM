@@ -100,8 +100,20 @@ class LocalModelLLMServing_vllm(LLMServingABC):
                             user_inputs: list[str], 
                             system_prompt: str = "You are a helpful assistant"
                             ) -> list[str]:
-        full_prompts = [system_prompt + '\n' + question for question in user_inputs]
-        responses = self.llm.generate(full_prompts, self.sampling_params)
+        full_prompts = []
+        for question in user_inputs:
+            messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question}
+        ]
+            full_prompts.append(messages)
+        full_template = self.tokenizer.apply_chat_template(
+            full_prompts,
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=True,  # Set to False to strictly disable thinking
+        )
+        responses = self.llm.generate(full_template, self.sampling_params)
         return [output.outputs[0].text for output in responses]
 
     def generate_embedding_from_input(self, texts: list[str]) -> list[list[float]]:
@@ -274,9 +286,21 @@ class LocalModelLLMServing_sglang(LLMServingABC):
                             user_inputs: list[str], 
                             system_prompt: str = "You are a helpful assistant"
                             ) -> list[str]:
-        full_prompts = [system_prompt + '\n' + question for question in user_inputs]
+        full_prompts = []
+        for question in user_inputs:
+            messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question}
+        ]
+            full_prompts.append(messages)
+        full_template = self.tokenizer.apply_chat_template(
+            full_prompts,
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=True,  # Set to False to strictly disable thinking
+        )
         try: 
-            responses = self.llm.generate(full_prompts, self.sampling_params)
+            responses = self.llm.generate(full_template, self.sampling_params)
         except Exception as e:
             self.logger.error(f"Error during Sglang Backend generation, please check your parameters.: {e}")
             raise e
