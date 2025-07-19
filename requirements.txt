@@ -6,6 +6,7 @@ tqdm
 accelerate
 colorlog
 pandas
+diffusers==0.33.1
 transformers
 
 # IO class
