@@ -12,6 +12,7 @@ from typing import Optional, Union, List, Dict, Any
 class LocalImageGenServing(VLMServingABC):
     def __init__(
         self,
+        image_io,
         hf_model_name_or_path: str = None,
         hf_cache_dir: str = None,
         hf_local_dir: str = "./ckpt/models/",
@@ -24,6 +25,7 @@ class LocalImageGenServing(VLMServingABC):
         diffuser_guidance_scale: float = 2.5,       # for FLUX-kontext set to 3.5
         diffuser_num_images_per_prompt: int = 1,
     ):
+        self.image_io = image_io
         self.hf_model_name_or_path = hf_model_name_or_path
         self.hf_cache_dir = hf_cache_dir
         self.hf_local_dir = hf_local_dir
@@ -66,6 +68,7 @@ class LocalImageGenServing(VLMServingABC):
                 start = idx * self.diffuser_num_images_per_prompt
                 end = start + self.diffuser_num_images_per_prompt
                 grouped[prompt] = all_images[start:end]
+            return self.image_io(grouped)
         
         elif self.image_gen_task == "imageedit":
             # now image editing only support single image editing, maybe need some changes
@@ -83,6 +86,7 @@ class LocalImageGenServing(VLMServingABC):
 
             grouped: dict[str, list] = {}
             grouped[input_prompt] = all_images
+            return self.image_io(grouped)
 
         return grouped
 

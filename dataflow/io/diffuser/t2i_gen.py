@@ -2,17 +2,17 @@
 import re
 import os
 from PIL import Image
-from typing import Any, Literal
+from typing import Any, Literal, Dict, List
 from dataflow.utils.registry import IO_REGISTRY
-from dataflow.utils.storage import FileStorage
 from dataflow.logger import get_logger
 
 @IO_REGISTRY.register()
 class ImageIO(object):
-    def __init__(self):
+    def __init__(self, save_path: str):
         self.logger = get_logger()
+        self.save_path = save_path
 
-    def read(self, image_paths: list[str]) -> list[Image.Image]:
+    def read(self, image_paths: List[str]) -> List[Image.Image]:
         images = []
         for path in image_paths:
             try:
@@ -23,21 +23,30 @@ class ImageIO(object):
                 images.append(None)
         return images
 
-    def write(self,
-              storage: FileStorage,
-              image_data: list[Image.Image],
-              orig_paths: list[str],
-              save_cache=False) -> Any:
-        if len(image_data) != len(orig_paths):
-            raise ValueError("image_data and orig_paths must have the same length.")
-        media_cache_folder = os.path.join(storage.cache_path, "images")
+    def write(self, image_data: Dict[str, List[Image.Image]]) -> Dict[str, List[str]]:
+        result: Dict[str, List[str]] = {}
+        # Ensure base save directory exists
+        os.makedirs(self.save_path, exist_ok=True)
 
-        saved_paths = []
-        for img, orig_path in zip(image_data, orig_paths):
-            new_path = os.path.join(media_cache_folder, orig_path.split(':')[-1].strip("/"))
-            os.makedirs(os.path.dirname(new_path), exist_ok=True)
-            img.save(new_path)
-            if save_cache: saved_paths.append(new_path)
-            else: saved_paths.append(orig_path)
+        for prompt, imgs in image_data.items():
+            # Sanitize prompt for filesystem
+            prompt_safe = re.sub(r"[^0-9a-zA-Z]+", "_", prompt).strip("_")
+            prompt_dir = os.path.join(self.save_path, prompt_safe)
+            os.makedirs(prompt_dir, exist_ok=True)
 
-        return saved_paths
+            saved_paths: List[str] = []
+            for idx, img in enumerate(imgs):
+                # Generate filename and save
+                filename = f"{prompt_safe}_{idx}.png"
+                file_path = os.path.join(prompt_dir, filename)
+                try:
+                    img.save(file_path)
+                except Exception as e:
+                    self.logger.error(f"Failed to save image for prompt '{prompt}' at {file_path}: {e}")
+                    continue
+                saved_paths.append(file_path)
+            result[prompt] = saved_paths
+        return result
+    
+    def __call__(self, image_data: Dict[str, List[Image.Image]]):
+        return self.write(image_data=image_data)
