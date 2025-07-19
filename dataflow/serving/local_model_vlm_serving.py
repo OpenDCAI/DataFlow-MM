@@ -191,6 +191,7 @@ class LocalModelVLMServing_sglang(VLMServingABC):
         # sglang 分布式参数
         sgl_tp_size: int = 1,         # tensor parallel size
         sgl_dp_size: int = 1,         # data parallel size
+        sgl_mem_fraction_static: float = 0.9,
         # 生成控制参数
         sgl_max_new_tokens: int = 1024,
         sgl_stop: Optional[Union[str, List[str]]] = None,
@@ -223,6 +224,7 @@ class LocalModelVLMServing_sglang(VLMServingABC):
             hf_local_dir=hf_local_dir,
             sgl_tp_size=sgl_tp_size,
             sgl_dp_size=sgl_dp_size,
+            sgl_mem_fraction_static=sgl_mem_fraction_static,
             sgl_max_new_tokens=sgl_max_new_tokens,
             sgl_stop=sgl_stop,
             sgl_stop_token_ids=sgl_stop_token_ids,
@@ -256,6 +258,7 @@ class LocalModelVLMServing_sglang(VLMServingABC):
         hf_local_dir: str,
         sgl_tp_size: int,
         sgl_dp_size: int,
+        sgl_mem_fraction_static:float,
         sgl_max_new_tokens: int,
         sgl_stop: Optional[Union[str, List[str]]] = None,
         sgl_stop_token_ids: Optional[List[int]] = None,
@@ -311,7 +314,8 @@ class LocalModelVLMServing_sglang(VLMServingABC):
         self.llm = sgl.Engine(
             model_path=self.real_model_path,
             tp_size=sgl_tp_size,
-            dp_size=sgl_dp_size
+            dp_size=sgl_dp_size,
+            mem_fraction_static=sgl_mem_fraction_static,
         )
 
         # 4. 读取 processor（图像预处理 & prompt 模板）

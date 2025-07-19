@@ -86,6 +86,9 @@ class FileStorage(DataFlowStorage):
         self.logger = get_logger()
 
     def _get_cache_file_path(self, step) -> str:
+        if step == -1:
+            self.logger.error("You must call storage.step() before reading or writing data. Please call storage.step() first for each operator step.")  
+            raise ValueError("You must call storage.step() before reading or writing data. Please call storage.step() first for each operator step.")
         if step == 0:
             # If it's the first step, use the first entry file name
             return os.path.join(self.first_entry_file_name)
