@@ -18,8 +18,7 @@ class ImageGenerationPipeline():
             image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
             hf_model_name_or_path="/ytech_m2v5_hdd/CheckPoints/FLUX.1-dev",   # "black-forest-labs/FLUX.1-dev"
             hf_cache_dir="./cache_local",
-            hf_local_dir="./ckpt/models/",
-            device="cuda"
+            hf_local_dir="./ckpt/models/"
         )
 
         self.text_to_image_generator = Text2ImageGenerator(

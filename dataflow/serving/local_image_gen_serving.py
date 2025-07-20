@@ -7,29 +7,27 @@ from .utils.diffusers.flux_kontext_pipeline import FluxKontextPipeline
 from dataflow import get_logger
 from diffusers import FluxPipeline
 from typing import Optional, Union, List, Dict, Any
-
+from concurrent.futures import ThreadPoolExecutor
 
 class LocalImageGenServing(VLMServingABC):
     def __init__(
         self,
         image_io,
-        hf_model_name_or_path: str = None,
+        hf_model_name_or_path: Union[str, List[str]] = None,
         hf_cache_dir: str = None,
         hf_local_dir: str = "./ckpt/models/",
-        device: str = "cuda",                # here need to be change into API
         Image_gen_task: str = "text2image",  # text2image, imageedit
         diffuser_model_name: str = "FLUX",
         diffuser_image_height: int = 1024,
         diffuser_image_width: int = 1024,
-        diffuser_num_inference_steps: int = 50,     # for FLUX-kontext set to 28
-        diffuser_guidance_scale: float = 2.5,       # for FLUX-kontext set to 3.5
+        diffuser_num_inference_steps: int = 50,   # for FLUX-Kontext set to 28
+        diffuser_guidance_scale: float = 2.5,     # for FLUX-Kontext set to 3.5
         diffuser_num_images_per_prompt: int = 1,
     ):
         self.image_io = image_io
         self.hf_model_name_or_path = hf_model_name_or_path
         self.hf_cache_dir = hf_cache_dir
         self.hf_local_dir = hf_local_dir
-        self.device = device
         self.image_gen_task = Image_gen_task
         self.diffuser_model_name = diffuser_model_name
         self.diffuser_image_height = diffuser_image_height
@@ -38,94 +36,145 @@ class LocalImageGenServing(VLMServingABC):
         self.diffuser_guidance_scale = diffuser_guidance_scale
         self.diffuser_num_images_per_prompt = diffuser_num_images_per_prompt
 
-        # Load the model into the pipeline
-        self.load()
+        # Detect available GPUs
+        self.num_gpus = torch.cuda.device_count()
+        self.logger = get_logger()
 
-    def generate(self):
-        """
-        Generate without explicit prompts.
-        You can override this method to provide default behavior.
-        """
-        raise NotImplementedError("Please implement the default generate() method.")
+        self.load_model()
 
-    def generate_from_input(
-        self,
-        user_inputs: list[str],
-    ):
+    def load_model(self):
+        """
+        Load one or multiple diffusion pipelines and assign each to a separate GPU.
+        """
+        # Prepare model paths list
+        if isinstance(self.hf_model_name_or_path, list):
+            model_ids = self.hf_model_name_or_path
+        else:
+            # replicate single model across GPUs if multiple gpus, else single
+            model_ids = [self.hf_model_name_or_path] * max(1, self.num_gpus)
+
+        self.pipes: List[Any] = []
+        self.devices: List[torch.device] = []
+
+        for idx, model_id in enumerate(model_ids):
+            # determine device
+            if self.num_gpus > 0:
+                device = torch.device(f"cuda:{idx % self.num_gpus}")
+            else:
+                device = torch.device("cpu")
+            self.devices.append(device)
+
+            # obtain local or remote path
+            if not model_id:
+                raise ValueError("model_name_or_path is required")
+            if os.path.exists(model_id):
+                real_model_path = model_id
+                self.logger.info(f"Using local model path: {model_id}")
+            else:
+                self.logger.info(f"Downloading model from HuggingFace: {model_id}")
+                real_model_path = snapshot_download(
+                    repo_id=model_id,
+                    cache_dir=self.hf_cache_dir,
+                    local_dir=self.hf_local_dir,
+                )
+
+            # load pipeline depending on model type
+            if self.diffuser_model_name == "FLUX":
+                pipe = FluxPipeline.from_pretrained(
+                    real_model_path,
+                    torch_dtype=torch.float16,
+                ).to(device)
+            elif self.diffuser_model_name == "FLUX-Kontext":
+                pipe = FluxKontextPipeline.from_pretrained(
+                    real_model_path,
+                    torch_dtype=torch.bfloat16,
+                ).to(device)
+            else:
+                raise ValueError(f"Unknown diffuser model: {self.diffuser_model_name}")
+
+            # enable attention slicing for memory efficiency
+            if hasattr(pipe, "enable_attention_slicing"):
+                pipe.enable_attention_slicing()
+
+            self.pipes.append(pipe)
+            self.logger.success(f"✅ Loaded {self.diffuser_model_name} on {device} from {model_id}")
+
+    def _generate_on_pipe(self, pipe: Any, prompts: List[Any]) -> Dict[str, List[Image.Image]]:
+        """
+        Helper to generate images for a batch of prompts on a single pipeline.
+        """
         if self.image_gen_task == "text2image":
-            output = self.pipe(
-                prompt=user_inputs,
+            output = pipe(
+                prompt=prompts,
                 height=self.diffuser_image_height,
                 width=self.diffuser_image_width,
                 num_inference_steps=self.diffuser_num_inference_steps,
                 guidance_scale=self.diffuser_guidance_scale,
                 num_images_per_prompt=self.diffuser_num_images_per_prompt,
             )
-            all_images = output.images
+        elif self.image_gen_task == "imageedit":
+            # prompts expected as list of tuples (image, prompt)
+            images, texts = zip(*prompts)
+            output = pipe(
+                image=list(images),
+                prompt=list(texts),
+                height=self.diffuser_image_height,
+                width=self.diffuser_image_width,
+                num_inference_steps=self.diffuser_num_inference_steps,
+                guidance_scale=self.diffuser_guidance_scale,
+                num_images_per_prompt=self.diffuser_num_images_per_prompt,
+            )
+        else:
+            raise ValueError(f"Unknown task: {self.image_gen_task}")
 
-            grouped: dict[str, list] = {}
-            for idx, prompt in enumerate(user_inputs):
+        all_images = output.images
+        grouped: Dict[str, List[Image.Image]] = {}
+        if self.image_gen_task == "text2image":
+            for idx, prompt in enumerate(prompts):
                 start = idx * self.diffuser_num_images_per_prompt
                 end = start + self.diffuser_num_images_per_prompt
                 grouped[prompt] = all_images[start:end]
-            return self.image_io(grouped)
-        
-        elif self.image_gen_task == "imageedit":
-            # now image editing only support single image editing, maybe need some changes
-            input_img, input_prompt = user_inputs[0]
-            output = self.pipe(
-                image=input_img,
-                prompt=input_prompt, 
-                height=self.diffuser_image_height,
-                width=self.diffuser_image_width,
-                num_inference_steps=self.diffuser_num_inference_steps,
-                guidance_scale=self.diffuser_guidance_scale,
-                num_images_per_prompt=self.diffuser_num_images_per_prompt,
-            )
-            all_images = output.images
-
-            grouped: dict[str, list] = {}
-            grouped[input_prompt] = all_images
-            return self.image_io(grouped)
-
+        else:
+            for idx, (_, text) in enumerate(prompts):
+                start = idx * self.diffuser_num_images_per_prompt
+                end = start + self.diffuser_num_images_per_prompt
+                grouped[text] = all_images[start:end]
         return grouped
 
-    def load(self):
-        self.logger = get_logger()
-        if not self.hf_model_name_or_path:
-            raise ValueError("model_name_or_path is required")
-        elif os.path.exists(self.hf_model_name_or_path):
-            self.logger.info(f"Using local model path: {self.hf_model_name_or_path}")
-            self.real_model_path = self.hf_model_name_or_path
+    def generate_from_input(self, user_inputs: List[Any]) -> Any:
+        """
+        Distribute inputs across pipelines and run in parallel, then save via image_io.
+        """
+        n_pipes = len(self.pipes)
+        if n_pipes <= 1:
+            results = self._generate_on_pipe(self.pipes[0], user_inputs)
         else:
-            self.logger.info(f"Downloading model from HuggingFace: {self.hf_model_name_or_path}")
-            self.real_model_path = snapshot_download(
-                repo_id=self.hf_model_name_or_path,
-                cache_dir=self.hf_cache_dir,
-                local_dir=self.hf_local_dir,
-            )
+            # chunk inputs
+            chunks = [[] for _ in range(n_pipes)]
+            for i, inp in enumerate(user_inputs):
+                chunks[i % n_pipes].append(inp)
 
-        # Load the pipeline with dtype and device, trusting remote code if allowed  ### HERE may need to change into a model map inference
-        if self.diffuser_model_name == "FLUX":
-            self.pipe = FluxPipeline.from_pretrained(
-                self.real_model_path,
-                torch_dtype=torch.float16,
-            ).to(self.device)
-        
-        if self.diffuser_model_name == "FLUX-Kontext":
-            self.pipe = FluxKontextPipeline.from_pretrained(
-                self.real_model_path,
-                torch_dtype=torch.bfloat16
-            ).to(self.device)
+            results = {}
+            with ThreadPoolExecutor(max_workers=n_pipes) as executor:
+                futures = []
+                for pipe, chunk in zip(self.pipes, chunks):
+                    if not chunk:
+                        continue
+                    futures.append(executor.submit(self._generate_on_pipe, pipe, chunk))
+                for fut in futures:
+                    batch_res = fut.result()
+                    results.update(batch_res)
 
-        # Enable attention slicing if GPU memory is limited
-        if hasattr(self.pipe, "enable_attention_slicing"):
-            self.pipe.enable_attention_slicing()
-
-        self.logger.success(f"✅ Model {self.diffuser_model_name} loaded on {self.device} from {self.real_model_path}")
+        # save all images
+        return self.image_io(results)
 
     def cleanup(self):
-        del self.pipe
-        import gc;
+        """
+        Clear pipelines and free GPU memory.
+        """
+        for pipe in getattr(self, 'pipes', []):
+            del pipe
+        import gc
         gc.collect()
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
