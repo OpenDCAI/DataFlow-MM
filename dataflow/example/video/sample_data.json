@@ -1,0 +1,20 @@
+[
+    {
+        "image": ["./dataflow/example/video/demo1.mp4"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<video>\nPlease describe the video in detail."
+            }
+        ]
+    },
+    {
+        "image": ["./dataflow/example/video/demo2.mp4"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<video>\nPlease describe the video in detail."
+            }
+        ]
+    }
+]
