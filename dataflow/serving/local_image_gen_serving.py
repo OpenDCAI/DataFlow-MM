@@ -115,8 +115,9 @@ class LocalImageGenServing(VLMServingABC):
         elif self.image_gen_task == "imageedit":
             # prompts expected as list of tuples (image, prompt)
             images, texts = zip(*prompts)
+            images = self.image_io.read(list(images))
             output = pipe(
-                image=list(images),
+                image=images,
                 prompt=list(texts),
                 height=self.diffuser_image_height,
                 width=self.diffuser_image_width,
