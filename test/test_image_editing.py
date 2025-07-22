@@ -20,6 +20,7 @@ class ImageGenerationPipeline():
             hf_cache_dir="./cache_local",
             hf_local_dir="./ckpt/models/",
             Image_gen_task="imageedit",
+            batch_size=4,
             diffuser_model_name="FLUX-Kontext",
             diffuser_num_inference_steps=28,
             diffuser_guidance_scale=3.5,

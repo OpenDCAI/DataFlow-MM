@@ -13,11 +13,9 @@ class Text2ImageGenerator(OperatorABC):
     def __init__(
         self,
         t2i_serving: VLMServingABC,
-        batch_size: int = 4,
         save_interval: int = 50,
     ):
         self.t2i_serving = t2i_serving
-        self.batch_size = batch_size
         self.save_interval = save_interval
 
     @staticmethod
@@ -48,24 +46,30 @@ class Text2ImageGenerator(OperatorABC):
 
         processed = 0
         total = len(df)
-        # Process prompts in batches
-        for start in range(0, total, self.batch_size):
-            batch_indices = list(range(start, min(start + self.batch_size, total)))
-            batch_prompts = [
-                df.at[idx, input_conversation_key][-1]["content"]
-                for idx in batch_indices
-            ]
+        ########## batch processing move to the serving ##########
+        # for start in range(0, total, self.batch_size):
+        #     batch_indices = list(range(start, min(start + self.batch_size, total)))
+        #     batch_prompts = [
+        #         df.at[idx, input_conversation_key][-1]["content"]
+        #         for idx in batch_indices
+        #     ]
 
-            # Generate images for the batch
-            generated = self.t2i_serving.generate_from_input(batch_prompts)
+        #     # Generate images for the batch
+        #     generated = self.t2i_serving.generate_from_input(batch_prompts)
 
-            # Assign generated images back to DataFrame and periodically save
-            for idx, prompt in zip(batch_indices, batch_prompts):
-                df.at[idx, output_image_key] = generated.get(prompt, [])
-                processed += 1
-                if processed % self.save_interval == 0:
-                    storage.media_key = output_image_key
-                    storage.write(df)
+        #     # Assign generated images back to DataFrame and periodically save
+        #     for idx, prompt in zip(batch_indices, batch_prompts):
+        #         df.at[idx, output_image_key] = generated.get(prompt, [])
+        #         processed += 1
+        #         if processed % self.save_interval == 0:
+        #             storage.media_key = output_image_key
+        #             storage.write(df)
+        batch_prompts = [
+            df.at[idx, input_conversation_key][-1]["content"] for idx in range(total)
+        ]
+        generated = self.t2i_serving.generate_from_input(batch_prompts)
+        for idx, prompt in zip(list(range(total)), batch_prompts):
+            df.at[idx, output_image_key] = generated.get(prompt, [])
 
         # Final flush of any remaining prompts
         storage.media_key = output_image_key

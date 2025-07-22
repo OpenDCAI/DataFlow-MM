@@ -16,6 +16,7 @@ class ImageGenerationPipeline():
 
         self.serving = LocalImageGenServing(
             image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
+            batch_size=4,
             hf_model_name_or_path="/ytech_m2v5_hdd/CheckPoints/FLUX.1-dev",   # "black-forest-labs/FLUX.1-dev"
             hf_cache_dir="./cache_local",
             hf_local_dir="./ckpt/models/"

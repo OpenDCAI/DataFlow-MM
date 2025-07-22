@@ -17,6 +17,7 @@ class LocalImageGenServing(VLMServingABC):
         hf_cache_dir: str = None,
         hf_local_dir: str = "./ckpt/models/",
         Image_gen_task: str = "text2image",  # text2image, imageedit
+        batch_size: int = 4,
         diffuser_model_name: str = "FLUX",
         diffuser_image_height: int = 1024,
         diffuser_image_width: int = 1024,
@@ -29,6 +30,7 @@ class LocalImageGenServing(VLMServingABC):
         self.hf_cache_dir = hf_cache_dir
         self.hf_local_dir = hf_local_dir
         self.image_gen_task = Image_gen_task
+        self.batch_size = batch_size
         self.diffuser_model_name = diffuser_model_name
         self.diffuser_image_height = diffuser_image_height
         self.diffuser_image_width = diffuser_image_width
@@ -141,8 +143,21 @@ class LocalImageGenServing(VLMServingABC):
                 end = start + self.diffuser_num_images_per_prompt
                 grouped[text] = all_images[start:end]
         return grouped
+    
+    def generate_from_input(self, user_inputs: List[Any]):
+        """
+        Divide the user inputs into multiple batches and input to the pipelines.
+        """
+        total = len(user_inputs)
+        out_dict = {}
+        for start in range(0, total, self.batch_size):
+            batch_inputs = user_inputs[start:min(start + self.batch_size, total)]
+            if not batch_inputs:
+                continue
+            out_dict.update(self.generate_from_input_one_batch(batch_inputs))
+        return out_dict
 
-    def generate_from_input(self, user_inputs: List[Any]) -> Any:
+    def generate_from_input_one_batch(self, user_inputs: List[Any]) -> Any:
         """
         Distribute inputs across pipelines and run in parallel, then save via image_io.
         """
