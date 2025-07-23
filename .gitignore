@@ -26,5 +26,5 @@ test/test_cli
 dist
 build
 
-
+.DS_store
 
