@@ -65,15 +65,22 @@ class Registry():
             name (str): the name of this registry
         """
         self._name = name
+        self.logger = get_logger()
         self._obj_map = {}
         if len(sub_modules) > 0:
             self.loader_map = dict(zip(sub_modules, [None] * len(sub_modules)))
+        else:
+            self.root_loader = None
         
     def _init_loaders(self):
-        for module_name in self.loader_map.keys():
-            module_path = f"dataflow.{self._name}.{module_name}"
-            self.loader_map[module_name] = importlib.import_module(module_path)
-
+        if hasattr(self, "loader_map"):
+            for module_name in self.loader_map.keys():
+                module_path = f"dataflow.{self._name}.{module_name}"
+                self.loader_map[module_name] = importlib.import_module(module_path)
+        else:
+            self.root_loader = importlib.import_module(f"dataflow.{self._name}")
+            self.logger.debug(f"Loaded root module: {self.root_loader}")
+            
     def _do_register(self, name, obj):
         if name not in self._obj_map:
             self._obj_map[name] = obj
@@ -101,22 +108,35 @@ class Registry():
         ret = self._obj_map.get(name)
         logger = get_logger()
         if ret is None:
-            if None in self.loader_map.values():
-                self._init_loaders()
-            for module_lib in self.loader_map.values():
-                # module_path = "dataflow.operators." + x
+            if hasattr(self, "loader_map"):
+                if None in self.loader_map.values():
+                    self._init_loaders()
+                for module_lib in self.loader_map.values():
+                    # module_path = "dataflow.operators." + x
+                    try:
+                        # module_lib = importlib.import_module(module_path)
+                        clss = getattr(module_lib, name)
+                        self._obj_map[name] = clss
+                        return clss
+                    except AttributeError as e:
+                        logger.debug(f"{str(e)}")
+                        continue
+                    except Exception as e:
+                        raise e
+                logger.error(f"No object named '{name}' found in '{self._name}' registry!")
+                raise KeyError(f"No object named '{name}' found in '{self._name}' registry!")
+            else:
+                if self.root_loader is None:
+                    self._init_loaders()
+                    logger.debug(f"init loaders")
                 try:
-                    # module_lib = importlib.import_module(module_path)
-                    clss = getattr(module_lib, name)
+                    clss = getattr(self.root_loader, name)
                     self._obj_map[name] = clss
                     return clss
                 except AttributeError as e:
                     logger.debug(f"{str(e)}")
-                    continue
                 except Exception as e:
                     raise e
-            logger.error(f"No object named '{name}' found in '{self._name}' registry!")
-            raise KeyError(f"No object named '{name}' found in '{self._name}' registry!")
 
         if ret is None:
             logger.error(f"No object named '{name}' found in '{self._name}' registry!")
@@ -148,10 +168,13 @@ class Registry():
         return capture.get()
 
     def _get_all(self):
-        if None in self.loader_map.values():
-            self._init_loaders()
-        for loader in self.loader_map.values():
-            loader._import_all()
+        if hasattr(self, "loader_map"):
+            if None in self.loader_map.values():
+                self._init_loaders()
+            for loader in self.loader_map.values():
+                loader._import_all()
+        else:
+            self.root_loader._import_all()
 
     def get_obj_map(self):
         """
@@ -195,34 +218,10 @@ class Registry():
             'conversations': conversations_operators,
             'db': db_operators
         }
-    def find_best_match_by_model_str(self, model_name: str):
-        """
-        Given a model name (e.g., 'Qwen2.5-vl-7B'), find the registered object whose `.model_str`
-        most closely matches the input.
-        """
-        best_score = -1
-        best_obj = None
-
-        for obj in self._obj_map.values():
-            print(obj)
-            model_str = getattr(obj, "model_str", None)
-            print(model_str)
-            if model_str is None:
-                continue
-            # Lowercase and alphanumeric normalize both sides
-            norm_input = re.sub(r"[^a-zA-Z0-9]", "", model_name.lower())
-            norm_model = re.sub(r"[^a-zA-Z0-9]", "", model_str.lower())
-
-            score = SequenceMatcher(None, norm_input, norm_model).ratio()
-            print(score)
-            if score > best_score:
-                best_score = score
-                best_obj = obj
-
-        return best_obj
+    
 
 OPERATOR_REGISTRY = Registry(name='operators', sub_modules=['eval', 'filter', 'generate', 'refine', 'conversations'])
-IO_REGISTRY = Registry(name='io', sub_modules=['qwen_vl2_5', 'qwen_vl2_5_io'])
+IO_REGISTRY = Registry(name='io')
 class LazyLoader(types.ModuleType):
 
     def __init__(self, name, path, import_structure):
@@ -237,6 +236,7 @@ class LazyLoader(types.ModuleType):
         self._loaded_classes = {}
         self._base_folder = Path(__file__).resolve().parents[2]
         self.__path__ = [path]
+        self.__file__ = str(Path(path) / "__init__.py")
         self.__all__ = list(import_structure.keys())
         
     def _import_all(self):
@@ -297,6 +297,24 @@ class LazyLoader(types.ModuleType):
             raise AttributeError(f"Class {class_name} not found in {abs_file_path}")
         return getattr(module, class_name)
 
+    def _normalize(self, module_name):
+        """
+        去掉_ . -等特殊字符，并转换为小写
+        """
+        return re.sub(r'[^a-zA-Z0-9]', '', module_name).lower()
+        
+    def _longest_common_prefix_len(self, a: str, b: str) -> int:
+        """计算两个字符串的最长公共前缀长度"""
+        i = 0
+        for x, y in zip(a, b):
+            if x != y:
+                break
+            i += 1
+        return i
+    
+    def _similarity(self, a, b):
+        return SequenceMatcher(None, a, b).ratio()
+        
     def __getattr__(self, item):
         """
         动态加载类。
@@ -316,6 +334,44 @@ class LazyLoader(types.ModuleType):
             cls = self._load_class_from_file(file_path, class_name)
             logger.debug(f"Lazyloader {self.__path__} got and cached class {cls}")
             self._loaded_classes[item] = cls
+            return cls
+        else:
+            # 如果没有在Import Structure里面，进行字符串匹配
+            logger.info(f"No matched class in LazyLoader {self.__path__} for {item}, start string matching!!!")
+            normalized_cls_name = self._normalize(item)
+            
+            best_matches = []
+            max_prefix_len = 0
+            for _cls_name in self._import_structure.keys():
+                _normalized_cls_name = self._normalize(_cls_name)
+                lcp_len = self._longest_common_prefix_len(normalized_cls_name, _normalized_cls_name)
+                if lcp_len > max_prefix_len:
+                    max_prefix_len = lcp_len
+                    best_matches = [_cls_name]
+                elif lcp_len == max_prefix_len:
+                    best_matches.append(_cls_name)
+            if len(best_matches) == 0 or max_prefix_len <= 3 :
+                logger.error(f"No best prefix match for {item} in LazyLoader {self.__path__}, Please provide a more accurate class name.")
+                raise AttributeError(f"No best prefix match for {item} in LazyLoader {self.__path__}, Please provide a more accurate class name.")
+            if len(best_matches) > 1:
+                logger.info(f"Multiple best prefix matches for {item} in LazyLoader {self.__path__}: {best_matches}. Now run sim ratio matching...")
+                # raise AttributeError(f"Multiple best prefix matches for {item} in LazyLoader {self.__path__}: {best_matches}. Please provide a more accurate class name.")
+                max_sim_ratio = 0
+                max_sim_ratio_cls = None
+                for bm_name in best_matches:
+                    normalized_bm_name = self._normalize(bm_name)
+                    sim_ratio = self._similarity(normalized_bm_name, item)
+                    if sim_ratio > max_sim_ratio:
+                        max_sim_ratio = sim_ratio
+                        max_sim_ratio_cls = bm_name
+                best_matches = [max_sim_ratio_cls]
+                logger.info(f"Best sim ratio match for {item} in LazyLoader {self.__path__} is {best_matches[0]} with sim ratio {max_sim_ratio}")
+            final_cls_name = best_matches[0]
+            file_path, class_name = self._import_structure[final_cls_name]
+            logger.info(f"Lazyloader {self.__path__} trying to import {final_cls_name} ")
+            cls = self._load_class_from_file(file_path, class_name)
+            logger.debug(f"Lazyloader {self.__path__} got and cached class {cls}")
+            self._loaded_classes[final_cls_name] = cls
             return cls
         logger.debug(f"Module {self.__name__} has no attribute {item}")
         raise AttributeError(f"Module {self.__name__} has no attribute {item}")

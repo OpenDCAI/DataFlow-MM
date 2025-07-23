@@ -73,7 +73,7 @@ class LocalModelVLMServing_vllm(VLMServingABC):
         self.processor = AutoProcessor.from_pretrained(self.real_model_path, cache_dir=hf_cache_dir)
         print(f"Model name: {self.model_name}")
         print(IO_REGISTRY)
-        self.IO = IO_REGISTRY.find_best_match_by_model_str(self.model_name)(self.processor)
+        self.IO = IO_REGISTRY.get(self.model_name)(self.processor)
         print(f"IO: {self.IO}")
 
 
