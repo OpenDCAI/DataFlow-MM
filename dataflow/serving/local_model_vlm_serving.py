@@ -71,10 +71,10 @@ class LocalModelVLMServing_vllm(VLMServingABC):
         # get the model name from the real_model_path
         self.model_name = os.path.basename(self.real_model_path)
         self.processor = AutoProcessor.from_pretrained(self.real_model_path, cache_dir=hf_cache_dir)
-        print(f"Model name: {self.model_name}")
-        print(IO_REGISTRY)
+        # print(f"Model name: {self.model_name}")
+        # print(IO_REGISTRY)
         self.IO = IO_REGISTRY.find_best_match_by_model_str(self.model_name)(self.processor)
-        print(f"IO: {self.IO}")
+        # print(f"IO: {self.IO}")
 
 
         # Import vLLM and set up the environment for multiprocessing
@@ -163,12 +163,12 @@ class LocalModelVLMServing_vllm(VLMServingABC):
             video_list,
             audio_list
         ) 
-        print(f"messages: {messages}")
+        # print(f"messages: {messages}")
         full_prompts = self.IO.build_full_prompts(messages)
-        print(f"full_prompts: {full_prompts}")
+        # print(f"full_prompts: {full_prompts}")
         # 直接调用LLM生成
         outputs = self.llm.generate(full_prompts, self.sampling_params)
-        print(outputs)
+        # print(outputs)
         return [output.outputs[0].text for output in outputs]
 
     def cleanup(self):
@@ -377,9 +377,9 @@ class LocalModelVLMServing_sglang(VLMServingABC):
             audio_list
         ) 
         
-        print(f"messages: {messages}")
+        # print(f"messages: {messages}")
         full_prompts = self.IO.build_full_prompts(messages)
-        print(f"full_prompts: {full_prompts}")
+        # print(f"full_prompts: {full_prompts}")
         
         prompt_list = []
         image_data_list = []

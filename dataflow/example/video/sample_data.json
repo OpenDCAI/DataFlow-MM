@@ -1,0 +1,20 @@
+[
+    {
+        "video": ["https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen2-VL/space_woaudio.mp4"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<video>\nPlease describe the video in detail."
+            }
+        ]
+    },
+    {
+        "video": ["https://duguang-labelling.oss-cn-shanghai.aliyuncs.com/qiansun/video_ocr/videos/50221078283.mp4"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<video>\nPlease describe the video in detail."
+            }
+        ]
+    }
+]
