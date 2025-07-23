@@ -1,6 +1,6 @@
 [
     {
-        "image": ["./dataflow/example/video/demo1.mp4"],
+        "video": ["https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen2-VL/space_woaudio.mp4"],
         "conversation": [
             {
                 "from": "human",
@@ -9,7 +9,7 @@
         ]
     },
     {
-        "image": ["./dataflow/example/video/demo2.mp4"],
+        "video": ["https://duguang-labelling.oss-cn-shanghai.aliyuncs.com/qiansun/video_ocr/videos/50221078283.mp4"],
         "conversation": [
             {
                 "from": "human",
