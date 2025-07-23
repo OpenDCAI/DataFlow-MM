@@ -11,7 +11,7 @@ class PromptedVQA(OperatorABC):
     '''
     PromptedVQA is a class that generates answers for questions based on provided context.
     '''
-    def __init__(self, vlm_serving: VLMServingABC, system_prompt: str = "You are a helpful agent."):
+    def __init__(self, vlm_serving: VLMServingABC, system_prompt: str = "You are a helpful assistant."):
         self.logger = get_logger()
         self.vlm_serving = vlm_serving
         self.system_prompt = system_prompt
@@ -61,7 +61,8 @@ class PromptedVQA(OperatorABC):
             conversations=conversations,
             image_list=image_column,
             video_list=video_column,
-            audio_list=audio_column
+            audio_list=audio_column,
+            system_prompt=self.system_prompt,
         )
         dataframe[self.output_answer_key] = response
         storage.write(dataframe)

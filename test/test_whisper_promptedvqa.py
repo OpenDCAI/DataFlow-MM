@@ -2,19 +2,23 @@ from dataflow.operators.generate import PromptedVQA
 from dataflow.operators.conversations import Conversation2Message
 from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.utils.storage import FileStorage
+from dataflow.prompts.whisper_prompt_generator import WhisperTranscriptionPrompt
+
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,2"  # 设置可见的GPU设备
 
 class VQAGenerator():
     def __init__(self):
         self.storage = FileStorage(
-            first_entry_file_name="./dataflow/example/vqa/sample_data.json",
+            first_entry_file_name="./dataflow/example/whisper_transcription/sample_data.jsonl",
             cache_path="./cache",
-            file_name_prefix="vqa",
+            file_name_prefix="whisper_transcription",
             cache_type="json",
         )
         self.model_cache_dir = './dataflow_cache'
 
         self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/data0/models/Qwen2.5-VL-7B-Instruct",
+            hf_model_name_or_path="/data0/gty/models/whisper-large-v3",
             hf_cache_dir=self.model_cache_dir,
             vllm_tensor_parallel_size=2,
             vllm_temperature=0.7,
@@ -30,6 +34,7 @@ class VQAGenerator():
         # )
         self.prompt_generator = PromptedVQA(
             vlm_serving = self.vlm_serving,
+            system_prompt=WhisperTranscriptionPrompt().generate_prompt("transcribe")  # 使用 Whisper 的转录提示
         )
 
     def forward(self):
