@@ -7,7 +7,7 @@ from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
 
 def main():
-    model_path = "/mnt/public/model/huggingface/Qwen2.5-VL-7B-Instruct"
+    model_path = "/data0/models/Qwen2.5-VL-3B-Instruct"
     image_path = "./static/images/Face.jpg"  # 替换为你自己的测试图像路径
 
     # 初始化模型
@@ -17,7 +17,7 @@ def main():
         vllm_temperature=0.7,
         vllm_top_p=0.9,
         vllm_max_tokens=512,
-        vllm_gpu_memory_utilization=0.9
+        vllm_gpu_memory_utilization=0.6
     )
 
     # 准备输入
@@ -50,7 +50,7 @@ def main():
         
         print(image_inputs, video_inputs)
 
-        processor = AutoProcessor.from_pretrained("/mnt/public/model/huggingface/Qwen2.5-VL-7B-Instruct")
+        processor = AutoProcessor.from_pretrained("/data0/models/Qwen2.5-VL-3B-Instruct")
 
         prompt = processor.apply_chat_template(
                         messages, tokenize=False, add_generation_prompt=True

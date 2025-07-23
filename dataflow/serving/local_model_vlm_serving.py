@@ -154,16 +154,18 @@ class LocalModelVLMServing_vllm(VLMServingABC):
         conversations: list[list[dict]],
         image_list: list[list[str]] = None,
         video_list: list[list[str]] = None,
-        audio_list: list[list[str]] = None
+        audio_list: list[list[str]] = None,
+        system_prompt: str = "You are a helpful assistant."
     ) -> list[str]:
 
         messages = self.IO._conversation_to_message(
             conversations,
             image_list,
             video_list,
-            audio_list
+            audio_list,
+            system_prompt=system_prompt
         ) 
-        print(f"messages: {messages}")
+
         full_prompts = self.IO.build_full_prompts(messages)
         print(f"full_prompts: {full_prompts}")
         # 直接调用LLM生成
@@ -360,7 +362,7 @@ class LocalModelVLMServing_sglang(VLMServingABC):
         conversations: list[list[dict]],
         image_list: list[list[str]] = None,
         video_list: list[list[str]] = None,
-        audio_list: list[list[str]] = None
+        audio_list: list[list[str]] = None,
     ) -> list[str]:
         """
         messages: [
