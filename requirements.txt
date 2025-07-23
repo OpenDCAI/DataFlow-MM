@@ -6,9 +6,11 @@ tqdm
 accelerate
 colorlog
 pandas
-diffusers   # in our test, diffusers==0.33.1
 transformers
 
-# IO class
+# t2i & image editing
+diffusers   # in our test, diffusers==0.33.1
+
+# VQA by qwen2.5_VL
 torchvision
 qwen_vl_utils
