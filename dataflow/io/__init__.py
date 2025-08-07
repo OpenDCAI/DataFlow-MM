@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .qwen_vl.qwen_vl_2_5 import Qwen2_5VLIO
+    from .diffuser.image_gen import ImageIO
 else:
     import sys
     from dataflow.utils.registry import LazyLoader, generate_import_structure_from_type_checking

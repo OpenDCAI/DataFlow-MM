@@ -105,7 +105,7 @@ class Qwen2_5VLIO(object):
                         if used_modal_indices[modal_type] < len(all_modal_paths[modal_type]):
                             content_list.append({
                                 "type": modal_type,
-                                "image": all_modal_paths[modal_type][used_modal_indices[modal_type]] # 这里的key统一用image，因为格式2的例子是image_path
+                                f"{modal_type}": all_modal_paths[modal_type][used_modal_indices[modal_type]] # 这里的key统一用image，因为格式2的例子是image_path
                             })
                             used_modal_indices[modal_type] += 1
                         else:
