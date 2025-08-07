@@ -11,3 +11,8 @@ transformers
 # IO class
 torchvision
 qwen_vl_utils
+
+
+# audio
+librosa
+soundfile
