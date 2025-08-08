@@ -1,2 +1,1 @@
-{"conversation": [{"from": "human", "value": "<audio>"}], "audio": ["/data0/gty/DataFlow-MM/dataflow/example/whisper_transcription/BAC009S0022W0165.wav"]}
-{"conversation": [{"from": "human", "value": "<audio>"}], "audio": ["/data0/gty/DataFlow-MM/dataflow/example/whisper_transcription/BAC009S0022W0165.wav"]}
+{"conversation": [{"from": "human", "value": "<audio>"}], "audio": ["https://raw.githubusercontent.com/gty1829/DataFlow-MM/df-audio-dev-1/dataflow/example/whisper_transcription/BAC009S0022W0165.wav"]}

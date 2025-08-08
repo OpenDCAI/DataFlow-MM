@@ -6,13 +6,19 @@ from io import BytesIO
 from typing import List, Optional, Union, Dict, Tuple
 
 import librosa
+import requests
 import numpy as np
 
 # 不重采样
 DEFAULT_SR = None
 
-def _read_audio_local(path: str, sr: Optional[int] = DEFAULT_SR) -> Tuple[np.ndarray, int]:
-    return librosa.load(path, sr=sr, mono=True)
+def _read_audio_remote(path: str, sr: Optional[int] = DEFAULT_SR) -> Tuple[np.ndarray, int]:
+    url = path
+    resp = requests.get(url, stream=True)
+
+    audio_bytes = BytesIO(resp.content)
+    y, sr = librosa.load(audio_bytes, sr=sr)
+    return y, sr
 
 def _read_audio_bytes(data: bytes, sr: Optional[int] = DEFAULT_SR) -> Tuple[np.ndarray, int]:
     return librosa.load(BytesIO(data), sr=sr, mono=True)
@@ -61,8 +67,7 @@ def process_audio_info(
                         audio_arrays.append(arr)
                         sampling_rates.append(sr)
                     elif aud.startswith("http://") or aud.startswith("https://"):
-                        # 使用 librosa 支持远程路径
-                        arr, sr = _read_audio_local(aud, sr=sampling_rate)
+                        arr, sr = _read_audio_remote(aud, sr=sampling_rate)
                         audio_arrays.append(arr)
                         sampling_rates.append(sr)
                     else:
