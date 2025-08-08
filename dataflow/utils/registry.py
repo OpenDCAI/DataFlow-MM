@@ -322,6 +322,8 @@ class LazyLoader(types.ModuleType):
         :param item: 类名
         :return: 动态加载的类对象
         """
+        if item == "torch":
+            raise AttributeError("torch is not a class name")
         logger = get_logger()
         if item in self._loaded_classes:
             cls = self._loaded_classes[item]
