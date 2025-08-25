@@ -9,7 +9,7 @@ from dataflow.core import VLMServingABC
 
 
 @OPERATOR_REGISTRY.register()
-class ImageEditor(OperatorABC):
+class PromptedImageEditGenerator(OperatorABC):
     def __init__(
         self,
         image_edit_serving: VLMServingABC,

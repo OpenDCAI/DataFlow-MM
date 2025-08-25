@@ -1,4 +1,5 @@
-from dataflow.operators.generate.vqa.prompted_vqa import PromptedVQA
+from dataflow.operators.core_vision import PromptedVQAGenerator
+from dataflow.operators.conversations import Conversation2Message
 from dataflow.serving import LocalModelVLMServing_sglang
 from dataflow.utils.storage import FileStorage
 from dataflow.wrapper import BatchWrapper
@@ -16,7 +17,7 @@ if __name__ == "__main__":
             sgl_dp_size=1,  # data parallel size
             sgl_tp_size=1,  # tensor parallel size
     )
-    op = PromptedVQA(vlm_serving=vlm_serving)
+    op = PromptedVQAGenerator(vlm_serving=vlm_serving)
 
     # 这里 batch_op.run(...) 在 PyCharm / Pylance 就能自动补全 PromptedVQA.run 的签名了
     batched_op = BatchWrapper(op, batch_size=3, batch_cache=True)

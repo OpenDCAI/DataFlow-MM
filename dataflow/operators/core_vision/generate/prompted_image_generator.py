@@ -9,7 +9,7 @@ from dataflow.core import VLMServingABC
 
 
 @OPERATOR_REGISTRY.register()
-class Text2ImageGenerator(OperatorABC):
+class PromptedImageGenerator(OperatorABC):
     def __init__(
         self,
         t2i_serving: VLMServingABC,
