@@ -1,5 +1,5 @@
-from dataflow.operators.generate import PromptedVQA
-from dataflow.operators.conversations import Conversation2Message
+from dataflow.operators.core_vision import PromptedVQA
+
 from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.utils.storage import FileStorage
 from dataflow.prompts.whisper_prompt_generator import WhisperTranscriptionPrompt

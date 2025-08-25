@@ -1,5 +1,5 @@
 import os
-from dataflow.operators.generate import ImageEditor
+from dataflow.operators.core_vision import PromptedImageEditGenerator
 from dataflow.serving.local_image_gen_serving import LocalImageGenServing
 from dataflow.utils.storage import FileStorage
 from dataflow.io import ImageIO
@@ -26,7 +26,7 @@ class ImageGenerationPipeline():
             diffuser_guidance_scale=3.5,
         )
 
-        self.text_to_image_generator = ImageEditor(
+        self.text_to_image_generator = PromptedImageEditGenerator(
             image_edit_serving=self.serving,
             save_interval=10
         )

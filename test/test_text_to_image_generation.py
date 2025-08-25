@@ -1,5 +1,5 @@
 import os
-from dataflow.operators.generate import Text2ImageGenerator
+from dataflow.operators.core_vision import PromptedImageGenerator
 from dataflow.serving.local_image_gen_serving import LocalImageGenServing
 from dataflow.utils.storage import FileStorage
 from dataflow.io import ImageIO
@@ -22,7 +22,7 @@ class ImageGenerationPipeline():
             hf_local_dir="./ckpt/models/"
         )
 
-        self.text_to_image_generator = Text2ImageGenerator(
+        self.text_to_image_generator = PromptedImageGenerator(
             t2i_serving=self.serving,
             save_interval=10
         )

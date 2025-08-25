@@ -59,3 +59,4 @@ if __name__ == "__main__":
             print("\033[92m  __init__ signature parameters: \033[0m")
             pprint(init_signature_params)
         print()
+    print(OPERATOR_REGISTRY.get_type_of_operator())

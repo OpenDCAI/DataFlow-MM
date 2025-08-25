@@ -7,7 +7,7 @@ from dataflow.core import OperatorABC
 from dataflow.core import VLMServingABC
 
 @OPERATOR_REGISTRY.register()
-class PromptedVQA(OperatorABC):
+class PromptedVQAGenerator(OperatorABC):
     '''
     PromptedVQA is a class that generates answers for questions based on provided context.
     '''

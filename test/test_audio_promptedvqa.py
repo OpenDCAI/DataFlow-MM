@@ -1,4 +1,4 @@
-from dataflow.operators.generate import PromptedVQA
+from dataflow.operators.core_vision import PromptedVQAGenerator
 from dataflow.operators.conversations import Conversation2Message
 from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.utils.storage import FileStorage
@@ -31,7 +31,7 @@ class VQAGenerator():
         #     audio_list_key="audio",
         #     system_prompt="你是个热心的智能助手，是Dataflow的一个组件，你的任务是回答用户的问题。",
         # )
-        self.prompt_generator = PromptedVQA(
+        self.prompt_generator = PromptedVQAGenerator(
             vlm_serving = self.vlm_serving,
             system_prompt="You are a helpful agent."
         )
