@@ -3,8 +3,8 @@ from dataflow.operators.conversations import Conversation2Message
 from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.utils.storage import FileStorage
 
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,2"  # 设置可见的GPU设备
+# import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # 设置可见的GPU设备
 
 class VQAGenerator():
     def __init__(self):
@@ -17,9 +17,9 @@ class VQAGenerator():
         self.model_cache_dir = './dataflow_cache'
 
         self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/data0/gty/models/Qwen2-Audio-7B-Instruct",
+            hf_model_name_or_path="/mnt/public/data/lh/guotianyu/Models/Qwen2-Audio-7B-Instruct",
             hf_cache_dir=self.model_cache_dir,
-            vllm_tensor_parallel_size=2,
+            vllm_tensor_parallel_size=8,
             vllm_temperature=0.7,
             vllm_top_p=0.9,
             vllm_max_tokens=512,
