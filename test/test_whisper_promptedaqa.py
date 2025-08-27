@@ -1,4 +1,4 @@
-from dataflow.operators.core_vision import PromptedVQAGenerator
+from dataflow.operators.core_audio import PromptedAQAGenerator
 
 from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.utils.storage import FileStorage
@@ -7,12 +7,12 @@ from dataflow.prompts.whisper_prompt_generator import WhisperTranscriptionPrompt
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # 设置可见的GPU设备
 
-class VQAGenerator():
+class AQAGenerator():
     def __init__(self):
         self.storage = FileStorage(
             first_entry_file_name="./dataflow/example/whisper_transcription/sample_data.jsonl",
             cache_path="./cache",
-            file_name_prefix="whisper_transcription_vqa",
+            file_name_prefix="whisper_transcription_aqa",
             cache_type="json",
         )
         self.model_cache_dir = './dataflow_cache'
@@ -32,7 +32,7 @@ class VQAGenerator():
         #     audio_list_key="audio",
         #     system_prompt="你是个热心的智能助手，是Dataflow的一个组件，你的任务是回答用户的问题。",
         # )
-        self.prompt_generator = PromptedVQAGenerator(
+        self.prompt_generator = PromptedAQAGenerator(
             vlm_serving = self.vlm_serving,
             system_prompt=WhisperTranscriptionPrompt().generate_prompt("transcribe")  # 使用 Whisper 的转录提示
         )
@@ -47,8 +47,6 @@ class VQAGenerator():
 
         self.prompt_generator.run(
             storage = self.storage.step(),
-            input_image_key="image",
-            input_video_key="video",
             input_audio_key="audio",
             input_conversation_key="conversation",
             output_answer_key="answer",
@@ -56,5 +54,5 @@ class VQAGenerator():
 
 if __name__ == "__main__":
     # This is the entry point for the pipeline
-    model = VQAGenerator()
+    model = AQAGenerator()
     model.forward()

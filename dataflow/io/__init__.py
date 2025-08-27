@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .qwen_vl.qwen_vl_2_5 import Qwen2_5VLIO
+    from .qwen_audio.qwen_audio_2 import Qwen2_AudioIO
     from .diffuser.image_gen import ImageIO
     from .whisper.whisper import WhisperIO
 else:
