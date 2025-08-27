@@ -209,7 +209,7 @@ OPERATOR_REGISTRY = Registry(name='operators', sub_modules=['core_vision', 'conv
 IO_REGISTRY = Registry(name='io')
 class LazyLoader(types.ModuleType):
 
-    def __init__(self, name, path, import_structure):
+    def __init__(self, name, path, import_structure, if_fuzzy_key_matching=False):
         """
         初始化 LazyLoader 模块。
 
@@ -218,6 +218,7 @@ class LazyLoader(types.ModuleType):
         """
         super().__init__(name)
         self._import_structure = import_structure
+        self.if_fuzzy_key_matching = if_fuzzy_key_matching
         self._loaded_classes = {}
         self._base_folder = Path(__file__).resolve().parents[2]
         self.__path__ = [path]
@@ -322,7 +323,7 @@ class LazyLoader(types.ModuleType):
             logger.debug(f"Lazyloader {self.__path__} got and cached class {cls}")
             self._loaded_classes[item] = cls
             return cls
-        else:
+        elif self.if_fuzzy_key_matching:
             # 如果没有在Import Structure里面，进行字符串匹配
             logger.info(f"No matched class in LazyLoader {self.__path__} for {item}, start string matching!!!")
             normalized_cls_name = self._normalize(item)
