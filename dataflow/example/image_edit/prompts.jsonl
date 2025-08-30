@@ -2,3 +2,4 @@
 {"conversations": [{"content": "Change the vase to red.", "role": "user"}], "images": ["./dataflow/example/image_edit/image.png"]}
 {"conversations": [{"content": "Turn this cow into a dog.", "role": "user"}], "images": ["./dataflow/example/image_edit/image.png"]}
 {"conversations": [{"content": "A pretty girl is playing with these toys.", "role": "user"}], "images": ["./dataflow/example/image_edit/image.png"]}
+{"conversations": [{"content": "Complete the shadowed part into a generic person's portrait.", "role": "user"}], "images": ["./dataflow/example/image_edit/human_inpaint.jpg"]}

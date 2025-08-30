@@ -1,12 +1,14 @@
 import os
+import argparse
 from dataflow.operators.core_vision import PromptedImageEditGenerator
 from dataflow.serving.local_image_gen_serving import LocalImageGenServing
+from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
 from dataflow.utils.storage import FileStorage
 from dataflow.io import ImageIO
 
 
 class ImageGenerationPipeline():
-    def __init__(self):
+    def __init__(self, serving_type="local", api_key=""):
         self.storage = FileStorage(
             first_entry_file_name="./dataflow/example/image_edit/prompts.jsonl",
             cache_path="./cache_local/image_edit",
@@ -14,17 +16,24 @@ class ImageGenerationPipeline():
             cache_type="jsonl"
         )
 
-        self.serving = LocalImageGenServing(
-            image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
-            hf_model_name_or_path="/ytech_m2v5_hdd/workspace/kling_mm/Models/FLUX.1-Kontext-dev",   # "black-forest-labs/FLUX.1-Kontext-dev"
-            hf_cache_dir="./cache_local",
-            hf_local_dir="./ckpt/models/",
-            Image_gen_task="imageedit",
-            batch_size=4,
-            diffuser_model_name="FLUX-Kontext",
-            diffuser_num_inference_steps=28,
-            diffuser_guidance_scale=3.5,
-        )
+        if serving_type == "local":
+            self.serving = LocalImageGenServing(
+                image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
+                hf_model_name_or_path="/ytech_m2v5_hdd/workspace/kling_mm/Models/FLUX.1-Kontext-dev",   # "black-forest-labs/FLUX.1-Kontext-dev"
+                hf_cache_dir="./cache_local",
+                hf_local_dir="./ckpt/models/",
+                Image_gen_task="imageedit",
+                batch_size=4,
+                diffuser_model_name="FLUX-Kontext",
+                diffuser_num_inference_steps=28,
+                diffuser_guidance_scale=3.5,
+            )
+        elif serving_type == "api":
+            self.serving = APIVLMServing_openai(
+                api_url="http://123.129.219.111:3000/v1/",
+                model_name="gemini-2.5-flash-image-preview",               # try nano-banana
+                image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
+            )
 
         self.text_to_image_generator = PromptedImageEditGenerator(
             image_edit_serving=self.serving,
@@ -41,5 +50,16 @@ class ImageGenerationPipeline():
 
 if __name__ == "__main__":
     # This is the entry point for the pipeline
-    model = ImageGenerationPipeline()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--serving_type',
+        choices=['local', 'api'],
+        default='api',
+    )
+    parser.add_argument(
+        '--api_key', type=str, default='',
+    )
+    args = parser.parse_args()
+    os.environ['DF_API_KEY'] = args.api_key
+    model = ImageGenerationPipeline(serving_type=args.serving_type, api_key=args.api_key)
     model.forward()
