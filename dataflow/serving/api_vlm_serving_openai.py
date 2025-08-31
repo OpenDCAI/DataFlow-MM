@@ -113,9 +113,10 @@ class APIVLMServing_openai(LLMServingABC):
         if self.send_request_stream:
             full_content = ""
             for chunk in resp:
-                if chunk.choices[0].delta.content is not None:
-                    content_piece = chunk.choices[0].delta.content
-                    full_content += content_piece
+                if chunk.choices[0].delta.content is not None and chunk.choices[0].delta.content!="":
+                    # content_piece = chunk.choices[0].delta.content
+                    # full_content += content_piece
+                    full_content = chunk.choices[0].delta.content  # utilize the final response
         else:
             full_content = resp.choices[0].delta.content
         return full_content
@@ -165,12 +166,12 @@ class APIVLMServing_openai(LLMServingABC):
         :return: Tuple of (request_id, model response).
         """
         response = self.chat_with_one_image(image_path, text_prompt, model, timeout)
-        # if self.image_io != None:
-        #     io_results = self._extract_and_save_image(response, text_prompt)
-        #     try:
-        #         response = io_results[text_prompt]
-        #     except:
-        #         response = "Error"
+        if self.image_io != None:
+            io_results = self._extract_and_save_image(response, text_prompt)
+            try:
+                response = io_results[text_prompt]
+            except Exception as e:
+                print("Cannot save the image files: {str(e)}")
         return request_id, response
 
     def generate_from_input_one_image(
@@ -219,14 +220,11 @@ class APIVLMServing_openai(LLMServingABC):
         return responses
 
     def _is_base64(self, s):
-        """检查字符串是否是有效的base64"""
+        """check whether string is validate base64"""
         try:
             if isinstance(s, str):
-                # 去除空白字符
                 s = s.strip()
-                # 检查是否只包含base64字符
                 if re.match(r'^[A-Za-z0-9+/]*={0,2}$', s):
-                    # 尝试解码
                     base64.b64decode(s)
                     return True
             return False
@@ -247,10 +245,32 @@ class APIVLMServing_openai(LLMServingABC):
                         # 验证是否是有效的图片
                         pil_image = Image.open(io.BytesIO(image_data))
                         image_data[prompt] = [pil_image]
-                        return self.image_io.write(image_data)
+                        # return self.image_io.write(image_data)
                     except:
                         continue
             
+            # save the url images
+            url_pattern = r'https?://[^\s<>"{}|\\^`\[\])]+'
+            urls = re.findall(url_pattern, content)
+            images = []
+            for url in urls:
+                # 清理转义字符
+                url = url.replace('\/', '/')
+                try:
+                    response = requests.get(url, timeout=30)
+                    if response.status_code == 200:
+                        # 尝试作为图片打开
+                        pil_image = Image.open(io.BytesIO(response.content))
+                        images.append(pil_image)
+                except:
+                    continue
+            image_data[prompt] = images
+
+            if image_data:
+                return self.image_io.write(image_data)
+            else:
+                return {}
+
         except Exception as e:
             print(f"保存图片时出错: {str(e)}")
             return {}
