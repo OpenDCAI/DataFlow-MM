@@ -14,3 +14,11 @@ pip install -e ".[vllm]"
 python /data0/gty/DataFlow-MM/test/test_whisper_promptedvqa.py
 python /data0/gty/DataFlow-MM/test/test_audio_promptedvqa.py
 ```
+
+
+# nano-banana (gemini-v2.5-image)测试
+测试命令
+```bash
+python test/test_image_editing.py --api_key < your api key >
+```
+we utilize the api from [yucha](http://35.220.164.252:3888/)
