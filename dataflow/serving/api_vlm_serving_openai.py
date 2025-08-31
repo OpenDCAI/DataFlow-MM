@@ -232,9 +232,9 @@ class APIVLMServing_openai(LLMServingABC):
             return False
     
     def _extract_and_save_image(self, content, prompt):
-        """从内容中提取并保存图片"""
+        """save generated image from API response"""
         try:
-            # 内容中包含base64字符串（使用正则表达式提取）
+            # extract the base64 code
             image_data = {}
             base64_pattern = r'([A-Za-z0-9+/]{100,}={0,2})'
             matches = re.findall(base64_pattern, content)
@@ -242,7 +242,6 @@ class APIVLMServing_openai(LLMServingABC):
                 if self._is_base64(match):
                     try:
                         image_data = base64.b64decode(match)
-                        # 验证是否是有效的图片
                         pil_image = Image.open(io.BytesIO(image_data))
                         image_data[prompt] = [pil_image]
                         # return self.image_io.write(image_data)
@@ -254,12 +253,10 @@ class APIVLMServing_openai(LLMServingABC):
             urls = re.findall(url_pattern, content)
             images = []
             for url in urls:
-                # 清理转义字符
                 url = url.replace('\/', '/')
                 try:
                     response = requests.get(url, timeout=30)
                     if response.status_code == 200:
-                        # 尝试作为图片打开
                         pil_image = Image.open(io.BytesIO(response.content))
                         images.append(pil_image)
                 except:
@@ -415,7 +412,7 @@ class APIVLMServing_openai(LLMServingABC):
                                                 prompt,
                                                 self.model_name,
                                                 self.timeout))
-                
+
                 else:
                     futures.append(executor.submit(self.chat_with_one_image_with_id,
                                                 idx,
