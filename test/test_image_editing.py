@@ -8,7 +8,7 @@ from dataflow.io import ImageIO
 
 
 class ImageGenerationPipeline():
-    def __init__(self, serving_type="local", api_key=""):
+    def __init__(self, serving_type="local", api_key="", api_url="http://123.129.219.111:3000/v1/"):
         self.storage = FileStorage(
             first_entry_file_name="./dataflow/example/image_edit/prompts.jsonl",
             cache_path="./cache_local/image_edit",
@@ -30,7 +30,7 @@ class ImageGenerationPipeline():
             )
         elif serving_type == "api":
             self.serving = APIVLMServing_openai(
-                api_url="http://123.129.219.111:3000/v1/",
+                api_url=api_url,
                 model_name="gemini-2.5-flash-image-preview",               # try nano-banana
                 image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
                 send_request_stream=True,
@@ -60,7 +60,10 @@ if __name__ == "__main__":
     parser.add_argument(
         '--api_key', type=str, default='',
     )
+    parser.add_argument(
+        '--api_url', type=str, default='http://123.129.219.111:3000/v1/',
+    )
     args = parser.parse_args()
     os.environ['DF_API_KEY'] = args.api_key
-    model = ImageGenerationPipeline(serving_type=args.serving_type, api_key=args.api_key)
+    model = ImageGenerationPipeline(serving_type=args.serving_type, api_key=args.api_key, api_url=args.api_url)
     model.forward()

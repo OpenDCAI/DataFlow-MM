@@ -21,4 +21,4 @@ python /data0/gty/DataFlow-MM/test/test_audio_promptedvqa.py
 ```bash
 python test/test_image_editing.py --api_key < your api key >
 ```
-we utilize the api from [yucha](http://35.220.164.252:3888/)
+we utilize the api from [yucha](http://123.129.219.111:3000/)
