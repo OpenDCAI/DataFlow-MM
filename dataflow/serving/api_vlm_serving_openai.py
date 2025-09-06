@@ -118,7 +118,8 @@ class APIVLMServing_openai(LLMServingABC):
                     # full_content += content_piece
                     full_content = chunk.choices[0].delta.content  # utilize the final response
         else:
-            full_content = resp.choices[0].delta.content
+            try: full_content = resp.choices[0].delta.content
+            except: full_content = resp.choices[0].message.content
         return full_content
         # return resp.choices[0].message.content
 
@@ -234,24 +235,23 @@ class APIVLMServing_openai(LLMServingABC):
     def _extract_and_save_image(self, content, prompt):
         """save generated image from API response"""
         try:
-            # extract the base64 code
             image_data = {}
-            base64_pattern = r'([A-Za-z0-9+/]{100,}={0,2})'
+            images = []
+            # extract the base64 code
+            base64_pattern = r'!\[.*?\]\(data:image/(png|jpg|jpeg|gif|bmp);base64,([A-Za-z0-9+/=]+)\)'
             matches = re.findall(base64_pattern, content)
-            for match in matches:
-                if self._is_base64(match):
-                    try:
-                        image_data = base64.b64decode(match)
-                        pil_image = Image.open(io.BytesIO(image_data))
-                        image_data[prompt] = [pil_image]
-                        # return self.image_io.write(image_data)
-                    except:
-                        continue
+            for i, (image_type, base64_str) in enumerate(matches):
+                try:
+                    image_bytes = base64.b64decode(base64_str)
+                    pil_image = Image.open(io.BytesIO(image_bytes))
+                    images.append(pil_image)
+                    # return self.image_io.write(image_data)
+                except:
+                    continue
             
             # save the url images
             url_pattern = r'https?://[^\s<>"{}|\\^`\[\])]+'
             urls = re.findall(url_pattern, content)
-            images = []
             for url in urls:
                 url = url.replace('\/', '/')
                 try:
