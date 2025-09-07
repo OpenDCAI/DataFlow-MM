@@ -22,14 +22,14 @@ from dataflow.io import ImageIO
 class uni_image_gen_pipeline():
     def __init__(self, api_url="http://123.129.219.111:3000/v1/"):
         self.storage = FileStorage(
-            first_entry_file_name="./dataflow/example/image_gen/text2image/prompts.jsonl",
+            first_entry_file_name="./dataflow/example/image_gen/unified_image_gen/prompts.jsonl",
             cache_path="./cache_local",
             file_name_prefix="dataflow_cache_step",
             cache_type="jsonl"
         )
 
         self.serving = LocalImageGenServing(
-            image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
+            image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "condition_images")),
             batch_size=4,
             hf_model_name_or_path="/ytech_m2v5_hdd/CheckPoints/FLUX.1-dev",   # "black-forest-labs/FLUX.1-dev"
             hf_cache_dir="./cache_local",
@@ -39,7 +39,7 @@ class uni_image_gen_pipeline():
         self.serving = APIVLMServing_openai(
                 api_url=api_url,
                 model_name="gemini-2.5-flash-image-preview",               # try nano-banana
-                image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
+                image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "target_images")),
                 send_request_stream=True,
             )
 
