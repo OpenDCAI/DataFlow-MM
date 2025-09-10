@@ -66,3 +66,21 @@ class uni_image_gen_pipeline():
             output_image_key="target_images",
         )
 
+if __name__ == "__main__":
+    # This is the entry point for the pipeline
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--serving_type',
+        choices=['local', 'api'],
+        default='api',
+    )
+    parser.add_argument(
+        '--api_key', type=str, default='',
+    )
+    parser.add_argument(
+        '--api_url', type=str, default='http://123.129.219.111:3000/v1/',
+    )
+    args = parser.parse_args()
+    os.environ['DF_API_KEY'] = args.api_key
+    model = uni_image_gen_pipeline(api_url=args.api_url)
+    model.forward()

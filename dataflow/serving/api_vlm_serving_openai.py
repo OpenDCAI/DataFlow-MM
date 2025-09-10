@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataflow.core import LLMServingABC
 from openai import OpenAI
+from io import BytesIO
 from tqdm import tqdm
 
 from ..logger import get_logger
@@ -81,6 +82,43 @@ class APIVLMServing_openai(LLMServingABC):
 
         return b64, fmt
 
+    def combine_images_to_base64(self, image_paths: List[str], mode: str = "horizontal") -> str:
+        """
+        Combine multiple images into one and return the combined image as a Base64 string.
+
+        :param image_paths: List of image file paths.
+        :param mode: Combination mode ('horizontal' or 'vertical').
+        :return: Base64 string of the combined image.
+        """
+        # Load images
+        images = [Image.open(path) for path in image_paths]
+
+        # Calculate combined image size
+        if mode == "horizontal":
+            width = sum(img.width for img in images)
+            height = max(img.height for img in images)
+            combined_image = Image.new("RGB", (width, height))
+            offset = 0
+            for img in images:
+                combined_image.paste(img, (offset, 0))
+                offset += img.width
+        elif mode == "vertical":
+            width = max(img.width for img in images)
+            height = sum(img.height for img in images)
+            combined_image = Image.new("RGB", (width, height))
+            offset = 0
+            for img in images:
+                combined_image.paste(img, (0, offset))
+                offset += img.height
+        else:
+            raise ValueError("Mode must be 'horizontal' or 'vertical'.")
+
+        # Convert to Base64
+        buffer = BytesIO()
+        combined_image.save(buffer, format="PNG")
+        base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        return base64_image
+
     def _create_messages(self, content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Wrap content items into the standard OpenAI messages structure.
@@ -140,7 +178,10 @@ class APIVLMServing_openai(LLMServingABC):
         :return: Model's response as a string.
         """
         model = model or self.model_name
-        b64, fmt = self._encode_image_to_base64(image_path)
+        if isinstance(image_path, list):
+            b64 = self.combine_images_to_base64(image_paths=image_path, mode="horizontal")
+            fmt = "png"
+        else: b64, fmt = self._encode_image_to_base64(image_path)
         content = [
             {"type": "text", "text": text_prompt},
             {"type": "image_url", "image_url": {"url": f"data:image/{fmt};base64,{b64}"}}
