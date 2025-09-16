@@ -115,6 +115,9 @@ class APIVLMServing_openai(LLMServingABC):
 
         # Convert to Base64
         buffer = BytesIO()
+        # resize 
+        original_width, original_height = combined_image.size
+        combined_image = combined_image.resize((original_width//2, original_height//2), Image.Resampling.LANCZOS)
         combined_image.save(buffer, format="PNG")
         base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
         return base64_image
