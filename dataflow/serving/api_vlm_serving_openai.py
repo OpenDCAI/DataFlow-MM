@@ -110,17 +110,18 @@ class APIVLMServing_openai(LLMServingABC):
             timeout=timeout,
             stream=self.send_request_stream
         )
-        if self.send_request_stream:
-            full_content = ""
-            for chunk in resp:
-                if chunk.choices[0].delta.content is not None and chunk.choices[0].delta.content!="":
-                    # content_piece = chunk.choices[0].delta.content
-                    # full_content += content_piece
-                    full_content = chunk.choices[0].delta.content  # utilize the final response
-        else:
-            full_content = resp.choices[0].delta.content
-        return full_content
-        # return resp.choices[0].message.content
+        if self.model_name == "nano-banana":
+            if self.send_request_stream:
+                full_content = ""
+                for chunk in resp:
+                    if chunk.choices[0].delta.content is not None and chunk.choices[0].delta.content!="":
+                        # content_piece = chunk.choices[0].delta.content
+                        # full_content += content_piece
+                        full_content = chunk.choices[0].delta.content  # utilize the final response
+            else:
+                full_content = resp.choices[0].delta.content
+            return full_content
+        return resp.choices[0].message.content
 
     def chat_with_one_image(
         self,
