@@ -7,6 +7,7 @@ accelerate
 colorlog
 pandas
 transformers
+openai
 
 # t2i & image editing
 diffusers   # in our test, diffusers==0.33.1

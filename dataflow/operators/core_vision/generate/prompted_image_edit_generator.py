@@ -75,7 +75,7 @@ class PromptedImageEditGenerator(OperatorABC):
         for idx, prompt in zip(list(range(total)), batch_prompts):
             if isinstance(prompt, tuple):
                 prompt = prompt[1]
-            df.at[idx, output_image_key] = generated.get(prompt, [])
+            df.at[idx, output_image_key] = generated[idx] if isinstance(generated, list) else generated.get(prompt, [])
 
         # Final flush of any remaining prompts
         storage.media_key = output_image_key
