@@ -21,5 +21,5 @@ librosa
 soundfile
 iso639-lang
 pypinyin
-ctc-forced-aligner
+git+https://github.com/MahmoudAshraf97/ctc-forced-aligner.git@main
 jiwer
