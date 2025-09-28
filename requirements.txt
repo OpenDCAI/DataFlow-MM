@@ -19,3 +19,7 @@ qwen_vl_utils
 # audio
 librosa
 soundfile
+iso639-lang
+pypinyin
+ctc-forced-aligner
+jiwer
