@@ -13,4 +13,11 @@ pip install -e ".[vllm]"
 ```bash
 python /data0/gty/DataFlow-MM/test/test_whisper_promptedvqa.py
 python /data0/gty/DataFlow-MM/test/test_audio_promptedvqa.py
+
+python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_merge.py
+python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_ctc_forced_aligner_filter.py
+python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_ctc_forced_aligner.py
+python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_silero_vad_generator.py
+python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_whisper_promptedaqa.py
+python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_promptedaqa.py
 ```
