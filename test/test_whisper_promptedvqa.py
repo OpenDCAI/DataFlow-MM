@@ -10,7 +10,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # 设置可见的GPU设备
 class VQAGenerator():
     def __init__(self):
         self.storage = FileStorage(
-            first_entry_file_name="./dataflow/example/whisper_transcription/sample_data_local.jsonl",
+            first_entry_file_name="./dataflow/example/whisper_transcription/sample_data.jsonl",
             cache_path="./cache",
             file_name_prefix="whisper_transcription_vqa",
             cache_type="json",

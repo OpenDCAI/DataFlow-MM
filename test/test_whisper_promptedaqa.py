@@ -4,8 +4,8 @@ from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.utils.storage import FileStorage
 from dataflow.prompts.whisper_prompt_generator import WhisperTranscriptionPrompt
 
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # 设置可见的GPU设备
+# import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # 设置可见的GPU设备
 
 class AQAGenerator():
     def __init__(self):
@@ -13,14 +13,14 @@ class AQAGenerator():
             first_entry_file_name="./dataflow/example/whisper_transcription/sample_data.jsonl",
             cache_path="./cache",
             file_name_prefix="whisper_transcription_aqa",
-            cache_type="json",
+            cache_type="jsonl",
         )
         self.model_cache_dir = './dataflow_cache'
 
         self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/mnt/public/data/lh/guotianyu/Models/whisper-large-v3",
+            hf_model_name_or_path="/mnt/public/data/guotianyu/Models/whisper-large-v3",
             hf_cache_dir=self.model_cache_dir,
-            vllm_tensor_parallel_size=2,
+            vllm_tensor_parallel_size=4,
             vllm_temperature=0.7,
             vllm_top_p=0.9,
             vllm_max_tokens=512,
