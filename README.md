@@ -21,3 +21,13 @@ python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_silero_
 python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_whisper_promptedaqa.py
 python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_promptedaqa.py
 ```
+```
+
+
+# nano-banana (gemini-v2.5-image)测试
+测试命令
+```bash
+python test/test_image_editing.py --api_key < your api key >
+```
+we utilize the api from [yucha](http://123.129.219.111:3000/)
+
