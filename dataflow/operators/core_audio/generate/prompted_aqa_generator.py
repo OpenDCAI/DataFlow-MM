@@ -32,7 +32,7 @@ class PromptedAQAGenerator(PromptedVQAGenerator):
         if output_answer_key is None:
             raise ValueError("At least one of output_answer_key must be provided.")
 
-        self.logger.info("Running PromptedAQA...")
+        self.logger.info("Running PromptedAQAGenerator...")
         # self.input_image_key = input_image_key
         # self.input_video_key = input_video_key
         self.input_audio_key = input_audio_key
