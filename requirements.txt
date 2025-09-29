@@ -18,6 +18,7 @@ qwen_vl_utils
 
 
 # audio
+torchaudio
 librosa
 soundfile
 iso639-lang
