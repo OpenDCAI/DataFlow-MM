@@ -1,10 +1,10 @@
-from dataflow.operators.generate import PromptedVQA
+from dataflow.operators.core_vision import PromptedVQAGenerator
 from dataflow.operators.conversations import Conversation2Message
 from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.utils.storage import FileStorage
 
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,2"  # 设置可见的GPU设备
+# import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # 设置可见的GPU设备
 
 class VQAGenerator():
     def __init__(self):
@@ -17,9 +17,9 @@ class VQAGenerator():
         self.model_cache_dir = './dataflow_cache'
 
         self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/data0/gty/models/Qwen2-Audio-7B-Instruct",
+            hf_model_name_or_path="/mnt/public/data/lh/guotianyu/Models/Qwen2-Audio-7B-Instruct",
             hf_cache_dir=self.model_cache_dir,
-            vllm_tensor_parallel_size=2,
+            vllm_tensor_parallel_size=8,
             vllm_temperature=0.7,
             vllm_top_p=0.9,
             vllm_max_tokens=512,
@@ -31,7 +31,7 @@ class VQAGenerator():
         #     audio_list_key="audio",
         #     system_prompt="你是个热心的智能助手，是Dataflow的一个组件，你的任务是回答用户的问题。",
         # )
-        self.prompt_generator = PromptedVQA(
+        self.prompt_generator = PromptedVQAGenerator(
             vlm_serving = self.vlm_serving,
             system_prompt="You are a helpful agent."
         )

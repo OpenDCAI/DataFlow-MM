@@ -20,8 +20,11 @@ def _read_audio_remote(path: str, sr: Optional[int] = DEFAULT_SR) -> Tuple[np.nd
     y, sr = librosa.load(audio_bytes, sr=sr)
     return y, sr
 
+def _read_audio_local(path: str, sr: Optional[int] = DEFAULT_SR) -> Tuple[np.ndarray, int]:
+    return librosa.load(path, sr=sr)
+
 def _read_audio_bytes(data: bytes, sr: Optional[int] = DEFAULT_SR) -> Tuple[np.ndarray, int]:
-    return librosa.load(BytesIO(data), sr=sr, mono=True)
+    return librosa.load(BytesIO(data), sr=sr)
 
 def _read_audio_base64(b64: str, sr: Optional[int] = DEFAULT_SR) -> Tuple[np.ndarray, int]:
     header, b64data = b64.split(",", 1)

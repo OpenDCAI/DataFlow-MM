@@ -188,43 +188,28 @@ class Registry():
         This is used to classify operators into different categories.
         :return: A dictionary with operator type as keys and their name as values.
         """
-        # eval operators
-        eval_operators = []
-        filter_operators = []
-        generate_operators = []
-        refine_operators = []
+        # core_vision operators
+        core_vision_operators = []
         conversations_operators = []
-        db_operators = []
 
         for name, obj in self._obj_map.items():
-            if 'eval' in obj.__module__:
-                eval_operators.append(name)
-            elif 'filter' in obj.__module__:
-                filter_operators.append(name)
-            elif 'generate' in obj.__module__:
-                generate_operators.append(name)
-            elif 'refine' in obj.__module__:
-                refine_operators.append(name)
+            if 'core_vision' in obj.__module__:
+                core_vision_operators.append(name)
             elif 'conversations' in obj.__module__:
                 conversations_operators.append(name)
-            elif 'db' in obj.__module__:
-                db_operators.append(name)
+    
 
         return {
-            'eval': eval_operators,
-            'filter': filter_operators,
-            'generate': generate_operators,
-            'refine': refine_operators,
+            'core_vision': core_vision_operators,
             'conversations': conversations_operators,
-            'db': db_operators
         }
     
 
-OPERATOR_REGISTRY = Registry(name='operators', sub_modules=['eval', 'filter', 'generate', 'refine', 'conversations'])
+OPERATOR_REGISTRY = Registry(name='operators', sub_modules=['core_vision', 'conversations'])
 IO_REGISTRY = Registry(name='io')
 class LazyLoader(types.ModuleType):
 
-    def __init__(self, name, path, import_structure):
+    def __init__(self, name, path, import_structure, if_fuzzy_key_matching=False):
         """
         初始化 LazyLoader 模块。
 
@@ -233,6 +218,7 @@ class LazyLoader(types.ModuleType):
         """
         super().__init__(name)
         self._import_structure = import_structure
+        self.if_fuzzy_key_matching = if_fuzzy_key_matching
         self._loaded_classes = {}
         self._base_folder = Path(__file__).resolve().parents[2]
         self.__path__ = [path]
@@ -337,7 +323,7 @@ class LazyLoader(types.ModuleType):
             logger.debug(f"Lazyloader {self.__path__} got and cached class {cls}")
             self._loaded_classes[item] = cls
             return cls
-        else:
+        elif self.if_fuzzy_key_matching:
             # 如果没有在Import Structure里面，进行字符串匹配
             logger.info(f"No matched class in LazyLoader {self.__path__} for {item}, start string matching!!!")
             normalized_cls_name = self._normalize(item)
