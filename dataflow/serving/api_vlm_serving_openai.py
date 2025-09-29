@@ -110,7 +110,7 @@ class APIVLMServing_openai(LLMServingABC):
             timeout=timeout,
             stream=self.send_request_stream
         )
-        if self.model_name == "nano-banana":
+        if self.model_name == "gemini-2.5-flash-image-preview":
             if self.send_request_stream:
                 full_content = ""
                 for chunk in resp:
