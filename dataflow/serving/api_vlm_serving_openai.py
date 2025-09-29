@@ -87,7 +87,7 @@ class APIVLMServing_openai(LLMServingABC):
         Combine multiple images into one and return the combined image as a Base64 string.
 
         :param image_paths: List of image file paths.
-        :param mode: Combination mode ('horizontal' or 'vertical').
+        :param mode: Combination mode ('horizontal', 'vertical', or 'grid').
         :return: Base64 string of the combined image.
         """
         # Load images
@@ -102,6 +102,7 @@ class APIVLMServing_openai(LLMServingABC):
             for img in images:
                 combined_image.paste(img, (offset, 0))
                 offset += img.width
+
         elif mode == "vertical":
             width = max(img.width for img in images)
             height = sum(img.height for img in images)
@@ -110,17 +111,74 @@ class APIVLMServing_openai(LLMServingABC):
             for img in images:
                 combined_image.paste(img, (0, offset))
                 offset += img.height
+
+        elif mode == "grid":
+            import math
+
+            # 画布大小：保证 1:1
+            max_dim = max(max(img.width, img.height) for img in images)
+            canvas_size = max(1024, max_dim)
+            combined_image = Image.new("RGB", (canvas_size, canvas_size), (255, 255, 255))
+
+            n = len(images)
+            cols = math.ceil(math.sqrt(n))
+            rows = math.ceil(n / cols)
+
+            def _partition_sizes(total: int, parts: int):
+                base = total // parts
+                rem = total - base * parts
+                return [base + 1 if i < rem else base for i in range(parts)]
+
+            def _fit_resize(img: Image.Image, tw: int, th: int) -> Image.Image:
+                """Scale proportionally (contain) to fully fit inside the cell without cropping"""
+                w, h = img.size
+                scale = min(tw / w, th / h)
+                nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+                return img.convert("RGBA").resize((nw, nh), Image.Resampling.LANCZOS)
+
+            row_heights = _partition_sizes(canvas_size, rows)
+            last_row_cols = n - (rows - 1) * cols
+            if last_row_cols <= 0:
+                last_row_cols = cols
+
+            idx = 0
+            y = 0
+            for r in range(rows):
+                h_r = row_heights[r]
+                cols_r = cols if (r < rows - 1) else last_row_cols
+                col_widths = _partition_sizes(canvas_size, cols_r)
+                x = 0
+                for c in range(cols_r):
+                    if idx >= n:
+                        break
+                    w_c = col_widths[c]
+                    tile = _fit_resize(images[idx], w_c, h_r)
+                    ox = x + (w_c - tile.width) // 2
+                    oy = y + (h_r - tile.height) // 2
+                    combined_image.paste(
+                        tile,
+                        (ox, oy),
+                        mask=tile.split()[3] if tile.mode == "RGBA" else None
+                    )
+                    x += w_c
+                    idx += 1
+                y += h_r
+
         else:
-            raise ValueError("Mode must be 'horizontal' or 'vertical'.")
+            raise ValueError("Mode must be 'horizontal', 'vertical', or 'combine'.")
 
         # Convert to Base64
         buffer = BytesIO()
         # resize 
         original_width, original_height = combined_image.size
-        combined_image = combined_image.resize((original_width//2, original_height//2), Image.Resampling.LANCZOS)
+        combined_image = combined_image.resize(
+            (original_width // 2, original_height // 2), 
+            Image.Resampling.LANCZOS
+        )
         combined_image.save(buffer, format="PNG")
         base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
         return base64_image
+
 
     def _create_messages(self, content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -151,18 +209,18 @@ class APIVLMServing_openai(LLMServingABC):
             timeout=timeout,
             stream=self.send_request_stream
         )
-        if self.send_request_stream:
-            full_content = ""
-            for chunk in resp:
-                if chunk.choices[0].delta.content is not None and chunk.choices[0].delta.content!="":
-                    # content_piece = chunk.choices[0].delta.content
-                    # full_content += content_piece
-                    full_content = chunk.choices[0].delta.content  # utilize the final response
-        else:
-            try: full_content = resp.choices[0].delta.content
-            except: full_content = resp.choices[0].message.content
-        return full_content
-        # return resp.choices[0].message.content
+        if self.model_name == "gemini-2.5-flash-image-preview":
+            if self.send_request_stream:
+                full_content = ""
+                for chunk in resp:
+                    if chunk.choices[0].delta.content is not None and chunk.choices[0].delta.content!="":
+                        # content_piece = chunk.choices[0].delta.content
+                        # full_content += content_piece
+                        full_content = chunk.choices[0].delta.content  # utilize the final response
+            else:
+                full_content = resp.choices[0].delta.content
+            return full_content
+        return resp.choices[0].message.content
 
     def chat_with_one_image(
         self,
@@ -182,7 +240,7 @@ class APIVLMServing_openai(LLMServingABC):
         """
         model = model or self.model_name
         if isinstance(image_path, list):
-            b64 = self.combine_images_to_base64(image_paths=image_path, mode="horizontal")
+            b64 = self.combine_images_to_base64(image_paths=image_path, mode="grid")
             fmt = "png"
         else: b64, fmt = self._encode_image_to_base64(image_path)
         content = [
