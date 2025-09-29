@@ -68,3 +68,8 @@ class CTCForcedAlignFilter(OperatorABC):
             storage.write(output_dataframe)
         else:
             self.logger.info(f"All data has been filtered out!")
+
+    def close(self):
+        if self.evaluator.is_parallel:
+            self.evaluator.pool.close()
+            self.evaluator.pool.join()
