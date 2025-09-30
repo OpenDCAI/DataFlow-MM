@@ -1,2 +1,2 @@
-{"audio": ["./dataflow/example/audio_asr_pipeline/test.wav"], "conversation": [{"from": "human", "value": "He began a confused complaint against the wizard, who had vanished behind the curtain on the left." }]}
-{"audio": ["./dataflow/example/audio_asr_pipeline/test.wav"], "conversation": [{"from": "human", "value": "He began a confused complaint against the wizard, who had vanished behind the curtain on the left." }]}
+{"audio": ["./dataflow/example/audio_asr_pipeline/test.wav"], "conversation": [{"from": "human", "value": "<audio>" }]}
+{"audio": ["./dataflow/example/audio_asr_pipeline/test.wav"], "conversation": [{"from": "human", "value": "<audio>" }]}
