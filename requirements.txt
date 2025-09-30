@@ -20,3 +20,6 @@ qwen_vl_utils
 # audio
 librosa
 soundfile
+
+# image
+ultralytics
