@@ -2,6 +2,13 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .generate.prompted_aqa_generator import PromptedAQAGenerator
+    from .generate.silero_vad_generator import SileroVADGenerator
+    
+    from .generaterow.cut_and_merge import MergeChunksByTimestamps
+
+    from .eval.ctc_forced_aligner import CTCForcedAlignSampleEvaluator
+
+    from .filter.ctc_forced_aligner_filter import CTCForcedAlignFilter
 
 else:
     import sys

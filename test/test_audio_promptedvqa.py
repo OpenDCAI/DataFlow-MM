@@ -12,7 +12,7 @@ class VQAGenerator():
             first_entry_file_name="./dataflow/example/audio_vqa/sample_data.jsonl",
             cache_path="./cache",
             file_name_prefix="audio_vqa",
-            cache_type="json",
+            cache_type="jsonl",
         )
         self.model_cache_dir = './dataflow_cache'
 
