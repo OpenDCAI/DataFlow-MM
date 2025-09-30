@@ -20,6 +20,7 @@ python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_ctc_for
 python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_silero_vad_generator.py
 python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_whisper_promptedaqa.py
 python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_promptedaqa.py
+python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_audio_asr_pipeline.py
 ```
 
 
