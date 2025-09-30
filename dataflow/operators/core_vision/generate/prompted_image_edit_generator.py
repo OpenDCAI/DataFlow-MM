@@ -68,7 +68,8 @@ class PromptedImageEditGenerator(OperatorABC):
         #             storage.media_key = output_image_key
         #             storage.write(df)
         batch_prompts = [
-            (df.at[idx, input_image_key][0], df.at[idx, input_conversation_key][-1]["content"])
+            # (df.at[idx, input_image_key][0], df.at[idx, input_conversation_key][-1]["content"])
+            (df.at[idx, input_image_key], df.at[idx, input_conversation_key][-1]["content"])
             for idx in range(total)
         ]
         generated = self.image_edit_serving.generate_from_input(batch_prompts)

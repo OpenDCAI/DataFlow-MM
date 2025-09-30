@@ -30,7 +30,7 @@ class ImageIO(object):
 
         for prompt, imgs in image_data.items():
             # Sanitize prompt for filesystem
-            prompt_safe = re.sub(r"[^0-9a-zA-Z]+", "_", prompt).strip("_")
+            prompt_safe = re.sub(r"[^0-9a-zA-Z]+", "_", prompt).strip("_")[:120]
             prompt_dir = os.path.join(self.save_path, prompt_safe)
             os.makedirs(prompt_dir, exist_ok=True)
 
