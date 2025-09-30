@@ -1,0 +1,76 @@
+Metadata-Version: 2.4
+Name: open-dataflow-mm
+Version: 0.0.1
+Summary: Modern Data Centric AI system for Large Language Models
+Author-email: Hao Liang <hao.liang@stu.pku.edu.cn>, Xiaochen Ma <xiaochen.ma.cs@gmail.com>
+License: Apache-2.0
+Project-URL: Github, https://github.com/Open-DataFlow/DataFlow
+Project-URL: Documentation, https://open-dataflow.github.io/DataFlow-Doc/
+Project-URL: Bug Reports, https://github.com/Open-DataFlow/DataFlow/issues
+Keywords: AI,artificial intelligence
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: License :: Free For Educational Use
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3 :: Only
+Requires-Python: <4,>=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: colorama
+Requires-Dist: pytest
+Requires-Dist: rich
+Requires-Dist: tqdm
+Requires-Dist: accelerate
+Requires-Dist: colorlog
+Requires-Dist: pandas
+Requires-Dist: transformers
+Requires-Dist: openai
+Requires-Dist: diffusers
+Requires-Dist: torchvision
+Requires-Dist: qwen_vl_utils
+Requires-Dist: soundfile
+Provides-Extra: vllm
+Requires-Dist: vllm<0.8; extra == "vllm"
+Provides-Extra: vqa
+Requires-Dist: qwen_vl_utils; extra == "vqa"
+Provides-Extra: myscale
+Requires-Dist: clickhouse-driver; extra == "myscale"
+Provides-Extra: sglang
+Requires-Dist: sglang[all]<=0.4.3; extra == "sglang"
+Provides-Extra: audio
+Requires-Dist: librosa; extra == "audio"
+Requires-Dist: soundfile; extra == "audio"
+Requires-Dist: ffmpeg; extra == "audio"
+Dynamic: license-file
+
+# audio测试
+
+准备环境
+```bash
+cd ./DataFlow-MM
+conda create -n df_audio_test python=3.12
+pip install -e .
+pip install -e ".[audio]"
+pip install -e ".[vllm]"
+```
+
+测试命令
+```bash
+python /data0/gty/DataFlow-MM/test/test_whisper_promptedvqa.py
+python /data0/gty/DataFlow-MM/test/test_audio_promptedvqa.py
+```
+
+
+# nano-banana (gemini-v2.5-image)测试
+测试命令
+```bash
+python test/test_image_editing.py --api_key < your api key >
+```
+we utilize the api from [yucha](http://123.129.219.111:3000/)
