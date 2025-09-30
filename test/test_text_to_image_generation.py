@@ -8,7 +8,7 @@ from dataflow.io import ImageIO
 class ImageGenerationPipeline():
     def __init__(self):
         self.storage = FileStorage(
-            first_entry_file_name="./dataflow/example/text2image/prompts.jsonl",
+            first_entry_file_name="./dataflow/example/image_gen/text2image/prompts.jsonl",
             cache_path="./cache_local",
             file_name_prefix="dataflow_cache_step",
             cache_type="jsonl"

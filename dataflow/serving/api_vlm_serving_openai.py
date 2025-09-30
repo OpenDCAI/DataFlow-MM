@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataflow.core import LLMServingABC
 from openai import OpenAI
+from io import BytesIO
 from tqdm import tqdm
 
 from ..logger import get_logger
@@ -81,6 +82,104 @@ class APIVLMServing_openai(LLMServingABC):
 
         return b64, fmt
 
+    def combine_images_to_base64(self, image_paths: List[str], mode: str = "horizontal") -> str:
+        """
+        Combine multiple images into one and return the combined image as a Base64 string.
+
+        :param image_paths: List of image file paths.
+        :param mode: Combination mode ('horizontal', 'vertical', or 'grid').
+        :return: Base64 string of the combined image.
+        """
+        # Load images
+        images = [Image.open(path) for path in image_paths]
+
+        # Calculate combined image size
+        if mode == "horizontal":
+            width = sum(img.width for img in images)
+            height = max(img.height for img in images)
+            combined_image = Image.new("RGB", (width, height))
+            offset = 0
+            for img in images:
+                combined_image.paste(img, (offset, 0))
+                offset += img.width
+
+        elif mode == "vertical":
+            width = max(img.width for img in images)
+            height = sum(img.height for img in images)
+            combined_image = Image.new("RGB", (width, height))
+            offset = 0
+            for img in images:
+                combined_image.paste(img, (0, offset))
+                offset += img.height
+
+        elif mode == "grid":
+            import math
+
+            # 画布大小：保证 1:1
+            max_dim = max(max(img.width, img.height) for img in images)
+            canvas_size = max(1024, max_dim)
+            combined_image = Image.new("RGB", (canvas_size, canvas_size), (255, 255, 255))
+
+            n = len(images)
+            cols = math.ceil(math.sqrt(n))
+            rows = math.ceil(n / cols)
+
+            def _partition_sizes(total: int, parts: int):
+                base = total // parts
+                rem = total - base * parts
+                return [base + 1 if i < rem else base for i in range(parts)]
+
+            def _fit_resize(img: Image.Image, tw: int, th: int) -> Image.Image:
+                """Scale proportionally (contain) to fully fit inside the cell without cropping"""
+                w, h = img.size
+                scale = min(tw / w, th / h)
+                nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+                return img.convert("RGBA").resize((nw, nh), Image.Resampling.LANCZOS)
+
+            row_heights = _partition_sizes(canvas_size, rows)
+            last_row_cols = n - (rows - 1) * cols
+            if last_row_cols <= 0:
+                last_row_cols = cols
+
+            idx = 0
+            y = 0
+            for r in range(rows):
+                h_r = row_heights[r]
+                cols_r = cols if (r < rows - 1) else last_row_cols
+                col_widths = _partition_sizes(canvas_size, cols_r)
+                x = 0
+                for c in range(cols_r):
+                    if idx >= n:
+                        break
+                    w_c = col_widths[c]
+                    tile = _fit_resize(images[idx], w_c, h_r)
+                    ox = x + (w_c - tile.width) // 2
+                    oy = y + (h_r - tile.height) // 2
+                    combined_image.paste(
+                        tile,
+                        (ox, oy),
+                        mask=tile.split()[3] if tile.mode == "RGBA" else None
+                    )
+                    x += w_c
+                    idx += 1
+                y += h_r
+
+        else:
+            raise ValueError("Mode must be 'horizontal', 'vertical', or 'combine'.")
+
+        # Convert to Base64
+        buffer = BytesIO()
+        # resize 
+        original_width, original_height = combined_image.size
+        combined_image = combined_image.resize(
+            (original_width // 2, original_height // 2), 
+            Image.Resampling.LANCZOS
+        )
+        combined_image.save(buffer, format="PNG")
+        base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        return base64_image
+
+
     def _create_messages(self, content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Wrap content items into the standard OpenAI messages structure.
@@ -140,7 +239,10 @@ class APIVLMServing_openai(LLMServingABC):
         :return: Model's response as a string.
         """
         model = model or self.model_name
-        b64, fmt = self._encode_image_to_base64(image_path)
+        if isinstance(image_path, list):
+            b64 = self.combine_images_to_base64(image_paths=image_path, mode="grid")
+            fmt = "png"
+        else: b64, fmt = self._encode_image_to_base64(image_path)
         content = [
             {"type": "text", "text": text_prompt},
             {"type": "image_url", "image_url": {"url": f"data:image/{fmt};base64,{b64}"}}
@@ -237,17 +339,16 @@ class APIVLMServing_openai(LLMServingABC):
         try:
             # extract the base64 code
             image_data = {}
-            base64_pattern = r'([A-Za-z0-9+/]{100,}={0,2})'
+            base64_pattern = r'!\[.*?\]\(data:image/(png|jpg|jpeg|gif|bmp);base64,([A-Za-z0-9+/=]+)\)'
             matches = re.findall(base64_pattern, content)
-            for match in matches:
-                if self._is_base64(match):
-                    try:
-                        image_data = base64.b64decode(match)
-                        pil_image = Image.open(io.BytesIO(image_data))
-                        image_data[prompt] = [pil_image]
-                        # return self.image_io.write(image_data)
-                    except:
-                        continue
+            for i, (image_type, base64_str) in enumerate(matches):
+                try:
+                    image_bytes = base64.b64decode(base64_str)
+                    pil_image = Image.open(io.BytesIO(image_bytes))
+                    images.append(pil_image)
+                    # return self.image_io.write(image_data)
+                except:
+                    continue
             
             # save the url images
             url_pattern = r'https?://[^\s<>"{}|\\^`\[\])]+'

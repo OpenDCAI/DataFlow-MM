@@ -44,3 +44,10 @@ python test/test_audio_promptedvqa.py
 python test/test_image_editing.py --api_key < your api key >
 ```
 we utilize the api from [yucha](http://123.129.219.111:3000/)
+
+## 多参考图生成测试
+测试命令
+```bash
+python test/test_echo4o_w_nano.py --api_key < your api key >
+```
+we utilize the api from [yucha](http://123.129.219.111:3000/)
