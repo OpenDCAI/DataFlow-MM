@@ -16,6 +16,7 @@
 🎉 If you like our project, please give us a star ⭐ on GitHub for the latest update.
 
 [简体中文](./README-zh.md) | English
+</div>
 
 ## Quick Start
 Install with the following command:
