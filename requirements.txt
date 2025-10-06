@@ -16,6 +16,36 @@ diffusers   # in our test, diffusers==0.33.1
 torchvision
 qwen_vl_utils
 
+# Video Pipeline
+torch==2.7.0 --index-url https://download.pytorch.org/whl/cu126
+torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu126
+torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu126
+opencv-python==4.11.0.86
+tqdm==4.67.1
+imageio==2.37.0
+einops==0.8.1
+scipy==1.15.2
+matplotlib==3.10.0
+ninja==1.11.1.3
+numpy==1.26.4
+pandas==2.2.3
+huggingface_hub
+
+scenedetect
+ftfy==6.3.1
+diffusers==0.29.0
+accelerate==1.4.0
+av==14.2.0
+scenedetect==0.6.5.2
+decord==0.6.0
+imageio-ffmpeg==0.6.0
+ffmpeg-python==0.2.0
+clip @ git+https://github.com/openai/CLIP.git
+cpbd==1.0.7
+# paddlepaddle-gpu==3.0.0 --index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
+paddleocr==3.0.0
+nvidia-nccl-cu12==2.26.2
+numpy==1.26.4
 
 # audio
 torchaudio
