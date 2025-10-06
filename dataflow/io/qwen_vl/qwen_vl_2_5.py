@@ -60,6 +60,49 @@ class Qwen2_5VLIO(object):
     def write_media(self, media_dict):
         raise NotImplementedError("Qwen2_5VLIO does not support write_media operation.")
 
+    def build_message(
+        self,
+        user_inputs: list[list[dict]],
+        image_list: list[list[str]] = None,
+        video_list: list[list[str]] = None,
+        audio_list: list[list[str]] = None,
+        system_prompt: str = "You are a helpful agent."
+    ):
+        message_list = []
+        for i in range(len(user_inputs)):
+            messages = [
+                {"role": "system", "content": system_prompt}
+            ]
+            
+            content = []
+            if image_list and image_list[i]:
+                if isinstance(image_list[i], str):
+                    image_list[i] = [image_list[i]]
+                for j in range(len(image_list[i])):
+                    image_path = image_list[i][j]
+                    content.append({
+                        "type": "image",
+                        "image": image_path,
+                    })
+            if video_list and video_list[i]:
+                if isinstance(video_list[i], str):
+                    video_list[i] = [video_list[i]]
+                for j in range(len(video_list[i])):
+                    video_path = video_list[i][j]
+                    content.append({
+                        "type": "video",
+                        "video": video_path,
+                    })
+            content.append({"type": "text", "text": user_inputs[i]})
+            
+            messages.append({
+                "role": "user",
+                "content": content
+            })
+            
+            message_list.append(messages)
+        return message_list
+    
     def _conversation_to_message(
             self,
             conversations: list[list[dict]],
