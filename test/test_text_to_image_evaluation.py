@@ -3,28 +3,27 @@ from dataflow.operators.conversations import Conversation2Message
 from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.utils.storage import FileStorage
 
-# import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # 设置可见的GPU设备
-
 class VQAGenerator():
     def __init__(self):
         self.storage = FileStorage(
-            first_entry_file_name="./dataflow/example/audio_vqa/sample_data.jsonl",
+            first_entry_file_name="./dataflow/example/text2image_eval/sample_data.json",
             cache_path="./cache",
-            file_name_prefix="audio_vqa",
-            cache_type="jsonl",
+            file_name_prefix="vqa",
+            cache_type="json",
         )
         self.model_cache_dir = './dataflow_cache'
 
         self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/mnt/public/data/lh/guotianyu/Models/Qwen2-Audio-7B-Instruct",
+            hf_model_name_or_path="/pfs/tcz/UnifiedReward-qwen-7b",
             hf_cache_dir=self.model_cache_dir,
-            vllm_tensor_parallel_size=8,
+            vllm_tensor_parallel_size=1,
             vllm_temperature=0.7,
-            vllm_top_p=0.9,
+            vllm_top_p=0.9, 
             vllm_max_tokens=512,
-            vllm_gpu_memory_utilization=0.5
+            vllm_gpu_memory_utilization=0.9
         )
+        # self.vlm_serving = None
+
         # self.format_converter = Conversation2Message(
         #     image_list_key="image",
         #     video_list_key="video",
@@ -33,7 +32,6 @@ class VQAGenerator():
         # )
         self.prompt_generator = PromptedVQAGenerator(
             vlm_serving = self.vlm_serving,
-            system_prompt="You are a helpful agent."
         )
 
     def forward(self):

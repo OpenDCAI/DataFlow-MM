@@ -3,7 +3,7 @@ import math
 import warnings
 import base64
 from io import BytesIO
-from typing import List, Optional, Union, Dict, Tuple
+from typing import List, Optional, Union, Dict, Tuple, TypedDict
 
 import librosa
 import requests
