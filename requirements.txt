@@ -24,7 +24,7 @@ einops
 scipy
 matplotlib
 ninja
-numpy==1.24.4
+numpy
 pandas
 huggingface_hub
 
@@ -38,8 +38,8 @@ imageio-ffmpeg
 ffmpeg-python
 clip @ git+https://github.com/openai/CLIP.git
 cpbd
-# paddlepaddle-gpu==3.0.0 --index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
-paddleocr==3.0.0
+paddlepaddle-gpu==3.0.0 --index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
+# paddleocr==3.0.0
 
 # audio
 torchaudio
