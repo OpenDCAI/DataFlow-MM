@@ -176,7 +176,8 @@ class PromptedT2ITextGenerator(OperatorABC):
 
                 # 你可以选择把 condition_texts 存成 list 或可读字符串
                 # 这里将其拼成单行字符串，便于导出/检索
-                input_text_value = "; ".join(entry["condition_texts"])
+                # input_text_value = "; ".join(entry["condition_texts"])
+                input_text_value = [f"{t}, white background" for t in entry["condition_texts"]]
 
                 expanded_rows.append({
                     input_prompt_key: input_text_value,
