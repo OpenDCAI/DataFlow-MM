@@ -162,6 +162,7 @@ class LocalImageGenServing(VLMServingABC):
         Distribute inputs across pipelines and run in parallel, then save via image_io.
         """
         n_pipes = len(self.pipes)
+        ### user_inputs: List[(idx, str)]，可以支持根据ID来save图片
         if n_pipes <= 1:
             results = self._generate_on_pipe(self.pipes[0], user_inputs)
         else:
@@ -182,6 +183,7 @@ class LocalImageGenServing(VLMServingABC):
                     results.update(batch_res)
 
         # save all images
+        # 修改image_io，用预定的格式来save
         return self.image_io(results)
 
     def cleanup(self):
