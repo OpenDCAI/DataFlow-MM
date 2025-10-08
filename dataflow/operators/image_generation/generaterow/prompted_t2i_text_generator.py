@@ -66,8 +66,7 @@ class PromptedT2ITextGenerator(OperatorABC):
         input_element_key: str = "input_element",
         input_style_key: str = "input_style",
         input_prompt_key: str = "input_text",
-        output_prompt_key: str = "instruction",
-        expanded_output_type: str | None = None,  # 可选：指定写入命名/类型
+        output_prompt_key: str = "instruction"
     ):
         if output_prompt_key is None:
             raise ValueError("At least one of output_key must be provided.")
@@ -169,15 +168,14 @@ class PromptedT2ITextGenerator(OperatorABC):
                 # 统一输出前缀
                 if isinstance(out_text, str):
                     stripped = out_text.strip()
-                    if not stripped.lower().startswith("[output_prompt]:"):
-                        stripped = f"[output_prompt]: {stripped}"
+                    if stripped.lower().startswith("[output_prompt]:"):
+                        stripped = stripped.replace("[output_prompt]:", "", 1).strip()
                 else:
-                    stripped = "[output_prompt]: "
+                    # stripped = "[output_prompt]: "
+                    stripped = "; ".join(entry["condition_texts"])
 
-                # 你可以选择把 condition_texts 存成 list 或可读字符串
-                # 这里将其拼成单行字符串，便于导出/检索
                 # input_text_value = "; ".join(entry["condition_texts"])
-                input_text_value = [f"{t}, white background" for t in entry["condition_texts"]]
+                input_text_value = [{"content": f"{t}, white background"} for t in entry["condition_texts"]]
 
                 expanded_rows.append({
                     input_prompt_key: input_text_value,
@@ -190,14 +188,6 @@ class PromptedT2ITextGenerator(OperatorABC):
 
         expanded_df = pd.DataFrame(expanded_rows)
 
-        # 仅写入新的 expanded_df
-        if expanded_output_type is not None:
-            try:
-                storage.write(expanded_df, output_type=expanded_output_type)
-            except TypeError:
-                logger.warning("storage.write does not support output_type; writing expanded_df without it.")
-                storage.write(expanded_df)
-        else:
-            storage.write(expanded_df)
+        storage.write(expanded_df)
 
         logger.info(f"PromptedT2ITextGenerator finished. new rows: {len(expanded_df)}")
