@@ -28,14 +28,16 @@ if
 [input_elements]: 'person stand at a wooden counter', 'scissors', 'towel', 'lavender stem'
 then
 [output_prompt]: 'Have the person stand at a wooden counter, holding scissors in their right hand with the blade angled upward, while their left hand lightly touches a towel, focusing intently on cutting a lavender stem.'
+(hint: Try not to make the [output_prompt] too long)
 """
 
 TEMPLATE_X2I = """
 if
-[input_elements]: 'A distinguished man, a striking blue suit', 'a polished wooden table', 'a simple white cup'
+[input_elements]: 'a simple white cup'. 'a man wearing striking blue suit'
 [input_style]: 'professional, elegant, focused'
 then
 [output_prompt]: 'A distinguished man sits confidently at a polished wooden table, wearing a striking blue suit that commands attention. The suit is tailored to perfection, enhancing his authoritative presence while exuding a sense of professionalism. His expression is thoughtful, with a hint of determination in his eyes, as he rests one hand on the table. In front of him, a simple white cup sits, steam gently rising from it, hinting at a moment of contemplation or perhaps a brief pause during a busy day. The scene encapsulates a blend of elegance and focus, reflecting the man's commitment to his work and the importance of the moment. The cup is the cup in <img><|image_1|></img>. The man is the one in <img><|image_2|></img>.'
+(hint: Please use <img><|image_<idx>|></img> and ensure the order corresponds to [input_elements])
 """
 
 
