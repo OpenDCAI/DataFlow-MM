@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from .generate.multimodal_math_generator import MultimodalMathGenerate
     from .generate.personalized_qa_generator import PersQAGenerate
     from .generate.vision_mct_reasoning_sft_generator import VisionMCTSReasoningSFTGenerate
+    from .generate.image_scale_caption_generator import ImageScaleCaptionGenerate, ImageScaleCaptionGenerateConfig
     from .filter.aesthetic_filter import AestheticFilter
     from .filter.cat_filter import CatFilter
     from .filter.clip_filter import ClipFilter
