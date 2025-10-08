@@ -105,9 +105,31 @@ class LocalImageGenServing(VLMServingABC):
         """
         Helper to generate images for a batch of prompts on a single pipeline.
         """
+        if len(prompts) == 0:
+            raise ValueError("prompts must be non-empty")
+
         if self.image_gen_task == "text2image":
+            
+            is_dict_input = isinstance(prompts[0], dict)
+
+            if is_dict_input:
+                for i, item in enumerate(prompts):
+                    if not isinstance(item, dict):
+                        raise ValueError(f"All items must be dict when using dict input, but prompts[{i}] is {type(item)}")
+                    if "text_prompt" not in item or "sample_id" not in item:
+                        raise ValueError(f"prompts[{i}] must contain 'text_prompt' and 'sample_id'")
+                    if not isinstance(item["text_prompt"], str):
+                        raise ValueError(f"prompts[{i}]['text_prompt'] must be str")
+
+                text_prompts = [p["text_prompt"] for p in prompts]
+            else:
+                for i, p in enumerate(prompts):
+                    if not isinstance(p, str):
+                        raise ValueError(f"text2image expects List[str] or List[dict], but prompts[{i}] is {type(p)}")
+                text_prompts = prompts
+
             output = pipe(
-                prompt=prompts,
+                prompt=text_prompts,
                 height=self.diffuser_image_height,
                 width=self.diffuser_image_width,
                 num_inference_steps=self.diffuser_num_inference_steps,
@@ -116,6 +138,10 @@ class LocalImageGenServing(VLMServingABC):
             )
         elif self.image_gen_task == "imageedit":
             # prompts expected as list of tuples (image, prompt)
+            for i, it in enumerate(prompts):
+                if not (isinstance(it, (list, tuple)) and len(it) == 2):
+                    raise ValueError(f"imageedit expects List[(image, prompt)], got prompts[{i}]={it}")
+
             images, texts = zip(*prompts)
             images = self.image_io.read(list(images))
             output = pipe(
@@ -133,10 +159,17 @@ class LocalImageGenServing(VLMServingABC):
         all_images = output.images
         grouped: Dict[str, List[Image.Image]] = {}
         if self.image_gen_task == "text2image":
-            for idx, prompt in enumerate(prompts):
-                start = idx * self.diffuser_num_images_per_prompt
-                end = start + self.diffuser_num_images_per_prompt
-                grouped[prompt] = all_images[start:end]
+            if isinstance(prompts[0], dict):
+                for idx in range(len(text_prompts)):
+                    start = idx * self.diffuser_num_images_per_prompt
+                    end = start + self.diffuser_num_images_per_prompt
+                    key = str(prompts[idx]["sample_id"])
+                    grouped[key] = all_images[start:end]
+            else:
+                for idx, prompt_text in enumerate(text_prompts):
+                    start = idx * self.diffuser_num_images_per_prompt
+                    end = start + self.diffuser_num_images_per_prompt
+                    grouped[prompt_text] = all_images[start:end]
         else:
             for idx, (_, text) in enumerate(prompts):
                 start = idx * self.diffuser_num_images_per_prompt
@@ -162,7 +195,6 @@ class LocalImageGenServing(VLMServingABC):
         Distribute inputs across pipelines and run in parallel, then save via image_io.
         """
         n_pipes = len(self.pipes)
-        ### user_inputs: List[(idx, str)]，可以支持根据ID来save图片
         if n_pipes <= 1:
             results = self._generate_on_pipe(self.pipes[0], user_inputs)
         else:
@@ -183,7 +215,6 @@ class LocalImageGenServing(VLMServingABC):
                     results.update(batch_res)
 
         # save all images
-        # 修改image_io，用预定的格式来save
         return self.image_io(results)
 
     def cleanup(self):
