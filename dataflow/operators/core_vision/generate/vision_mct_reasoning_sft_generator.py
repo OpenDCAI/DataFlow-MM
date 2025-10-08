@@ -142,8 +142,50 @@ class VisionMCTSReasoningSFTGenerate(OperatorABC):
         random.seed(seed)
 
     @staticmethod
-    def get_desc(lang="zh"):
-        return "读取含MCTS树的样本，或用固定Prompt调用VLM生成带<think>/<answer>的推理文本，并产出SFT训练条目" if lang=="zh" else "Build SFT entries from MCTS trees or fixed-prompt VLM generations."
+    def get_desc(lang: str = "zh") -> str:
+        zh = (
+            "从 MCTS 搜索树或直接调用 VLM，生成带 <think>/<answer> 且内含坐标落点的推理链，用于后续训练（如 SFT / RL 热身）。生成的推理链统一包含单段 <think>…</think> 与单段 <answer>…</answer>，并在思维过程中显式引用一个或多个 (x, y)。\n"
+            "背景论文 arXiv:2505.23678  https://arxiv.org/abs/2505.23678\n"
+            "典型场景 Web Grounding / Spatial Reasoning / Web Action / Visual Search 等需要“显式坐标落点”的推理数据构建。\n"
+            "系统提示模板（prompt_type） \n"
+            "  · web_grounding：屏幕/GUI元素定位；最终答案为坐标 (x, y)。\n"
+            "  · spatial：空间推理/多图对比；最终答案为选项文本或指向性描述。\n"
+            "  · web_action：网页动作预测；最终答案为一次动作（含类型与参数）。\n"
+            "  · vstar：通用视觉问答的坐标化思维链形式。\n"
+            "工作机制\n"
+            "  · 若样本含 MCTS 树：解析各 rollout，将“错误→回溯→正确”的路径线性化为多样式推理链；自动去重并可限量采样。\n"
+            "  · 若无 MCTS 树：以所选系统提示直接调用 VLM 生成带 <think>/<answer> 的链。\n"
+            "  · 可选可视化：解析链中 (x, y) 并在原图上叠加标注（绿色=思维步骤，红色=预测，蓝色=参考）。\n"
+            "  · 可选日志：将若干样例以 HTML 方式发送至 W&B，便于快速质检。\n"
+            "输入参数\n"
+            "  · prompt_type: {'web_grounding','spatial','web_action','vstar'}\n"
+            "  · val_size: 验证比例，默认 0.05\n"
+            "  · log_to_wandb: 是否记录到 Weights & Biases\n"
+            "  · max_samples_per_file: 单样本最多保留的推理链数量\n"
+            "  · draw_points: 是否在图像上绘制坐标点\n"
+            "  · seed: 随机种子\n"
+        )
+
+        en = (
+            "Build coordinate-grounded chains-of-thought (<think>/<answer>) from MCTS trees or via direct VLM prompting—ready for training stages (e.g., SFT / RL warm-up). Produced chains contain a single <think>…</think> and a single <answer>…</answer>, with explicit (x, y) references in the reasoning.\n"
+            "Paper arXiv:2505.23678  https://arxiv.org/abs/2505.23678\n"
+            "Use Cases Web grounding, spatial reasoning, web action prediction, and visual search where explicit (x, y) grounding is required.\n"
+            "System Prompts (prompt_type)\n"
+            "  · web_grounding: screen/GUI localization; final answer is a coordinate (x, y).\n"
+            "  · spatial: spatial reasoning / multi-image; final answer is an option text or pointer.\n"
+            "  · web_action: next web action; final answer is one action with type & args.\n"
+            "  · vstar: generic VQA with coordinate-grounded CoT format.\n"
+            "Behavior\n"
+            "  · With MCTS: parse rollouts, compose corrective→direct chains, deduplicate, optionally subsample.\n"
+            "  · Without MCTS: prompt the VLM with the selected system prompt to produce <think>/<answer> chains.\n"
+            "  · Optional visualization: overlay (x, y) steps on the image (green=steps, red=pred, blue=ref).\n"
+            "  · Optional logging: HTML previews to Weights & Biases for quick QC.\n"
+            "Input Args\n"
+            "  · prompt_type ∈ {'web_grounding','spatial','web_action','vstar'}\n"
+            "  · val_size (default 0.05), log_to_wandb, max_samples_per_file, draw_points, seed\n"
+        )
+
+        return zh if lang.lower().startswith("zh") else en
 
     def _choose_system_prompt(self) -> str:
         if self.prompt_type not in _SYSTEM_PROMPTS:
