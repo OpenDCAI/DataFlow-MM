@@ -218,7 +218,7 @@ class APIVLMServing_openai(LLMServingABC):
                         # full_content += content_piece
                         full_content = chunk.choices[0].delta.content  # utilize the final response
             else:
-                full_content = resp.choices[0].delta.content
+                full_content = resp.choices[0].message.content
             return full_content
         return resp.choices[0].message.content
 
@@ -338,6 +338,7 @@ class APIVLMServing_openai(LLMServingABC):
         """save generated image from API response"""
         try:
             # extract the base64 code
+            images = []
             image_data = {}
             base64_pattern = r'!\[.*?\]\(data:image/(png|jpg|jpeg|gif|bmp);base64,([A-Za-z0-9+/=]+)\)'
             matches = re.findall(base64_pattern, content)
@@ -353,7 +354,6 @@ class APIVLMServing_openai(LLMServingABC):
             # save the url images
             url_pattern = r'https?://[^\s<>"{}|\\^`\[\])]+'
             urls = re.findall(url_pattern, content)
-            images = []
             for url in urls:
                 url = url.replace('\/', '/')
                 try:
