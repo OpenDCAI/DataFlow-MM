@@ -60,3 +60,12 @@ we utilize the api from [yucha](http://123.129.219.111:3000/)
 python test/test_echo4o_w_nano.py --api_key < your api key >
 ```
 we utilize the api from [yucha](http://123.129.219.111:3000/)
+
+
+# data selection测试脚本
+测试命令
+```bash
+python test/test_data_selection.py
+
+# 目前没完成处理好显存占用问题。建议datatailor单独测试，剩下的可以一起测试
+```

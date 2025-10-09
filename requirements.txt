@@ -49,3 +49,6 @@ iso639-lang
 pypinyin
 jiwer
 uroman
+
+# data selection
+ray
