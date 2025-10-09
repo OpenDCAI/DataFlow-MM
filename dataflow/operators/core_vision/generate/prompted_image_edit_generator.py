@@ -32,6 +32,7 @@ class PromptedImageEditGenerator(OperatorABC):
         input_image_key: str = "images",
         input_conversation_key: str = "conversation",
         output_image_key: str = "edited_images",
+        save_image_with_idx: bool = True,
     ):
         if output_image_key is None:
             raise ValueError("At least one of output_key must be provided.")
@@ -67,16 +68,26 @@ class PromptedImageEditGenerator(OperatorABC):
         #         if processed % self.save_interval == 0:
         #             storage.media_key = output_image_key
         #             storage.write(df)
-        batch_prompts = [
-            # (df.at[idx, input_image_key][0], df.at[idx, input_conversation_key][-1]["content"])
-            (df.at[idx, input_image_key], df.at[idx, input_conversation_key][-1]["content"])
-            for idx in range(total)
-        ]
+        if save_image_with_idx:
+            batch_prompts = [
+                {"idx": idx, "image_path": df.at[idx, input_image_key], "prompt": df.at[idx, input_conversation_key][-1]["content"]}
+                for idx in range(total)
+            ]
+        else:
+            batch_prompts = [
+                # (df.at[idx, input_image_key][0], df.at[idx, input_conversation_key][-1]["content"])
+                (df.at[idx, input_image_key], df.at[idx, input_conversation_key][-1]["content"])
+                for idx in range(total)
+            ]
         generated = self.image_edit_serving.generate_from_input(batch_prompts)
         for idx, prompt in zip(list(range(total)), batch_prompts):
-            if isinstance(prompt, tuple):
-                prompt = prompt[1]
-            df.at[idx, output_image_key] = generated[idx] if isinstance(generated, list) else generated.get(prompt, [])
+            if save_image_with_idx:
+                df.at[prompt['idx'], output_image_key] = generated.get(f"sample_{prompt['idx']}", [])
+
+            else:
+                if isinstance(prompt, tuple):
+                    prompt = prompt[1]
+                df.at[idx, output_image_key] = generated[idx] if isinstance(generated, list) else generated.get(prompt, [])
 
         # Final flush of any remaining prompts
         storage.media_key = output_image_key

@@ -21,6 +21,23 @@ Please help me generate a comprehensive image description based on the input ele
 [template]: {template}
 
 Please generate a comprehensive image description based on the [input_elements] and [input_style] content, following the corresponding format. Return your response in the format: '[output_prompt]: ...'
+
+Additionally, please generate an extra [output_prompt_2] that describes the spatial relationships and interactions between different input_elements as comprehensively as possible. If the [template] includes the use of [input_style], [output_prompt_2] please follow:
+if
+[input_elements]: 'a basketball', 'a player in a red jersey'
+[input_style]: 'dynamic, energetic, sporty'
+then
+[output_prompt]: 'A basketball player in a vivid red jersey leaps powerfully off the polished court, gripping the basketball tightly as he soars toward the hoop. His body twists mid-air, eyes locked on the rim, while the ball is poised for a dramatic slam dunk. The scene captures the intense energy and athleticism of the moment, with the player's muscles tensed and the crowd in the background reacting to the action. The interaction between the player and the basketball is the focal point, emphasizing motion, anticipation, and the excitement of the game. The image style is dynamic, energetic, and sporty.'
+otherwise, [output_prompt_2] please follow the template below:
+if
+[input_elements]: 'a basketball', 'a player in a red jersey'
+then
+[output_prompt]: 'A basketball player in a vivid red jersey leaps powerfully off the polished court, gripping the basketball tightly as he soars toward the hoop.  His body twists mid-air, eyes locked on the rim, while the ball is poised for a slam dunk.  The scene captures the player's muscles tensed and the crowd in the background reacting to the action.  The interaction between the player and the basketball is the focal point.'
+
+Your overall response format should be:
+'[output_prompt]: ... \n
+[output_prompt_2]: Please generate a natural and complete image based on the description and image conditions, without any traces of patching: ...'
+Do not include any extraneous content, and strictly adhere to the specified format in your response.
 '''
 
 # the first image
@@ -118,7 +135,8 @@ class PromptedT2ITextGenerator(OperatorABC):
         input_element_key: str = "input_element",
         input_style_key: str = "input_style",
         input_prompt_key: str = "input_text",
-        output_prompt_key: str = "instruction"
+        output_prompt_key: str = "instruction",
+        output_prompt_key_2: str = "output_img_discript",
     ):
         if output_prompt_key is None:
             raise ValueError("At least one of output_key must be provided.")
@@ -218,21 +236,25 @@ class PromptedT2ITextGenerator(OperatorABC):
                 cursor += 1
 
                 # 统一输出前缀
-                if isinstance(out_text, str):
+                if isinstance(out_text, str) and ("[output_prompt_2]:" in out_text):
                     stripped = out_text.strip()
-                    if stripped.lower().startswith("[output_prompt]:"):
-                        stripped = stripped.replace("[output_prompt]:", "", 1).strip()
+                    parts = stripped.split("[output_prompt_2]:")
+                    output_prompt = parts[0].replace("[output_prompt]:", "", 1).strip()
+                    output_prompt_2 = parts[1].strip() if len(parts) > 1 else output_prompt
                 else:
                     # stripped = "[output_prompt]: "
-                    stripped = "; ".join(entry["condition_texts"])
+                    output_prompt = "; ".join(entry["condition_texts"])
+                    output_prompt_2 = "; ".join(entry["condition_texts"])
 
                 # input_text_value = "; ".join(entry["condition_texts"])
                 input_text_value = [{"content": f"{t}, white background"} for t in entry["condition_texts"]]
-                stripped = [{"content": stripped}]
+                output_prompt = [{"content": output_prompt}]
+                output_prompt_2 = [{"content": output_prompt_2}]
 
                 expanded_rows.append({
                     input_prompt_key: input_text_value,
-                    output_prompt_key: stripped,
+                    output_prompt_key: output_prompt,
+                    output_prompt_key_2: output_prompt_2,
                     # 如无需要，可删除以下元信息字段
                     # "_style": entry["style"],
                     # "_template": entry["template"],

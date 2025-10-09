@@ -33,7 +33,7 @@ class ImageGenerationPipeline():
                 api_url=api_url,
                 model_name="gemini-2.5-flash-image-preview",               # try nano-banana
                 image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
-                send_request_stream=True,    # if utilize http://35.220.164.252:3888/v1/, delete this line
+                # send_request_stream=True,    # if use ip http://123.129.219.111:3000/ add this line
             )
 
         self.text_to_image_generator = PromptedImageEditGenerator(
@@ -45,7 +45,7 @@ class ImageGenerationPipeline():
         self.text_to_image_generator.run(
             storage=self.storage.step(),
             input_image_key="input_image",
-            input_conversation_key="instruction",
+            input_conversation_key="output_img_discript",
             output_image_key="output_image",
         )
 

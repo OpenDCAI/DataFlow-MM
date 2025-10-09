@@ -114,55 +114,55 @@ class APIVLMServing_openai(LLMServingABC):
 
         elif mode == "grid":
             import math
-
-            # 画布大小：保证 1:1
-            max_dim = max(max(img.width, img.height) for img in images)
-            canvas_size = max(1024, max_dim)
+    
+            # 设置参数
+            canvas_size = 1024  # 1:1 画布大小
+            padding = 40        # 留白大小
+            
+            # 创建白色画布
             combined_image = Image.new("RGB", (canvas_size, canvas_size), (255, 255, 255))
-
+            
             n = len(images)
             cols = math.ceil(math.sqrt(n))
             rows = math.ceil(n / cols)
-
-            def _partition_sizes(total: int, parts: int):
-                base = total // parts
-                rem = total - base * parts
-                return [base + 1 if i < rem else base for i in range(parts)]
-
-            def _fit_resize(img: Image.Image, tw: int, th: int) -> Image.Image:
-                """Scale proportionally (contain) to fully fit inside the cell without cropping"""
-                w, h = img.size
-                scale = min(tw / w, th / h)
-                nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
-                return img.convert("RGBA").resize((nw, nh), Image.Resampling.LANCZOS)
-
-            row_heights = _partition_sizes(canvas_size, rows)
-            last_row_cols = n - (rows - 1) * cols
-            if last_row_cols <= 0:
-                last_row_cols = cols
-
+            
+            # 计算每个单元格的尺寸（考虑留白）
+            cell_width = (canvas_size - padding * (cols + 1)) // cols
+            cell_height = (canvas_size - padding * (rows + 1)) // rows
+            
             idx = 0
-            y = 0
             for r in range(rows):
-                h_r = row_heights[r]
-                cols_r = cols if (r < rows - 1) else last_row_cols
-                col_widths = _partition_sizes(canvas_size, cols_r)
-                x = 0
-                for c in range(cols_r):
+                for c in range(cols):
                     if idx >= n:
                         break
-                    w_c = col_widths[c]
-                    tile = _fit_resize(images[idx], w_c, h_r)
-                    ox = x + (w_c - tile.width) // 2
-                    oy = y + (h_r - tile.height) // 2
-                    combined_image.paste(
-                        tile,
-                        (ox, oy),
-                        mask=tile.split()[3] if tile.mode == "RGBA" else None
-                    )
-                    x += w_c
+                    
+                    # 计算单元格左上角坐标
+                    x = padding + c * (cell_width + padding)
+                    y = padding + r * (cell_height + padding)
+                    
+                    # 缩放图片以适应单元格（保持比例）
+                    img = images[idx]
+                    w, h = img.size
+                    
+                    # 计算缩放比例
+                    scale = min(cell_width / w, cell_height / h)
+                    new_w = int(w * scale)
+                    new_h = int(h * scale)
+                    
+                    # 缩放图片
+                    resized_img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                    
+                    # 计算居中位置
+                    offset_x = x + (cell_width - new_w) // 2
+                    offset_y = y + (cell_height - new_h) // 2
+                    
+                    # 粘贴到画布
+                    if resized_img.mode == 'RGBA':
+                        combined_image.paste(resized_img, (offset_x, offset_y), resized_img)
+                    else:
+                        combined_image.paste(resized_img, (offset_x, offset_y))
+                    
                     idx += 1
-                y += h_r
 
         else:
             raise ValueError("Mode must be 'horizontal', 'vertical', or 'combine'.")
@@ -270,9 +270,9 @@ class APIVLMServing_openai(LLMServingABC):
         """
         response = self.chat_with_one_image(image_path, text_prompt, model, timeout)
         if self.image_io != None:
-            io_results = self._extract_and_save_image(response, text_prompt)
+            io_results = self._extract_and_save_image(response, f"sample_{request_id}")
             try:
-                response = io_results[text_prompt]
+                response = io_results[f"sample_{request_id}"]
             except Exception as e:
                 print("Cannot save the image files: {str(e)}")
         return request_id, response
@@ -503,11 +503,21 @@ class APIVLMServing_openai(LLMServingABC):
         return: List[str], list of generated contents
         """
         futures = []
-        result_text_list = [None] * len(user_inputs)
+        # result_text_list = [None] * len(user_inputs)
+        result_text_list = {}
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             for idx,user_input in enumerate(user_inputs):
                 if isinstance(user_input, tuple) and len(user_input) == 2:
                     image_path, prompt = user_input
+                    futures.append(executor.submit(self.chat_with_one_image_with_id,
+                                                idx,
+                                                image_path,
+                                                prompt,
+                                                self.model_name,
+                                                self.timeout))
+                    
+                elif isinstance(user_input, dict):
+                    idx, image_path, prompt = user_input["idx"], user_input["image_path"], user_input["prompt"]
                     futures.append(executor.submit(self.chat_with_one_image_with_id,
                                                 idx,
                                                 image_path,
@@ -524,5 +534,5 @@ class APIVLMServing_openai(LLMServingABC):
                                                 self.timeout))
         for future in as_completed(futures):
             idx,res = future.result()
-            result_text_list[idx] = res
+            result_text_list[f"sample_{idx}"] = res
         return result_text_list

@@ -1,6 +1,7 @@
 import os
 import argparse
 from dataflow.operators.image_generation import PromptedT2ITextGenerator
+from dataflow.operators.image_generation import PromptedT2ISampleGenerator
 from dataflow.serving.api_llm_serving_request import APILLMServing_request
 from dataflow.utils.storage import FileStorage
 
@@ -31,19 +32,30 @@ class TextPromptExtendPipeline():
         else:
             raise ValueError("Currently only 'api' serving_type is supported.")
 
-        self.text_to_image_generator = PromptedT2ITextGenerator(
+        # self.text_to_image_generator = PromptedT2ITextGenerator(
+        #     llm_serving=self.serving,
+        #     ip_condition_num=ip_condition_num,
+        #     repeat_times=repeat_times
+        # )
+        self.text_to_image_sample_generator = PromptedT2ISampleGenerator(
             llm_serving=self.serving,
             ip_condition_num=ip_condition_num,
             repeat_times=repeat_times
         )
     
     def forward(self):
-        self.text_to_image_generator.run(
+        # self.text_to_image_generator.run(
+        #     storage=self.storage.step(),
+        #     input_element_key = "input_element",
+        #     input_style_key = "input_style",
+        #     input_prompt_key = "input_text",
+        #     output_prompt_key = "instruction"
+        # )
+        self.text_to_image_sample_generator.run(
             storage=self.storage.step(),
             input_element_key = "input_element",
             input_style_key = "input_style",
-            input_prompt_key = "input_text",
-            output_prompt_key = "instruction"
+            input_prompt_key="input_text",
         )
 
 
