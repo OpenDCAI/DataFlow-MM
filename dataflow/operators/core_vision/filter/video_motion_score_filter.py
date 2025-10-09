@@ -1,333 +1,272 @@
-import torch
-import clip
-import numpy as np
+import sys
 import cv2
+import numpy as np
 from pathlib import Path
-from PIL import Image, ImageOps
-from typing import Literal
+from typing import Optional, Tuple, Union
+from contextlib import contextmanager
 from dataflow.core import OperatorABC
 from dataflow.utils.registry import OPERATOR_REGISTRY
 from dataflow.utils.storage import DataFlowStorage
 from dataflow import get_logger
 
+OP_NAME = "video_motion_score_filter"
+
+
+@contextmanager
+def VideoCapture(*args, **kwargs):
+    """上下文管理器，确保视频资源正确释放"""
+    cap = cv2.VideoCapture(*args, **kwargs)
+    try:
+        yield cap
+    finally:
+        cap.release()
+
 
 @OPERATOR_REGISTRY.register()
-class VideoAudioSimilarity(OperatorABC):
-    """视频帧与音频相似度评估算子"""
-
+class VideoMotionScoreFilter(OperatorABC):
+    """
+    视频运动分数过滤器
+    
+    使用 Farneback 光流算法计算视频的运动分数，保留运动分数在指定范围内的样本。
+    运动分数计算为光流幅度的平均值，可以相对于帧对角线长度进行归一化。
+    """
+    
+    _default_kwargs = {
+        "pyr_scale": 0.5,
+        "levels": 3,
+        "winsize": 15,
+        "iterations": 3,
+        "poly_n": 5,
+        "poly_sigma": 1.2,
+        "flags": 0,
+    }
+    
     def __init__(
-            self,
-            hf_clip: str = 'openai/clip-vit-base-patch32',
-            trust_remote_code: bool = False,
-            min_score: float = 0.0,
-            max_score: float = 1.0,
-            frame_sampling_method: Literal['all_keyframes', 'uniform'] = 'uniform',
-            frame_num: int = 3,
-            horizontal_flip: bool = False,
-            vertical_flip: bool = False,
-            any_or_all: Literal['any', 'all'] = 'any',
-            reduce_mode: Literal['avg', 'max', 'min'] = 'avg',
+        self,
+        min_score: float = 0.25,
+        max_score: float = sys.float_info.max,
+        sampling_fps: float = 2.0,
+        size: Union[int, Tuple[int], Tuple[int, int], None] = None,
+        max_size: Optional[int] = None,
+        divisible: int = 1,
+        relative: bool = False,
+        any_or_all: str = "any",
+        **kwargs
     ):
         """
         初始化
-
+        
         Args:
-            hf_clip: CLIP模型名称
-            trust_remote_code: 是否信任HF模型的远程代码
-            min_score: 保留样本的最小相似度分数
-            max_score: 保留样本的最大相似度分数
-            frame_sampling_method: 帧采样方法 (all_keyframes/uniform)
-            frame_num: 均匀采样的帧数
-            horizontal_flip: 是否水平翻转帧图像
-            vertical_flip: 是否垂直翻转帧图像
-            any_or_all: 多视频的保留策略 (any/all)
-            reduce_mode: 多帧相似度的聚合方式 (avg/max/min)
+            min_score: 保留样本的最小运动分数
+            max_score: 保留样本的最大运动分数
+            sampling_fps: 光流计算的采样帧率（帧/秒）
+            size: 计算光流前调整帧大小
+            max_size: 调整后较长边的最大允许值
+            divisible: 尺寸必须能被该数整除
+            relative: 是否归一化光流幅度
+            any_or_all: 多视频保留策略 ('any'/'all')
+            **kwargs: Farneback 算法的额外参数
         """
         self.logger = get_logger()
-
-        if not torch.cuda.is_available():
-            raise RuntimeError("需要GPU环境!")
-
-        self.hf_clip = hf_clip
-        self.trust_remote_code = trust_remote_code
+        
         self.min_score = min_score
         self.max_score = max_score
-        self.frame_sampling_method = frame_sampling_method
-        self.frame_num = frame_num
-        self.horizontal_flip = horizontal_flip
-        self.vertical_flip = vertical_flip
-        self.any_or_all = any_or_all
-        self.reduce_mode = reduce_mode
-        self.device = "cuda"
-
-        self._load_model()
-
-    def _load_model(self):
-        """加载CLIP模型"""
-        try:
-            if self.hf_clip == 'clip' or 'clip-vit' in self.hf_clip.lower():
-                self.model, self.preprocess = clip.load("ViT-B/32", device=self.device)
-                self.tokenizer = clip.tokenize
-                self.model_type = 'clip'
-            else:
-                from transformers import AutoModel, AutoProcessor
-                self.model = AutoModel.from_pretrained(
-                    self.hf_clip,
-                    trust_remote_code=self.trust_remote_code
-                ).to(self.device)
-                self.processor = AutoProcessor.from_pretrained(
-                    self.hf_clip,
-                    trust_remote_code=self.trust_remote_code
+        self.sampling_fps = sampling_fps
+        
+        if isinstance(size, (list, tuple)):
+            if len(size) not in [1, 2]:
+                raise ValueError(
+                    f"Size must be an int or a 1 or 2 element tuple/list, "
+                    f"not a {len(size)} element tuple/list."
                 )
-                self.model.eval()
-                self.model_type = 'transformers'
-        except Exception as e:
-            self.logger.error(f"Failed to load model: {e}")
-            raise
-
+        if isinstance(size, int):
+            size = (size,)
+        self.size = size
+        self.max_size = max_size
+        self.divisible = divisible
+        self.relative = relative
+        
+        self.extra_kwargs = self._default_kwargs.copy()
+        for key in kwargs:
+            if key in self.extra_kwargs:
+                self.extra_kwargs[key] = kwargs[key]
+        
+        if any_or_all not in ["any", "all"]:
+            raise ValueError(
+                f"Keep strategy [{any_or_all}] is not supported. "
+                f'Can only be one of ["any", "all"].'
+            )
+        self.any = any_or_all == "any"
+        
+        self.model = cv2.calcOpticalFlowFarneback
+    
     @staticmethod
     def get_desc(lang: str = "zh"):
         """获取算子描述"""
         if lang == "zh":
             return (
-                "视频帧与音频相似度评估算子\n\n"
+                "视频运动分数过滤器\n\n"
+                "使用 Farneback 光流算法计算视频运动分数，保留分数在指定范围内的样本。\n\n"
                 "参数说明：\n"
-                "- hf_clip: CLIP模型名称\n"
-                "- frame_sampling_method: 帧采样方法 (all_keyframes/uniform)\n"
-                "- frame_num: 均匀采样的帧数\n"
-                "- min_score/max_score: 相似度阈值范围\n"
-                "- reduce_mode: 聚合方式 (avg/max/min)\n\n"
+                "- min_score/max_score: 运动分数阈值范围\n"
+                "- sampling_fps: 采样帧率（帧/秒）\n"
+                "- size: 处理前调整帧大小\n"
+                "- relative: 是否归一化分数\n"
+                "- any_or_all: 多视频保留策略\n\n"
                 "输出字段：\n"
-                "- avg_similarity: 平均相似度\n"
-                "- max_similarity: 最大相似度\n"
-                "- min_similarity: 最小相似度\n"
+                "- video_motion_score: 视频运动分数\n"
                 "- passed_filter: 是否通过过滤\n"
             )
         elif lang == "en":
             return (
-                "Video Frame and Audio Similarity Evaluator\n\n"
+                "Video Motion Score Filter\n\n"
+                "Calculates video motion scores using Farneback optical flow algorithm "
+                "and retains samples with scores within specified range.\n\n"
                 "Parameters:\n"
-                "- hf_clip: CLIP model name\n"
-                "- frame_sampling_method: Frame sampling method (all_keyframes/uniform)\n"
-                "- frame_num: Number of frames for uniform sampling\n"
-                "- min_score/max_score: Similarity threshold range\n"
-                "- reduce_mode: Aggregation method (avg/max/min)\n\n"
+                "- min_score/max_score: Motion score threshold range\n"
+                "- sampling_fps: Sampling frame rate (frames per second)\n"
+                "- size: Frame size to resize before processing\n"
+                "- relative: Whether to normalize the score\n"
+                "- any_or_all: Retention strategy for multiple videos\n\n"
                 "Output Fields:\n"
-                "- avg_similarity: Average similarity score\n"
-                "- max_similarity: Maximum similarity score\n"
-                "- min_similarity: Minimum similarity score\n"
-                "- passed_filter: Whether passed the filter\n"
+                "- video_motion_score: Video motion score\n"
+                "- passed_filter: Whether the video passed the filter\n"
             )
         else:
-            return "Video frame and audio similarity evaluator"
-
-    def _extract_key_frames(self, video_path):
-        """提取关键帧"""
-        cap = cv2.VideoCapture(str(video_path))
-        frames = []
-        prev_frame = None
-        threshold = 30.0
-
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-            if prev_frame is not None:
-                diff = cv2.absdiff(gray, prev_frame)
-                mean_diff = np.mean(diff)
-
-                if mean_diff > threshold:
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    frames.append(Image.fromarray(frame_rgb))
+            return "Video motion score filter using Farneback optical flow"
+    
+    def _calculate_resized_dimensions(
+        self, 
+        original_size: Tuple[int, int],
+    ) -> Tuple[int, int]:
+        """计算调整后的尺寸"""
+        height, width = original_size
+        
+        if self.size is None:
+            return (width, height)
+        
+        if len(self.size) == 1:
+            size = self.size[0]
+            if height > width:
+                new_height = int(size * height / width)
+                new_width = size
             else:
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frames.append(Image.fromarray(frame_rgb))
-
-            prev_frame = gray
-
-        cap.release()
-        return frames
-
-    def _extract_frames_uniform(self, video_path, num_frames):
-        """均匀提取帧"""
-        cap = cv2.VideoCapture(str(video_path))
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-        if num_frames == 1:
-            indices = [total_frames // 2]
-        elif num_frames == 2:
-            indices = [0, total_frames - 1]
-        else:
-            indices = np.linspace(0, total_frames - 1, num_frames, dtype=int)
-
-        frames = []
-        for idx in indices:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
-            ret, frame = cap.read()
-            if ret:
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frames.append(Image.fromarray(frame_rgb))
-
-        cap.release()
-        return frames
-
-    def _apply_augmentation(self, frames):
-        """应用图像增强"""
-        augmented_frames = []
-
-        for frame in frames:
-            augmented_frames.append(frame)
-
-            if self.horizontal_flip:
-                augmented_frames.append(ImageOps.mirror(frame))
-
-            if self.vertical_flip:
-                augmented_frames.append(ImageOps.flip(frame))
-
-        return augmented_frames
-
-    def _load_audio(self, audio_path):
-        """加载音频文件"""
-        try:
-            import librosa
-            audio, sr = librosa.load(str(audio_path), sr=16000)
-            return audio
-        except ImportError:
-            from scipy.io import wavfile
-            sr, audio = wavfile.read(str(audio_path))
-
-            if audio.dtype == np.int16:
-                audio = audio.astype(np.float32) / 32768.0
-            elif audio.dtype == np.int32:
-                audio = audio.astype(np.float32) / 2147483648.0
-
-            return audio
-
-    def _compute_similarity(self, frames, audio):
-        """计算视频帧和音频的相似度"""
-        similarities = []
-
-        try:
-            with torch.no_grad():
-                for frame in frames:
-                    if self.model_type == 'clip':
-                        image_input = self.preprocess(frame).unsqueeze(0).to(self.device)
-                        image_features = self.model.encode_image(image_input)
-                        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-
-                        text_input = self.tokenizer(["audio sound"]).to(self.device)
-                        text_features = self.model.encode_text(text_input)
-                        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-
-                        similarity = (image_features @ text_features.T).item()
+                new_width = int(size * width / height)
+                new_height = size
+            
+            if self.max_size is not None:
+                if max(new_height, new_width) > self.max_size:
+                    if new_height > new_width:
+                        new_height = self.max_size
+                        new_width = int(self.max_size * width / height)
                     else:
-                        inputs = self.processor(
-                            images=frame,
-                            audios=audio,
-                            return_tensors="pt",
-                            padding=True
-                        )
-                        inputs = {k: v.to(self.device) for k, v in inputs.items()}
-                        outputs = self.model(**inputs)
-
-                        similarity = torch.nn.functional.cosine_similarity(
-                            outputs.image_embeds,
-                            outputs.audio_embeds
-                        ).item()
-
-                    similarities.append(similarity)
-
-        except Exception as e:
-            self.logger.error(f"Error computing similarity: {e}")
-            return []
-
-        return similarities
-
-    def _reduce_scores(self, scores):
-        """根据reduce_mode聚合分数"""
-        if not scores:
-            return 0.0
-
-        if self.reduce_mode == 'avg':
-            return np.mean(scores)
-        elif self.reduce_mode == 'max':
-            return np.max(scores)
-        elif self.reduce_mode == 'min':
-            return np.min(scores)
+                        new_width = self.max_size
+                        new_height = int(self.max_size * height / width)
         else:
-            return np.mean(scores)
-
-    def run(self, storage: DataFlowStorage,
-            video_key: str = 'video_path',
-            audio_key: str = 'audio_path'):
+            new_height, new_width = self.size
+        
+        new_height = (new_height // self.divisible) * self.divisible
+        new_width = (new_width // self.divisible) * self.divisible
+        
+        return (new_width, new_height)
+    
+    def _compute_flow(self, prev_frame, curr_frame):
+        """计算两帧之间的光流"""
+        curr_frame_gray = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2GRAY)
+        
+        if prev_frame is None:
+            flow = None
+        else:
+            flow = self.model(
+                prev_frame, 
+                curr_frame_gray, 
+                None, 
+                **self.extra_kwargs
+            )
+        
+        return flow, curr_frame_gray
+    
+    def _compute_video_motion_score(self, video_path: str) -> float:
+        """计算单个视频的运动分数"""
+        video_motion_scores = []
+        
+        with VideoCapture(str(video_path)) as cap:
+            if not cap.isOpened():
+                return -1.0
+            
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            sampling_fps = min(self.sampling_fps, fps)
+            sampling_step = round(fps / sampling_fps)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            sampling_step = max(min(sampling_step, total_frames - 1), 1)
+            
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            new_size = self._calculate_resized_dimensions((height, width))
+            
+            prev_frame = None
+            frame_count = 0
+            
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                
+                if new_size != (width, height):
+                    frame = cv2.resize(frame, new_size, interpolation=cv2.INTER_AREA)
+                
+                flow, prev_frame = self._compute_flow(prev_frame, frame)
+                
+                if flow is not None:
+                    mag, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+                    frame_motion_score = np.mean(mag)
+                    
+                    if self.relative:
+                        frame_motion_score /= np.hypot(*frame.shape[:2])
+                    
+                    video_motion_scores.append(frame_motion_score)
+                
+                frame_count += sampling_step
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_count)
+        
+        if not video_motion_scores:
+            return -1.0
+        
+        return float(np.mean(video_motion_scores))
+    
+    def run(self, storage: DataFlowStorage, video_key: str = 'video_path'):
         """
         运行算子
-
+        
         Args:
             storage: DataFlow存储对象
             video_key: 视频路径字段名
-            audio_key: 音频路径字段名
-
+            
         Returns:
             list: 输出字段名列表
         """
         dataframe = storage.read(output_type="dataframe")
-
-        avg_similarities = []
-        max_similarities = []
-        min_similarities = []
+        
+        motion_scores = []
         passed_filters = []
-
+        
         for idx, row in dataframe.iterrows():
             try:
-                video_path = row[video_key]
-                audio_path = row[audio_key]
-
-                if self.frame_sampling_method == 'all_keyframes':
-                    frames = self._extract_key_frames(video_path)
-                else:
-                    frames = self._extract_frames_uniform(video_path, self.frame_num)
-
-                if not frames:
-                    raise ValueError(f"No frames extracted from {video_path}")
-
-                if self.horizontal_flip or self.vertical_flip:
-                    frames = self._apply_augmentation(frames)
-
-                audio = self._load_audio(audio_path)
-
-                similarities = self._compute_similarity(frames, audio)
-
-                if not similarities:
-                    raise ValueError("No similarities computed")
-
-                avg_sim = self._reduce_scores(similarities)
-                max_sim = np.max(similarities)
-                min_sim = np.min(similarities)
-
-                passed = self.min_score <= avg_sim <= self.max_score
-
-                avg_similarities.append(avg_sim)
-                max_similarities.append(max_sim)
-                min_similarities.append(min_sim)
+                motion_score = self._compute_video_motion_score(row[video_key])
+                passed = self.min_score <= motion_score <= self.max_score
+                
+                motion_scores.append(motion_score)
                 passed_filters.append(passed)
-
+                
             except Exception as e:
                 self.logger.error(f"Error processing sample {idx}: {e}")
-                avg_similarities.append(np.nan)
-                max_similarities.append(np.nan)
-                min_similarities.append(np.nan)
+                motion_scores.append(-1.0)
                 passed_filters.append(False)
-
-        dataframe['avg_similarity'] = avg_similarities
-        dataframe['max_similarity'] = max_similarities
-        dataframe['min_similarity'] = min_similarities
+        
+        dataframe['video_motion_score'] = motion_scores
         dataframe['passed_filter'] = passed_filters
-
-        # 写入所有数据，不过滤
+        
         storage.write(dataframe)
-
-        return ['avg_similarity', 'max_similarity', 'min_similarity', 'passed_filter']
+        
+        return ['video_motion_score', 'passed_filter']

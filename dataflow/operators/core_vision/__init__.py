@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from .filter.video_info_filter import VideoInfoFilter
     from .filter.video_scene_filter import VideoSceneFilter
     from .filter.video_score_filter import VideoScoreFilter
-    from .filter.video_motion_score_filter import VideoAudioSimilarity
+    from .filter.video_motion_score_filter import VideoMotionScoreFilter
     from .filter.video_resolution_filter import VideoResolutionFilter
 
     # === Eval ===
