@@ -1,14 +1,18 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    # === generate ===
     from .generate.prompted_aqa_generator import PromptedAQAGenerator
     from .generate.silero_vad_generator import SileroVADGenerator
     
     from .generaterow.cut_and_merge import MergeChunksByTimestamps
 
-    from .eval.ctc_forced_aligner import CTCForcedAlignSampleEvaluator
-
+    # === Filter ===
     from .filter.ctc_forced_aligner_filter import CTCForcedAlignFilter
+
+    # === Eval ===
+    from .eval.video_audio_similarity_evaluator import VideoAudioSimilarity
+    from .eval.ctc_forced_aligner import CTCForcedAlignSampleEvaluator
 
 else:
     import sys
