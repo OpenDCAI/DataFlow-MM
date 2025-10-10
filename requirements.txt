@@ -16,10 +16,43 @@ diffusers   # in our test, diffusers==0.33.1
 torchvision
 qwen_vl_utils
 
+# Video Pipeline
+opencv-python
+tqdm
+imageio
+einops
+scipy
+matplotlib
+ninja
+numpy
+pandas
+huggingface_hub
+
+scenedetect
+ftfy
+diffusers
+accelerate
+av
+scenedetect
+imageio-ffmpeg
+ffmpeg-python
+clip @ git+https://github.com/openai/CLIP.git
+cpbd
+# paddlepaddle-gpu==3.0.0 --index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
+paddleocr
 
 # audio
+torchaudio
 librosa
 soundfile
 
+
 # image
 ultralytics
+iso639-lang
+pypinyin
+jiwer
+uroman
+
+# data selection
+ray

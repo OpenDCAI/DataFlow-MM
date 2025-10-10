@@ -64,12 +64,28 @@ class PromptedImageGenerator(OperatorABC):
         #         if processed % self.save_interval == 0:
         #             storage.media_key = output_image_key
         #             storage.write(df)
-        batch_prompts = [
-            df.at[idx, input_conversation_key][-1]["content"] for idx in range(total)
-        ]
+        prompts_and_idx = []
+        for idx in range(total):
+            conv = df.at[idx, input_conversation_key]
+            if isinstance(conv, (list, tuple)):
+                for msg in conv:
+                    if isinstance(msg, dict) and isinstance(msg.get("content"), str) and msg["content"].strip():
+                        prompts_and_idx.append((msg["content"], idx))
+
+        if not prompts_and_idx:
+            storage.media_key = output_image_key
+            storage.write(df)
+            return
+
+        batch_prompts = [p for p, _ in prompts_and_idx]
         generated = self.t2i_serving.generate_from_input(batch_prompts)
-        for idx, prompt in zip(list(range(total)), batch_prompts):
-            df.at[idx, output_image_key] = generated.get(prompt, [])
+        for prompt, idx in prompts_and_idx:
+            imgs = generated.get(prompt, [])
+            if imgs is None:
+                imgs = []
+            if not isinstance(imgs, list):
+                imgs = [imgs]
+            df.at[idx, output_image_key].extend(imgs)
 
         # Final flush of any remaining prompts
         storage.media_key = output_image_key

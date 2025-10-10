@@ -5,6 +5,7 @@ if TYPE_CHECKING:
     from .qwen_audio.qwen_audio_2 import Qwen2_AudioIO
     from .core_io.image_gen import ImageIO
     from .whisper.whisper import WhisperIO
+    from .unifiedreward_qwen.unifiedreward import UnifiedRewardQwenVLIO
 else:
     import sys
     from dataflow.utils.registry import LazyLoader, generate_import_structure_from_type_checking

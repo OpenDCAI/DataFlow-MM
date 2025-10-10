@@ -25,11 +25,12 @@ class BatchWrapper(Generic[P, R]):
     运行时，会把 operator.run 的 __doc__ 和 __signature__ 也拷过来，
     这样 help(bw.run) 时能看到原 operator 的文档。
     """
-    def __init__(self, operator: HasRun[P, R], batch_size: int = 32, batch_cache: bool = False) -> None:
+    def __init__(self, operator: HasRun[P, R], start_batch: int = 0, batch_size: int = 32, batch_cache: bool = False) -> None:
         self._operator = operator
         self._logger = get_logger()
         self._batch_size = batch_size
         self._batch_cache = batch_cache
+        self.start_batch = start_batch
 
         # 动态拷贝 operator.run 的 __doc__ 和 inspect.signature
         orig = operator.run
@@ -69,8 +70,10 @@ class BatchWrapper(Generic[P, R]):
         whole_dataframe = storage.read()
         num_batches = (len(whole_dataframe) + self._batch_size - 1) // self._batch_size  # Calculate number of batches
 
+        output_dataframe = pd.DataFrame()
         self._logger.info(f"Total {len(whole_dataframe)} items, will process in {num_batches} batches of size {self._batch_size}.")
-        for batch_num in tqdm(range(num_batches)):
+        # for batch_num in tqdm(range(num_batches)):
+        for batch_num in tqdm(range(self.start_batch, num_batches)):       # 手动设置断点
             start_index = batch_num * self._batch_size
             end_index = min((batch_num + 1) * self._batch_size, len(whole_dataframe))
             batch_df = whole_dataframe.iloc[start_index:end_index]
@@ -84,15 +87,16 @@ class BatchWrapper(Generic[P, R]):
             self._operator.run(self._dummy_storage, *rest_args, **rest_kwargs)
 
             res: pd.DataFrame = self._dummy_storage.read()
+            output_dataframe = pd.concat([output_dataframe, res], axis=0)
 
             # Find columns in res that are not in whole_dataframe
-            new_cols = [c for c in res.columns if c not in whole_dataframe.columns]
+            # new_cols = [c for c in res.columns if c not in whole_dataframe.columns]
 
             # Create new columns in whole_dataframe with NaN values
-            for c in new_cols:
-                whole_dataframe[c] = pd.NA
+            # for c in new_cols:
+            #     whole_dataframe[c] = pd.NA
 
             # Write the values from res back to whole_dataframe
-            whole_dataframe.loc[res.index, res.columns] = res
+            # whole_dataframe.loc[res.index, res.columns] = res
 
-        storage.write(whole_dataframe)
+        storage.write(output_dataframe)
