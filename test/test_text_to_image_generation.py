@@ -8,14 +8,14 @@ from dataflow.io import ImageIO
 class ImageGenerationPipeline():
     def __init__(self):
         self.storage = FileStorage(
-            first_entry_file_name="./cache_local/text_prompt_extend/dataflow_cache_step_step1.jsonl",
-            cache_path="./cache_local/text2image_condition",
+            first_entry_file_name="./cache_local/multi2single_image_gen/dataflow_cache_step_step1.jsonl",
+            cache_path="./cache_local/multi2single_image_gen",
             file_name_prefix="dataflow_cache_step",
             cache_type="jsonl"
         )
 
         self.serving = LocalImageGenServing(
-            image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
+            image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "condition_images")),
             batch_size=4,
             hf_model_name_or_path="/ytech_m2v5_hdd/CheckPoints/FLUX.1-dev",   # "black-forest-labs/FLUX.1-dev"
             hf_cache_dir="./cache_local",

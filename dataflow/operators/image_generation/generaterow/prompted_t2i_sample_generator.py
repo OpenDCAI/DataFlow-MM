@@ -82,7 +82,7 @@ class PromptedT2ISampleGenerator(OperatorABC):
             for _ in range(self.repeat_times):
                 condition_texts = []
                 for __ in range(self.ip_condition_num):
-                    condition_texts.append(build_one_input_text(elements_groups))
+                    condition_texts.append({"content":build_one_input_text(elements_groups) + ", white background"})
 
                 chosen_style = pick_style(styles_list)
 
@@ -90,6 +90,8 @@ class PromptedT2ISampleGenerator(OperatorABC):
                     "idx": sample_id,
                     input_prompt_key: condition_texts,  # 用于 input_prompt_key
                     input_style_key: chosen_style,               # 若不需要可移除
+                    "input_image": [],
+                    "output_image": []
                 })
                 sample_id += 1
 

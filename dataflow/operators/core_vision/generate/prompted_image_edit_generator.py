@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 from dataflow.utils.registry import OPERATOR_REGISTRY
 from dataflow import get_logger
 
@@ -44,43 +45,23 @@ class PromptedImageEditGenerator(OperatorABC):
             raise ValueError("storage.read must return a pandas DataFrame")
 
         # Initialize the output column with empty lists
-        df[output_image_key] = [[] for _ in range(len(df))]
+        if output_image_key not in df.columns:
+            df[output_image_key] = [[] for _ in range(len(df))]
 
         processed = 0
         total = len(df)
-        ########## batch processing move to the serving ##########
-        # for start in range(0, total, self.batch_size):
-        #     batch_indices = list(range(start, min(start + self.batch_size, total)))
-        #     batch_prompts = [
-        #         (df.at[idx, input_image_key][0], df.at[idx, input_conversation_key][-1]["content"])
-        #         for idx in batch_indices
-        #     ]
 
-        #     # Generate images for the batch
-        #     generated = self.image_edit_serving.generate_from_input(batch_prompts)
-
-        #     # Assign generated images back to DataFrame and periodically save
-        #     for idx, prompt in zip(batch_indices, batch_prompts):
-        #         if isinstance(prompt, tuple):
-        #             prompt = prompt[1]
-        #         df.at[idx, output_image_key] = generated.get(prompt, [])
-        #         processed += 1
-        #         if processed % self.save_interval == 0:
-        #             storage.media_key = output_image_key
-        #             storage.write(df)
-        if save_image_with_idx:
-            batch_prompts = [
-                {"idx": idx, "image_path": df.at[idx, input_image_key], "prompt": df.at[idx, input_conversation_key][-1]["content"]}
-                for idx in range(total)
-            ]
-        else:
-            batch_prompts = [
-                # (df.at[idx, input_image_key][0], df.at[idx, input_conversation_key][-1]["content"])
-                (df.at[idx, input_image_key], df.at[idx, input_conversation_key][-1]["content"])
-                for idx in range(total)
-            ]
+        batch_prompts = []
+        for idx, row in df.iterrows():
+            if output_image_key in row.keys():
+                if len(row[output_image_key]) > 0:
+                    continue
+            if save_image_with_idx:
+                batch_prompts.append({"idx": idx, "image_path": df.at[idx, input_image_key], "prompt": df.at[idx, input_conversation_key][-1]["content"]})
+            else:
+                batch_prompts.append((df.at[idx, input_image_key], df.at[idx, input_conversation_key][-1]["content"]))
         generated = self.image_edit_serving.generate_from_input(batch_prompts)
-        for idx, prompt in zip(list(range(total)), batch_prompts):
+        for idx, prompt in enumerate(batch_prompts):
             if save_image_with_idx:
                 df.at[prompt['idx'], output_image_key] = generated.get(f"sample_{prompt['idx']}", [])
 

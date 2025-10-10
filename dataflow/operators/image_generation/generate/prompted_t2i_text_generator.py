@@ -2,6 +2,7 @@
 import os
 import pandas as pd
 import random
+import numpy as np
 from dataflow.utils.registry import OPERATOR_REGISTRY
 from dataflow import get_logger
 
@@ -21,22 +22,30 @@ Please help me generate a comprehensive image description based on the input ele
 [template]: {template}
 
 Please generate a comprehensive image description based on the [input_elements] and [input_style] content, following the corresponding format. Return your response in the format: '[output_prompt]: ...'
+Do not include any extraneous content, and strictly adhere to the specified format in your response.
+'''
 
-Additionally, please generate an extra [output_prompt_2] that describes the spatial relationships and interactions between different input_elements as comprehensively as possible. If the [template] includes the use of [input_style], [output_prompt_2] please follow:
+nano_system_prompt = lambda input_elements, input_style: f'''
+Please generate an image description based on the provided [input_elements] and [input_style]:
+
+[input_elements]: {input_elements}
+
+[input_style]: {input_style}
+
+please generate an extra [output_prompt] that describes the spatial relationships and interactions between different input_elements as comprehensively as possible. If the [input_style], [output_prompt] please follow:
 if
 [input_elements]: 'a basketball', 'a player in a red jersey'
 [input_style]: 'dynamic, energetic, sporty'
 then
 [output_prompt]: 'A basketball player in a vivid red jersey leaps powerfully off the polished court, gripping the basketball tightly as he soars toward the hoop. His body twists mid-air, eyes locked on the rim, while the ball is poised for a dramatic slam dunk. The scene captures the intense energy and athleticism of the moment, with the player's muscles tensed and the crowd in the background reacting to the action. The interaction between the player and the basketball is the focal point, emphasizing motion, anticipation, and the excitement of the game. The image style is dynamic, energetic, and sporty.'
-otherwise, [output_prompt_2] please follow the template below:
+
+otherwise, [output_prompt] please follow the template below:
 if
 [input_elements]: 'a basketball', 'a player in a red jersey'
 then
 [output_prompt]: 'A basketball player in a vivid red jersey leaps powerfully off the polished court, gripping the basketball tightly as he soars toward the hoop.  His body twists mid-air, eyes locked on the rim, while the ball is poised for a slam dunk.  The scene captures the player's muscles tensed and the crowd in the background reacting to the action.  The interaction between the player and the basketball is the focal point.'
 
-Your overall response format should be:
-'[output_prompt]: ... \n
-[output_prompt_2]: Please generate a natural and complete image based on the description and image conditions, without any traces of patching: ...'
+Note: [output_prompt] must include spatial relationships between objects and interaction mechanisms. Even if there are only items, try to establish connections between objects as much as possible.
 Do not include any extraneous content, and strictly adhere to the specified format in your response.
 '''
 
@@ -132,7 +141,6 @@ class PromptedT2ITextGenerator(OperatorABC):
     def run(
         self,
         storage: DataFlowStorage,
-        input_element_key: str = "input_element",
         input_style_key: str = "input_style",
         input_prompt_key: str = "input_text",
         output_prompt_key: str = "instruction",
@@ -147,8 +155,8 @@ class PromptedT2ITextGenerator(OperatorABC):
         if not isinstance(df, pd.DataFrame):
             raise ValueError("storage.read must return a pandas DataFrame")
 
-        if input_element_key not in df.columns:
-            raise KeyError(f"Missing column in storage: {input_element_key}")
+        if input_prompt_key not in df.columns:
+            raise KeyError(f"Missing column in storage: {input_prompt_key}")
         if input_style_key not in df.columns:
             raise KeyError(f"Missing column in storage: {input_style_key}")
 
@@ -170,51 +178,52 @@ class PromptedT2ITextGenerator(OperatorABC):
                 raise ValueError("input_style must be a non-empty list")
             return random.choice(styles)
 
-        templates = [TEMPLATE_ECHO4O, TEMPLATE_X2I]
+        templates = [TEMPLATE_ECHO4O, TEMPLATE_X2I, TEMPLATE_REFERENCE_1, TEMPLATE_REFERENCE_2, TEMPLATE_REFERENCE_3, TEMPLATE_SHORT, TEMPLATE_COMPLEX_ACTION]
+        weights = [1, 2, 2, 2, 2, 2, 2]
 
         # 构造所有 system prompts 与其元数据（仅用于回配 global_outputs）
         per_row_meta = []          # 保存每行的条目（不回写原 df）
         global_system_prompts = [] # 全部 prompt 顺序列表
+        nano_global_system_prompts = []
 
         for idx, row in df.iterrows():
-            elements_groups = row[input_element_key]
-            styles_list = row[input_style_key]
-            if not isinstance(elements_groups, (list, tuple)) or len(elements_groups) == 0:
-                raise ValueError(f"Row {idx}: input_element must be list[list[str]]")
-            if not isinstance(styles_list, (list, tuple)) or len(styles_list) == 0:
-                raise ValueError(f"Row {idx}: input_style must be list[str]")
+            if output_prompt_key in row.keys():
+                judge_flag = pd.isna(row[output_prompt_key])
+                if bool(judge_flag == np.array([False])):
+                    continue
+            condition_texts = [cond_text["content"].replace(", white background", "", 1).strip() for cond_text in row[input_prompt_key]]
+            styles = row[input_style_key]
 
-            row_entries = []
-            for _ in range(self.repeat_times):
-                condition_texts = []
-                for __ in range(self.ip_condition_num):
-                    condition_texts.append(build_one_input_text(elements_groups))
+            template = random.choices(templates, weights=weights, k=1)[0]
+            if template in [TEMPLATE_REFERENCE_1, TEMPLATE_REFERENCE_2, TEMPLATE_REFERENCE_3, TEMPLATE_SHORT, TEMPLATE_ECHO4O]:
+                styles = "N/A"
 
-                chosen_style = pick_style(styles_list)
-                template = random.choice(templates)
+            sys_prompt = system_prompt(
+                input_elements="; ".join(condition_texts),
+                input_style=styles,
+                template=template,
+            ).strip()
+            nano_prompt = nano_system_prompt(
+                input_elements="; ".join(condition_texts),
+                input_style=styles,
+            ).strip()
 
-                sys_prompt = system_prompt(
-                    input_elements="; ".join(condition_texts),
-                    input_style=chosen_style,
-                    template=template,
-                ).strip()
-
-                row_entries.append({
-                    "condition_texts": condition_texts,  # 用于 input_prompt_key
-                    "style": chosen_style,               # 若不需要可移除
-                    "template": "ECHO4O" if template is TEMPLATE_ECHO4O else "X2I",  # 若不需要可移除
-                    "system_prompt": sys_prompt,         # 若不需要可移除
-                })
-                global_system_prompts.append(sys_prompt)
+            row_entries = {
+                "condition_texts": condition_texts,  # 用于 input_prompt_key
+                "template": "ECHO4O" if template is TEMPLATE_ECHO4O else "X2I",  # 若不需要可移除
+                "system_prompt": sys_prompt,         # 若不需要可移除
+            }
+            global_system_prompts.append(sys_prompt)
+            nano_global_system_prompts.append(nano_prompt)
 
             per_row_meta.append({
-                "row_idx": idx,
+                "row_idx": row["idx"],
                 "entries": row_entries,
             })
-
         # 批量推理
         try:
             global_outputs = self.llm_serving.generate_from_input(global_system_prompts)
+            nano_global_outputs = self.llm_serving.generate_from_input(nano_global_system_prompts)
         except Exception:
             logger.exception("llm_serving.generate_from_input failed")
             raise
@@ -227,42 +236,20 @@ class PromptedT2ITextGenerator(OperatorABC):
             )
 
         # 组装“全新 df”：仅保留 condition_texts -> input_prompt_key 与 对应输出 -> output_prompt_key
-        expanded_rows = []
         cursor = 0
         for bundle in per_row_meta:
             entries = bundle["entries"]
-            for entry in entries:
-                out_text = global_outputs[cursor]
-                cursor += 1
+            out_text = global_outputs[cursor]
+            nano_out_text = nano_global_outputs[cursor]
+            cursor += 1
 
-                # 统一输出前缀
-                if isinstance(out_text, str) and ("[output_prompt_2]:" in out_text):
-                    stripped = out_text.strip()
-                    parts = stripped.split("[output_prompt_2]:")
-                    output_prompt = parts[0].replace("[output_prompt]:", "", 1).strip()
-                    output_prompt_2 = parts[1].strip() if len(parts) > 1 else output_prompt
-                else:
-                    # stripped = "[output_prompt]: "
-                    output_prompt = "; ".join(entry["condition_texts"])
-                    output_prompt_2 = "; ".join(entry["condition_texts"])
+            # 统一输出前缀
+            output_prompt = out_text.replace("[output_prompt]:", "", 1).strip()
+            output_prompt_2 = nano_out_text.replace("[output_prompt]:", "", 1).strip()
 
-                # input_text_value = "; ".join(entry["condition_texts"])
-                input_text_value = [{"content": f"{t}, white background"} for t in entry["condition_texts"]]
-                output_prompt = [{"content": output_prompt}]
-                output_prompt_2 = [{"content": output_prompt_2}]
+            output_prompt = [{"content": output_prompt}]
+            output_prompt_2 = [{"content": output_prompt_2}]
+            df.at[bundle["row_idx"], output_prompt_key] = output_prompt
+            df.at[bundle["row_idx"], output_prompt_key_2] = output_prompt_2
 
-                expanded_rows.append({
-                    input_prompt_key: input_text_value,
-                    output_prompt_key: output_prompt,
-                    output_prompt_key_2: output_prompt_2,
-                    # 如无需要，可删除以下元信息字段
-                    # "_style": entry["style"],
-                    # "_template": entry["template"],
-                    # "_system_prompt": entry["system_prompt"],
-                })
-
-        expanded_df = pd.DataFrame(expanded_rows)
-
-        storage.write(expanded_df)
-
-        logger.info(f"PromptedT2ITextGenerator finished. new rows: {len(expanded_df)}")
+        storage.write(df)

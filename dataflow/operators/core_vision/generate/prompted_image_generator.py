@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 from dataflow.utils.registry import OPERATOR_REGISTRY
 from dataflow import get_logger
 
@@ -43,31 +44,19 @@ class PromptedImageGenerator(OperatorABC):
             raise ValueError("storage.read must return a pandas DataFrame")
 
         # Initialize the output column with empty lists
-        df[output_image_key] = [[] for _ in range(len(df))]
+        if output_image_key not in df.columns:
+            df[output_image_key] = [[] for _ in range(len(df))]
 
         processed = 0
         total = len(df)
-        ########## batch processing move to the serving ##########
-        # for start in range(0, total, self.batch_size):
-        #     batch_indices = list(range(start, min(start + self.batch_size, total)))
-        #     batch_prompts = [
-        #         df.at[idx, input_conversation_key][-1]["content"]
-        #         for idx in batch_indices
-        #     ]
 
-        #     # Generate images for the batch
-        #     generated = self.t2i_serving.generate_from_input(batch_prompts)
-
-        #     # Assign generated images back to DataFrame and periodically save
-        #     for idx, prompt in zip(batch_indices, batch_prompts):
-        #         df.at[idx, output_image_key] = generated.get(prompt, [])
-        #         processed += 1
-        #         if processed % self.save_interval == 0:
-        #             storage.media_key = output_image_key
-        #             storage.write(df)
         prompts_and_idx = []
         save_id_list = []
-        for idx in range(total):
+        for idx, row in df.iterrows():
+            if output_image_key in row.keys():
+                if len(row[output_image_key]) > 0:
+                    continue
+
             conv = df.at[idx, input_conversation_key]
             if isinstance(conv, (list, tuple)):
                 for c_idx, msg in enumerate(conv):

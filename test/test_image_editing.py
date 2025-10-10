@@ -10,15 +10,15 @@ from dataflow.io import ImageIO
 class ImageGenerationPipeline():
     def __init__(self, serving_type="local", api_key="", api_url="http://123.129.219.111:3000/v1/"):
         self.storage = FileStorage(
-            first_entry_file_name="./cache_local/text2image_condition/dataflow_cache_step_step1.jsonl",
-            cache_path="./cache_local/multi2single_gen",
+            first_entry_file_name="./cache_local/multi2single_image_gen/dataflow_cache_step_step1.jsonl",
+            cache_path="./cache_local/multi2single_image_gen",
             file_name_prefix="dataflow_cache_step",
             cache_type="jsonl"
         )
 
         if serving_type == "local":
             self.serving = LocalImageGenServing(
-                image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
+                image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "target_images")),
                 hf_model_name_or_path="black-forest-labs/FLUX.1-Kontext-dev",   # "black-forest-labs/FLUX.1-Kontext-dev"
                 hf_cache_dir="./cache_local",
                 hf_local_dir="./ckpt/models/",
@@ -32,7 +32,7 @@ class ImageGenerationPipeline():
             self.serving = APIVLMServing_openai(
                 api_url=api_url,
                 model_name="gemini-2.5-flash-image-preview",               # try nano-banana
-                image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "images")),
+                image_io=ImageIO(save_path=os.path.join(self.storage.cache_path, "target_images")),
                 # send_request_stream=True,    # if use ip http://123.129.219.111:3000/ add this line
             )
 
