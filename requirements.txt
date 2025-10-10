@@ -45,6 +45,10 @@ paddleocr
 torchaudio
 librosa
 soundfile
+
+
+# image
+ultralytics
 iso639-lang
 pypinyin
 jiwer

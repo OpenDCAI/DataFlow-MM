@@ -3,6 +3,7 @@
 **/.ipynb_checkpoints/
 *.egg
 *.egg-info  
+*.txt.gz
 /dataflow/example/ReasoningPipeline/pipeline_math_step*.jsonl
 !/dataflow/example/ReasoningPipeline/pipeline_math.json
 
@@ -12,8 +13,9 @@ requirement_added.txt
 mineru.json
 
 test/example
-
+reasoning_chains
 cache
+cache_eval
 cache_local
 .cache
 dataflow_cache/
