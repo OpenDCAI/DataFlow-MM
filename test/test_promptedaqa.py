@@ -9,15 +9,15 @@ from dataflow.utils.storage import FileStorage
 class AQAGenerator():
     def __init__(self):
         self.storage = FileStorage(
-            first_entry_file_name="./dataflow/example/audio_vqa/sample_data.jsonl",
+            first_entry_file_name="./dataflow/example/audio_vqa/sample_data_local.jsonl",
             cache_path="./cache",
             file_name_prefix="audio_aqa",
-            cache_type="json",
+            cache_type="jsonl",
         )
         self.model_cache_dir = './dataflow_cache'
 
         self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/mnt/public/data/lh/guotianyu/Models/Qwen2-Audio-7B-Instruct",
+            hf_model_name_or_path="/mnt/public/data/guotianyu/Models/Qwen2-Audio-7B-Instruct",
             hf_cache_dir=self.model_cache_dir,
             vllm_tensor_parallel_size=8,
             vllm_temperature=0.7,

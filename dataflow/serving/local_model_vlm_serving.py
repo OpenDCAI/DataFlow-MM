@@ -150,7 +150,39 @@ class LocalModelVLMServing_vllm(VLMServingABC):
 
         responses = self.llm.generate(full_prompts, self.sampling_params)
         return [output.outputs[0].text for output in responses]
+    
+    def generate_from_input_with_message(self, 
+                            user_inputs: list[str], 
+                            system_prompt: str = "You are a helpful assistant",
+                            image_list: list[list] = None,
+                            video_list: list[list] = None,
+                            audio_list: list[list] = None,
+                        ) -> list[str]:
+        print('user_inputs_len', len(user_inputs))
+        if image_list is not None:
+            print('image_inputs_len', len(image_list))
+        if video_list is not None:
+            print('video_inputs_len', len(video_list))
+        if audio_list is not None:
+            print('audio_inputs_len', len(audio_list))
+
+        if image_list is None and video_list is None and audio_list is None:
+            # 纯文本 prompt
+            full_prompts = [system_prompt + '\n' + question for question in user_inputs]
+        else:
+            messages = self.IO.build_message(
+                user_inputs,
+                image_list,
+                video_list,
+                audio_list,
+                system_prompt=system_prompt
+            ) 
+            full_prompts = self.IO.build_full_prompts(messages)
         
+        outputs = self.llm.generate(full_prompts, self.sampling_params)
+        # print(outputs)
+        return [output.outputs[0].text for output in outputs]
+    
     def generate_from_input_messages(
         self,
         conversations: list[list[dict]],
