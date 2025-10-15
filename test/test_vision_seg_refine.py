@@ -12,7 +12,7 @@ class InMemoryStorage:
         self._df = df.reset_index(drop=True)
         return self._df
 
-img_path = "/data0/happykeyan/workspace/DataFlow-MM/dataflow/example/test_image_editing/images/image1.png"
+img_path = "./dataflow/example/image_to_text_pipeline/images/image1.png"
 df = pd.DataFrame({"image_path": [img_path]})
 
 storage = InMemoryStorage(df)
