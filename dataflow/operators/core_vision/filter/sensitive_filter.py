@@ -16,8 +16,8 @@ import torch
 class SensitiveFilter(OperatorABC):
     def __init__(
         self,
-        img_model_name="/data0/happykeyan/workspace/ckpt/nsfw_image_detection",
-        txt_model_name="/data0/happykeyan/workspace/ckpt/toxic-bert",
+        img_model_name="../ckpt/nsfw_image_detection",
+        txt_model_name="../ckpt/toxic-bert",
         img_thresh=0.5,
         txt_thresh=0.5,
     ):
@@ -25,10 +25,10 @@ class SensitiveFilter(OperatorABC):
         device = 0 if torch.cuda.is_available() else -1
 
         img_processor = AutoImageProcessor.from_pretrained(
-            img_model_name, local_files_only=True
+            img_model_name, local_files_only=True, weights_only=False
         )
         img_model = AutoModelForImageClassification.from_pretrained(
-            img_model_name, local_files_only=True, use_safetensors=True
+            img_model_name, local_files_only=True, use_safetensors=True, weights_only=False
         )
         self.img_pipe = pipeline(
             task="image-classification",
@@ -38,10 +38,10 @@ class SensitiveFilter(OperatorABC):
         )
 
         txt_tokenizer = AutoTokenizer.from_pretrained(
-            txt_model_name, local_files_only=True, use_fast=True
+            txt_model_name, local_files_only=True, use_fast=True, weights_only=False
         )
         txt_model = AutoModelForSequenceClassification.from_pretrained(
-            txt_model_name, local_files_only=True, use_safetensors=True
+            txt_model_name, local_files_only=True, use_safetensors=True, weights_only=False
         )
         self.txt_pipe = pipeline(
             task="text-classification",

@@ -11,13 +11,13 @@ from dataflow.utils.registry import OPERATOR_REGISTRY
 class ClipFilter(OperatorABC):
     def __init__(
         self,
-        model_name: str = "/data0/happykeyan/workspace/ckpt/clip-vit-base-patch32",
+        model_name: str = "../ckpt/clip-vit-base-patch32",
         device: str = None
     ):
         self.logger = get_logger()
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.processor = CLIPProcessor.from_pretrained(model_name, use_safetensors=True)
-        self.model = CLIPModel.from_pretrained(model_name, use_safetensors=True).to(self.device).eval()
+        self.processor = CLIPProcessor.from_pretrained(model_name, use_safetensors=True, weights_only=False)
+        self.model = CLIPModel.from_pretrained(model_name, use_safetensors=True, weights_only=False).to(self.device).eval()
 
     @staticmethod
     def get_desc(lang="zh"):

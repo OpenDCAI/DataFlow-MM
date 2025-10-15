@@ -24,18 +24,19 @@ class ComplexityFilter(OperatorABC):
 
     def __init__(
         self,
-        model_name: str = "/data0/happykeyan/workspace/ckpt/bart-large-mnli",
+        model_name: str = "../ckpt/bart-large-mnli",
         threshold: float = 0.4,
         min_k: int = 2,
         device: str = None
     ):
         self.logger = get_logger()
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True, use_fast=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True, use_fast=True, weights_only=False)
         self.model = AutoModelForSequenceClassification.from_pretrained(
             model_name,
             local_files_only=True,
-            use_safetensors=True
+            use_safetensors=True,
+            weights_only=False
         ).to(self.device).eval()
         self.thresh = threshold
         self.min_k = min_k
