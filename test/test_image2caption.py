@@ -17,9 +17,9 @@ class ImageCaptioningPipeline:
         model_path: str,
         *,
         hf_cache_dir: str | None = None,
-        download_dir: str = "./ckpt/models",
+        download_dir: str = "./ckpt",
         device: str = "cuda",
-        first_entry_file: str = "/data0/happykeyan/DataFlow-MM/Dataflow-MM-Preview/dataflow/example/Image2TextPipeline/test_image2caption.jsonl",
+        first_entry_file: str = "dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl",
         cache_path: str = "./cache_local",
         file_name_prefix: str = "dataflow_cache_step",
         cache_type: str = "jsonl",
@@ -70,12 +70,12 @@ class ImageCaptioningPipeline:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch image-to-caption with DataFlow")
 
-    parser.add_argument("--model_path", default="/data0/happykeyan/Models/Qwen2.5-VL-3B-Instruct")
+    parser.add_argument("--model_path", default="/mnt/public/model/huggingface/Qwen2.5-VL-3B-Instruct")
     parser.add_argument("--hf_cache_dir", default="~/.cache/huggingface")
-    parser.add_argument("--download_dir", default="./ckpt/models")
+    parser.add_argument("--download_dir", default="./ckpt")
     parser.add_argument("--device", choices=["cuda", "cpu", "mps"], default="cuda")
 
-    parser.add_argument("--images_file", default="/data0/happykeyan/workspace/DataFlow-MM/dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl")
+    parser.add_argument("--images_file", default="dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl")
     parser.add_argument("--cache_path", default="./cache_local")
     parser.add_argument("--file_name_prefix", default="caption")
     parser.add_argument("--cache_type", default="jsonl")

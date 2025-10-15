@@ -14,14 +14,14 @@ mineru.json
 
 test/example
 reasoning_chains
-cache
-cache_eval
-cache_local
-.cache
+cache*
+ckpt*
+flash_attn*
 dataflow_cache/
 dataflow/operators/eval/GeneralText/gen/cider/coco-val-df.p
 test_mineru
 test/test_cli
+dataflow/operators/core_vision/generate/llava
 
 .vscode
 

@@ -22,22 +22,36 @@ class ImageCaptionGenerate(OperatorABC):
         self.prompt_generator = CaptionGeneratorPrompt()
         self.llm_serving = llm_serving
 
-    @staticmethod           # 静态方法参数不用传self, 在类实例化之前就被调用
+    @staticmethod
     def get_desc(lang: str = "zh"):
         if lang == "zh":
             return (
                 "该算子用于调用视觉语言大模型生成图像描述。\n\n"
                 "输入参数：\n"
+                "  - multi_modal_key: 多模态数据字段名 (默认: 'image')\n"
+                "  - output_key: 输出描述字段名 (默认: 'output')\n"
                 "输出参数：\n"
+                "  - output_key: 生成的图像描述文本\n"
+                "功能特点：\n"
+                "  - 支持批量处理多张图像\n"
+                "  - 基于Qwen等视觉语言模型生成高质量描述\n"
+                "  - 自动处理图像输入和提示词构建\n"
             )
         elif lang == "en":
             return (
-                "This operator is used to call the large vision language model to generate image description.\n\n"
+                "This operator calls large vision-language models to generate image captions.\n\n"
                 "Input Parameters:\n"
+                "  - multi_modal_key: Multi-modal data field name (default: 'image')\n"
+                "  - output_key: Output caption field name (default: 'output')\n"
                 "Output Parameters:\n"
+                "  - output_key: Generated image description text\n"
+                "Features:\n"
+                "  - Supports batch processing of multiple images\n"
+                "  - Generates high-quality captions using models like Qwen\n"
+                "  - Automatically handles image inputs and prompt construction\n"
             )
         else:
-            return "CaptionGenerator produces captions for given image."
+            return "ImageCaptionGenerate produces textual descriptions for given images using vision-language models."
     
     def _validate_dataframe(self, dataframe: pd.DataFrame):
         required_keys = [self.multi_modal_key]

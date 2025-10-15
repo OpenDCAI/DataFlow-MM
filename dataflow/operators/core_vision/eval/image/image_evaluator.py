@@ -7,6 +7,7 @@ from dataflow.utils.storage import DataFlowStorage
 from dataflow.core import OperatorABC
 from dataflow.core import LLMServingABC
 
+@OPERATOR_REGISTRY.register()
 class EvalImageGenerationGenerator(OperatorABC):
     '''
     Video Generator is a class that generates contents for given videos.

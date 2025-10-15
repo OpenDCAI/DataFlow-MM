@@ -10,17 +10,19 @@ if TYPE_CHECKING:
     from .generate.personalized_qa_generator import PersQAGenerate
     from .generate.vision_mct_reasoning_sft_generator import VisionMCTSReasoningSFTGenerate
     from .generate.image_scale_caption_generator import ImageScaleCaptionGenerate, ImageScaleCaptionGenerateConfig
-    from .filter.aesthetic_filter import AestheticFilter
+    from .filter.image_aesthetic_filter import ImageAestheticFilter
     from .filter.cat_filter import CatFilter
     from .filter.clip_filter import ClipFilter
     from .filter.complexity_filter import ComplexityFilter
     from .filter.consistency_filter import ConsistencyFilter
-    from .filter.diversity_filter import DiversityFilter
+    from .filter.text_image_diversity_filter import TextImageDiversityFilter
     from .filter.sensitive_filter import SensitiveFilter
     from .refine.vision_seg_cutout_refine import VisionSegCutoutRefine
-    from .eval.code.code_evaluator import CodeStabilityEvaluator, CodeCorrectnessEvaluator, CodeMaintainabilityEvaluator
     from .eval.image.image_evaluator import EvalImageGenerationGenerator
-    from .eval.image_text.image_text_evaluator import VQAScoreEvaluator, LongCLIPEvaluator, CLIPEvaluator
+    from .eval.image_text.clip_image_text_evaluator import CLIPEvaluator
+    from .eval.image_text.long_clip_image_text_evaluator import LongCLIPEvaluator
+    from .eval.image_text.vqa_score_image_text_evaluator import VQAScoreEvaluator
+
 else:
     import sys
     from dataflow.utils.registry import LazyLoader, generate_import_structure_from_type_checking

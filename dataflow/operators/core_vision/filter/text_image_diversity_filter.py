@@ -10,6 +10,7 @@ from dataflow.core import OperatorABC
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.utils.registry import OPERATOR_REGISTRY
 
+@OPERATOR_REGISTRY.register()
 class TextDuplicateFilter:
     def __init__(self, similarity_thresh: float = 0.8, max_corpus: int = 10000):
         self.sim_thresh = similarity_thresh
@@ -32,6 +33,7 @@ class TextDuplicateFilter:
             return True, max_sim
         return False, max_sim
 
+@OPERATOR_REGISTRY.register()
 class ImageDuplicateFilter:
     def __init__(self, hash_size: int = 8, distance_thresh: int = 5, max_imgs: int = 10000):
         self.hash_size = hash_size
@@ -60,7 +62,7 @@ class ImageDuplicateFilter:
         return False, min_dist
 
 @OPERATOR_REGISTRY.register()
-class DiversityFilter(OperatorABC):
+class TextImageDiversityFilter(OperatorABC):
     def __init__(self, text_thresh: float = 0.8, hash_size: int = 8, img_dist_thresh: int = 5):
         self.logger = get_logger()
         self.text_filter = TextDuplicateFilter(similarity_thresh=text_thresh)

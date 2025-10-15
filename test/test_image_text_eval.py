@@ -9,9 +9,9 @@ from dataflow.operators.core_vision import (
     VQAScoreEvaluator,
 )
 
-IN_PATH = "/data0/happykeyan/workspace/DataFlow-MM/dataflow/example/image_to_text_pipeline/caption_result.jsonl"
-CACHE_DIR = "/data0/happykeyan/workspace/DataFlow-MM/dataflow/example/image_to_text_pipeline/cache_eval"
-PREFIX = "imgtxt_eval_step"
+IN_PATH = "./dataflow/example/image_to_text_pipeline/caption_result.jsonl"
+CACHE_DIR = "./cache_eval"
+PREFIX = "imgtext_eval_step"
 
 IMAGE_CANDIDATES = ["image_path", "image", "img_path", "path"]
 TEXT_CANDIDATES = ["text", "caption", "question"]

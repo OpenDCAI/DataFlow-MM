@@ -23,22 +23,50 @@ class PersQAGenerate(OperatorABC):
         self.prompt_generator = PersQAGeneratorPrompt()
         self.llm_serving = llm_serving
 
-    @staticmethod           # 静态方法参数不用传self, 在类实例化之前就被调用
+    @staticmethod
     def get_desc(lang: str = "zh"):
         if lang == "zh":
             return (
-                "该算子用于调用视觉语言大模型生成图像描述。\n\n"
+                "该算子用于调用视觉语言大模型生成个性化图像问答。\n\n"
                 "输入参数：\n"
+                "  - multi_modal_key: 多模态数据字段名 (默认: 'image')\n"
+                "  - output_key: 输出问答对字段名 (默认: 'output')\n"
                 "输出参数：\n"
+                "  - output_key: 生成的个性化问答文本，格式为'Question: ..., Answer: ...'\n"
+                "功能特点：\n"
+                "  - 支持为图像中的特定人物生成个性化问答\n"
+                "  - 自动为主人公分配名称标签（如'<mam>'）\n"
+                "  - 从预定义问题模板中随机选择相关问题\n"
+                "  - 要求模型回答时以主人公名称开头\n"
+                "  - 支持批量处理多张图像\n"
+                "  - 输出包含完整的问题-答案对\n"
+                "应用场景：\n"
+                "  - 个性化视觉问答数据集构建\n"
+                "  - 人物中心的多模态对话生成\n"
+                "  - 视觉语言模型的角色理解能力评估\n"
             )
         elif lang == "en":
             return (
-                "This operator is used to call the large vision language model to generate image description.\n\n"
+                "This operator calls large vision-language models to generate personalized image QA pairs.\n\n"
                 "Input Parameters:\n"
+                "  - multi_modal_key: Multi-modal data field name (default: 'image')\n"
+                "  - output_key: Output QA pairs field name (default: 'output')\n"
                 "Output Parameters:\n"
+                "  - output_key: Generated personalized QA text in 'Question: ..., Answer: ...' format\n"
+                "Features:\n"
+                "  - Generates personalized QA for specific characters in images\n"
+                "  - Automatically assigns name tags (e.g., '<mam>') to main characters\n"
+                "  - Randomly selects relevant questions from predefined templates\n"
+                "  - Requires model to start answers with character name\n"
+                "  - Supports batch processing of multiple images\n"
+                "  - Output includes complete question-answer pairs\n"
+                "Applications:\n"
+                "  - Personalized visual QA dataset construction\n"
+                "  - Character-centric multimodal dialogue generation\n"
+                "  - Evaluation of role understanding in vision-language models\n"
             )
         else:
-            return "CaptionGenerator produces captions for given image."
+            return "PersQAGenerate produces personalized question-answer pairs for images with character focus."
     
     def _validate_dataframe(self, dataframe: pd.DataFrame):
         required_keys = [self.multi_modal_key]

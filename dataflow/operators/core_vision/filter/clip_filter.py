@@ -11,31 +11,28 @@ from dataflow.utils.registry import OPERATOR_REGISTRY
 class ClipFilter(OperatorABC):
     def __init__(
         self,
-        model_name: str = "openai/clip-vit-base-patch32",
+        model_name: str = "/data0/happykeyan/workspace/ckpt/clip-vit-base-patch32",
         device: str = None
     ):
         self.logger = get_logger()
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.processor = CLIPProcessor.from_pretrained(model_name)
-        self.model = CLIPModel.from_pretrained(model_name).to(self.device)
-        self.model.eval()
+        self.processor = CLIPProcessor.from_pretrained(model_name, use_safetensors=True)
+        self.model = CLIPModel.from_pretrained(model_name, use_safetensors=True).to(self.device).eval()
 
     @staticmethod
-    def get_desc(self, lang):
+    def get_desc(lang="zh"):
         return "图文一致性过滤（CLIP相似度）" if lang == "zh" else "Image-text consistency filter (CLIP similarity)."
 
     def compute_similarity(self, image_path: str, text: str) -> float:
         try:
             image = Image.open(image_path).convert("RGB")
-        except (FileNotFoundError, UnidentifiedImageError) as e:
-            self.logger.warning(f"Failed to load image: {image_path}. Reason: {e}")
+        except (FileNotFoundError, UnidentifiedImageError):
+            self.logger.warning(f"Failed to load image: {image_path}")
             return 0.0
         if not text or text.strip() == "":
             self.logger.warning(f"Empty text for image: {image_path}")
             return 0.0
-        inputs = self.processor(
-            text=[text], images=[image], return_tensors="pt", padding=True
-        ).to(self.device)
+        inputs = self.processor(text=[text], images=[image], return_tensors="pt", padding=True).to(self.device)
         with torch.no_grad():
             outputs = self.model(**inputs)
             img_emb = outputs.image_embeds
@@ -64,5 +61,5 @@ class ClipFilter(OperatorABC):
             if not ok:
                 self.logger.debug(f"CLIP failed at row {i}: sim={sim:.3f}, img={img_path}, cap={cap}")
         dataframe = dataframe[refined_mask].reset_index(drop=True)
-        output_file = storage.write(dataframe)
+        storage.write(dataframe)
         return [self.image_key, self.caption_key]

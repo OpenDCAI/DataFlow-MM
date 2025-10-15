@@ -1,8 +1,8 @@
 import pandas as pd
 from transformers import CLIPProcessor, CLIPModel
 from dataflow.operators.core_vision import (
-    SensitiveFilter, AestheticFilter, CatFilter,
-    ComplexityFilter, ConsistencyFilter, DiversityFilter
+    SensitiveFilter, ImageAestheticFilter, CatFilter,
+    ComplexityFilter, ConsistencyFilter, TextImageDiversityFilter
 )
 from dataflow import get_logger
 from PIL import Image
@@ -52,9 +52,9 @@ def batch_clip_filter(df, processor, model, batch_size=32, threshold=0.23):
     return df[keep]
 
 def main():  
-    caption_path = "/data0/happykeyan/workspace/DataFlow-MM/dataflow/example/image_to_text_pipeline/caption_result.jsonl"
-    qa_path = "/data0/happykeyan/workspace/DataFlow-MM/dataflow/example/image_to_text_pipeline/qa_result.jsonl"
-    save_path = "/data0/happykeyan/workspace/DataFlow-MM/dataflow/example/test_image_filter/final_filtered.jsonl"
+    caption_path = "./dataflow/example/image_to_text_pipeline/caption_result.jsonl"
+    qa_path = "./dataflow/example/image_to_text_pipeline/qa_result.jsonl"
+    save_path = "./cache_local/final_filtered.jsonl"
 
     logger.info(f"Reading caption data from: {caption_path}")
     cap_df = pd.read_json(caption_path, lines=True)
@@ -73,14 +73,18 @@ def main():
     logger.info(f"After SensitiveFilter: {len(df)} samples left")
 
     logger.info("Running AestheticFilter…")
-    af = AestheticFilter()
+    af = ImageAestheticFilter()
     df = df[df["image"].apply(af.is_quality)]
-    logger.info(f"After AestheticFilter: {len(df)} samples left")
+    logger.info(f"After ImageAestheticFilter: {len(df)} samples left")
 
     logger.info("Running CLIPFilter…")
-    processor = CLIPProcessor.from_pretrained("/data0/happykeyan/Models/clip-vit-base-patch32", use_fast=True)
+    processor = CLIPProcessor.from_pretrained("/data0/happykeyan/workspace/ckpt/clip-vit-base-patch32", use_fast=True)
     processor.image_processor._valid_processor_keys = []
-    model = CLIPModel.from_pretrained("/data0/happykeyan/Models/clip-vit-base-patch32").cuda()
+    model = CLIPModel.from_pretrained(
+        "/data0/happykeyan/workspace/ckpt/clip-vit-base-patch32",
+        use_safetensors=True,
+        local_files_only=True
+    ).to("cuda").eval()
     df = batch_clip_filter(df, processor, model)
     logger.info(f"After CLIPFilter: {len(df)} samples left")
 
@@ -91,7 +95,7 @@ def main():
     logger.info(f"After CatFilter: {len(df)} samples left")
 
     logger.info("Running ComplexityFilter…")
-    nli = ComplexityFilter(threshold=0.4, min_k=1)
+    nli = ComplexityFilter(threshold=0.3, min_k=1)
     df = df[df.apply(lambda r: nli.is_valid(r["image"], r["caption"]), axis=1)]
     logger.info(f"After ComplexityFilter: {len(df)} samples left")
 
@@ -101,10 +105,10 @@ def main():
     logger.info(f"After ConsistencyFilter: {len(df)} samples left")
 
     logger.info("Running DiversityFilter…")
-    dr = DiversityFilter(text_thresh=0.75, hash_size=8, img_dist_thresh=5)
+    dr = TextImageDiversityFilter(text_thresh=0.75, hash_size=8, img_dist_thresh=5)
     keep = [dr.check_diversity(r["image"], r["caption"])[0] for _, r in df.iterrows()]
     df = df[keep]
-    logger.info(f"After DiversityFilter: {len(df)} samples left")
+    logger.info(f"After TextImageDiversityFilter: {len(df)} samples left")
 
     df.to_json(save_path, lines=True, orient="records")
     logger.success(f"All done! Final filtered data saved to: {save_path}")

@@ -62,14 +62,14 @@ class PersQAPipeline:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Batch image → QA pair (auto)")
 
-    parser.add_argument("--model_path", default="/data0/happykeyan/Models/Qwen2.5-VL-3B-Instruct")
+    parser.add_argument("--model_path", default="/mnt/public/model/huggingface/Qwen2.5-VL-3B-Instruct")
     parser.add_argument("--hf_cache_dir", default="~/.cache/huggingface")
     parser.add_argument("--download_dir", default="./ckpt/models")
     parser.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
 
-    parser.add_argument("--qa_file", default="/data0/happykeyan/workspace/DataFlow-MM/dataflow/example/image_to_text_pipeline/test_image2qa.jsonl")
+    parser.add_argument("--qa_file", default="./dataflow/example/image_to_text_pipeline/capsbench_qas.jsonl")
     parser.add_argument("--cache_path", default="./cache_local")
-    parser.add_argument("--file_name_prefix", default="dataflow_cache_step")
+    parser.add_argument("--file_name_prefix", default="persqa")
     parser.add_argument("--cache_type", default="jsonl")
     parser.add_argument("--media_key", default="image")
     parser.add_argument("--output_key", default="pers_qa")

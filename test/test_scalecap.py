@@ -121,14 +121,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ScaleCap Dense Captioning Pipeline (DataFlow)")
 
     # 模型
-    parser.add_argument("--vlm_model_path", default="/data0/happykeyan/Models/Qwen2.5-VL-3B-Instruct")
+    parser.add_argument("--vlm_model_path", default="/mnt/public/model/huggingface/Qwen2.5-VL-3B-Instruct")
     parser.add_argument("--llm_model_path", default="")  # 可不填：默认与 VLM 共用
     parser.add_argument("--hf_cache_dir", default="~/.cache/huggingface")
     parser.add_argument("--download_dir", default="./ckpt/models")
     parser.add_argument("--device", choices=["cuda", "cpu", "mps"], default="cuda")
 
     # 输入/缓存
-    parser.add_argument("--images_file", default="/data0/happykeyan/workspace/DataFlow-MM/dataflow/example/image_to_text_pipeline/scale_cap_captions.jsonl")
+    parser.add_argument("--images_file", default="./dataflow/example/image_to_text_pipeline/scale_cap_captions.jsonl")
     parser.add_argument("--cache_path", default="./cache_local")
     parser.add_argument("--file_name_prefix", default="scalecap")
     parser.add_argument("--cache_type", default="jsonl")

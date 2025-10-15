@@ -22,21 +22,26 @@ class ComplexityFilter(OperatorABC):
     ]
     TEMPLATE = "The following text describes {}."
 
-    def __init__(self,
-                 model_name: str = "facebook/bart-large-mnli",
-                 threshold: float = 0.4,
-                 min_k: int = 3,
-                 device: str = None):
+    def __init__(
+        self,
+        model_name: str = "/data0/happykeyan/workspace/ckpt/bart-large-mnli",
+        threshold: float = 0.4,
+        min_k: int = 2,
+        device: str = None
+    ):
         self.logger = get_logger()
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name).to(self.device)
-        self.model.eval()
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True, use_fast=True)
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            model_name,
+            local_files_only=True,
+            use_safetensors=True
+        ).to(self.device).eval()
         self.thresh = threshold
         self.min_k = min_k
 
     @staticmethod
-    def get_desc(self, lang):
+    def get_desc(lang="zh"):
         return "NLI能力属性过滤（caption能力丰富度）" if lang == "zh" else "NLI capability filter (caption capability diversity)."
 
     def detect_caps(self, caption: str) -> list:
@@ -46,10 +51,10 @@ class ComplexityFilter(OperatorABC):
         try:
             for cap in self.CAPS:
                 hyp = self.TEMPLATE.format(cap)
-                inputs = self.tokenizer(caption, hyp, return_tensors="pt", truncation=True).to(self.device)
+                inputs = self.tokenizer(caption, hyp, return_tensors="pt", truncation=True, padding=True).to(self.device)
                 with torch.no_grad():
                     logits = self.model(**inputs).logits[0]
-                    probs  = torch.softmax(logits, dim=-1)
+                    probs = torch.softmax(logits, dim=-1)
                 if probs[2].item() >= self.thresh:
                     detected.append(cap)
         except Exception as e:
@@ -71,5 +76,5 @@ class ComplexityFilter(OperatorABC):
             if not ok:
                 self.logger.debug(f"Filtered weak caption at row {i}: {caption[:40]}")
         dataframe = dataframe[refined_mask].reset_index(drop=True)
-        output_file = storage.write(dataframe)
+        storage.write(dataframe)
         return [self.caption_key]

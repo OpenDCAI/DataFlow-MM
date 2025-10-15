@@ -24,7 +24,56 @@ class MultimodalMathGenerate(OperatorABC):
 
     @staticmethod
     def get_desc(lang: str = "zh"):
-        return "生成多模态数学题（函数图像 + QA）" if lang == "zh" else "Generate multimodal math QA (function plots)."
+        if lang == "zh":
+            return (
+                "该算子用于生成多模态数学题目（函数图像 + 问答对）。\n\n"
+                "输入参数：\n"
+                "  - n: 生成样本数量 (默认: 200)\n"
+                "  - mode: 生成模式，'simple'简单模式或'complex'复杂模式 (默认: 'complex')\n"
+                "  - output_key: 输出数据字段名前缀 (默认: 'multimodal_math')\n"
+                "  - seed: 随机种子，用于结果可复现 (可选)\n"
+                "输出参数：\n"
+                "  - image_path: 生成的函数图像文件路径\n"
+                "  - question: 基于函数图像的数学问题\n"
+                "  - answer: 问题答案\n"
+                "  - solution: 解题步骤和说明\n"
+                "功能特点：\n"
+                "  - 支持多种函数类型：一次函数、二次函数、三角函数、指数函数等\n"
+                "  - 提供两种生成模式：简单数值计算和复杂数学概念\n"
+                "  - 复杂模式包含导数判断、极值点分析、单调性分析等高级题目\n"
+                "  - 自动生成对应的函数图像并保存\n"
+                "  - 支持随机种子设置，确保结果可复现\n"
+                "应用场景：\n"
+                "  - 多模态数学教育数据集构建\n"
+                "  - 视觉问答模型训练\n"
+                "  - 数学推理能力评估\n"
+            )
+        elif lang == "en":
+            return (
+                "This operator generates multimodal math questions (function plots + QA pairs).\n\n"
+                "Input Parameters:\n"
+                "  - n: Number of samples to generate (default: 200)\n"
+                "  - mode: Generation mode, 'simple' or 'complex' (default: 'complex')\n"
+                "  - output_key: Output data field name prefix (default: 'multimodal_math')\n"
+                "  - seed: Random seed for reproducibility (optional)\n"
+                "Output Parameters:\n"
+                "  - image_path: Path to generated function plot image\n"
+                "  - question: Math question based on the function plot\n"
+                "  - answer: Answer to the question\n"
+                "  - solution: Step-by-step solution and explanation\n"
+                "Features:\n"
+                "  - Supports multiple function types: linear, quadratic, trigonometric, exponential, etc.\n"
+                "  - Two generation modes: simple numerical computation and complex math concepts\n"
+                "  - Complex mode includes advanced topics: derivative analysis, extremum points, monotonicity\n"
+                "  - Automatically generates and saves corresponding function plots\n"
+                "  - Supports random seed for reproducible results\n"
+                "Applications:\n"
+                "  - Multimodal math education dataset construction\n"
+                "  - Visual question answering model training\n"
+                "  - Mathematical reasoning ability evaluation\n"
+            )
+        else:
+            return "MultimodalMathGenerate produces math questions with function plots for multimodal learning."
 
     def create_function_plot(self, func, x_range, img_path):
         x = np.linspace(*x_range, 200)
