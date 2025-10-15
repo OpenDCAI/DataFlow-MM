@@ -19,10 +19,10 @@ def _load_stanza_pipeline():
         subprocess.run([sys.executable, "-m", "pip", "install", "stanza==1.8.2"], check=True)
         import stanza
     try:
-        return stanza.Pipeline(lang="en", processors="tokenize,pos,lemma,depparse", use_gpu=False, verbose=False)
+        return stanza.Pipeline(lang="en", processors="tokenize,pos,lemma,depparse", use_gpu=False, verbose=False, weights_only=False)
     except Exception:
         stanza.download("en")
-        return stanza.Pipeline(lang="en", processors="tokenize,pos,lemma,depparse", use_gpu=False, verbose=False)
+        return stanza.Pipeline(lang="en", processors="tokenize,pos,lemma,depparse", use_gpu=False, verbose=False, weights_only=False)
 
 
 _nlp = _load_stanza_pipeline()
