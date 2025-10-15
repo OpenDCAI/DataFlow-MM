@@ -78,10 +78,10 @@ def main():
     logger.info(f"After ImageAestheticFilter: {len(df)} samples left")
 
     logger.info("Running CLIPFilter…")
-    processor = CLIPProcessor.from_pretrained("/data0/happykeyan/workspace/ckpt/clip-vit-base-patch32", use_fast=True)
+    processor = CLIPProcessor.from_pretrained("../ckpt/clip-vit-base-patch32", use_fast=True)
     processor.image_processor._valid_processor_keys = []
     model = CLIPModel.from_pretrained(
-        "/data0/happykeyan/workspace/ckpt/clip-vit-base-patch32",
+        "../ckpt/clip-vit-base-patch32",
         use_safetensors=True,
         local_files_only=True
     ).to("cuda").eval()

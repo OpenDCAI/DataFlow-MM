@@ -18,7 +18,7 @@ df = pd.DataFrame({"image_path": [img_path]})
 storage = InMemoryStorage(df)
 
 op = VisionSegCutoutRefine(
-    seg_model_path="/data0/mt/.cache/ckpt/yolo/yolo11l-seg.pt",   
+    seg_model_path="../ckpt/yolo/yolo11l-seg.pt",   
     classes=None,           
     alpha_threshold=127,
     output_suffix="_seg",
