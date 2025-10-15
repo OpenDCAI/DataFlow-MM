@@ -54,6 +54,7 @@ iso639-lang
 pypinyin
 jiwer
 uroman
+imagehash
 
 # data selection
 ray
