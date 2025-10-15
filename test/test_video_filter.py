@@ -28,7 +28,7 @@ class VideoInfo_Filter():
         self.video_frame_filter = VideoFrameFilter()
         self.video_aesthetic_evaluator = VideoAestheticEvaluator(
             figure_root = "./cache/extract_frames",
-            clip_model = "ViT-L-14.pt",
+            clip_model = "ViT-L/14",
             mlp_checkpoint = "aesthetic.pth",
         )
         self.video_luminance_evaluator = VideoLuminanceEvaluator(
