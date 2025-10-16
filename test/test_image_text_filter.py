@@ -1,7 +1,7 @@
 import pandas as pd
 from transformers import CLIPProcessor, CLIPModel
 from dataflow.operators.core_vision import (
-    SensitiveFilter, ImageAestheticFilter, CatFilter,
+    SensitiveFilter, ImageAestheticFilter,
     ComplexityFilter, ConsistencyFilter, TextImageDiversityFilter
 )
 from dataflow import get_logger
@@ -89,11 +89,11 @@ def main():
     df = batch_clip_filter(df, processor, model)
     logger.info(f"After CLIPFilter: {len(df)} samples left")
 
-    logger.info("Running CatFilter…")
-    cat = CatFilter(min_triples=1, ocr_overlap_threshold=0.2)
-    cat.is_not_ocr_only = lambda image, caption: True
-    df = df[df.apply(lambda r: cat.is_consistent(r["image"], r["caption"]), axis=1)]
-    logger.info(f"After CatFilter: {len(df)} samples left")
+    # logger.info("Running CatFilter…")
+    # cat = CatFilter(min_triples=1, ocr_overlap_threshold=0.2)
+    # cat.is_not_ocr_only = lambda image, caption: True
+    # df = df[df.apply(lambda r: cat.is_consistent(r["image"], r["caption"]), axis=1)]
+    # logger.info(f"After CatFilter: {len(df)} samples left")
 
     logger.info("Running ComplexityFilter…")
     nli = ComplexityFilter(threshold=0.3, min_k=1)
