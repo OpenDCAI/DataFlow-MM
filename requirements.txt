@@ -8,6 +8,7 @@ colorlog
 pandas
 transformers
 openai
+pytesseract
 
 # t2i & image editing
 diffusers   # in our test, diffusers==0.33.1
@@ -45,10 +46,15 @@ paddleocr
 torchaudio
 librosa
 soundfile
+
+
+# image
+ultralytics
 iso639-lang
 pypinyin
 jiwer
 uroman
+imagehash
 
 # data selection
 ray

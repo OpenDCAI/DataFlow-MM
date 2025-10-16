@@ -44,8 +44,8 @@ class CLIPScoreFilter(OperatorABC):
         
         # Initialize CLIP model and processor
         self.logger.info(f"Loading CLIP model: {model_name}")
-        self.model = CLIPModel.from_pretrained(model_name).to(device)
-        self.processor = CLIPProcessor.from_pretrained(model_name)
+        self.model = CLIPModel.from_pretrained(model_name, weights_only=False).to(device)
+        self.processor = CLIPProcessor.from_pretrained(model_name, weights_only=False)
         self.model.eval()
     
     @staticmethod

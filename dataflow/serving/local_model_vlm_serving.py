@@ -22,7 +22,7 @@ class LocalModelVLMServing_vllm(VLMServingABC):
                  vllm_top_k: int = 40,
                  vllm_repetition_penalty: float = 1.0,
                  vllm_seed: int = 42,
-                 vllm_max_model_len: int = None,
+                 vllm_max_model_len: int = 4096,
                  vllm_gpu_memory_utilization: float=0.9,
                  ):
 
@@ -52,7 +52,7 @@ class LocalModelVLMServing_vllm(VLMServingABC):
                  vllm_top_k: int = 40,
                  vllm_repetition_penalty: float = 1.0,
                  vllm_seed: int = 42,
-                 vllm_max_model_len: int = None,
+                 vllm_max_model_len: int = 4096,
                  vllm_gpu_memory_utilization: float=0.9,
                  ):
         self.logger = get_logger()
