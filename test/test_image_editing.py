@@ -10,7 +10,7 @@ from dataflow.io import ImageIO
 class ImageGenerationPipeline():
     def __init__(self, serving_type="local", api_key="", api_url="http://123.129.219.111:3000/v1/"):
         self.storage = FileStorage(
-            first_entry_file_name="./cache_local/multi2single_image_gen/dataflow_cache_step_step1.jsonl",
+            first_entry_file_name="./dataflow/example/image_gen/image_edit/prompts.jsonl",
             cache_path="./cache_local/multi2single_image_gen",
             file_name_prefix="dataflow_cache_step",
             cache_type="jsonl"
@@ -44,8 +44,8 @@ class ImageGenerationPipeline():
     def forward(self):
         self.text_to_image_generator.run(
             storage=self.storage.step(),
-            input_image_key="input_image",
-            input_conversation_key="output_img_discript",
+            input_image_key="images",
+            input_conversation_key="conversations",
             output_image_key="output_image",
         )
 

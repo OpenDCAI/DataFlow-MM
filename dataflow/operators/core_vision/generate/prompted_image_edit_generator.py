@@ -55,7 +55,8 @@ class PromptedImageEditGenerator(OperatorABC):
         for idx, row in df.iterrows():
             if output_image_key in row.keys():
                 if len(row[output_image_key]) > 0:
-                    continue
+                    if row[output_image_key][0] != "":
+                        continue
             if save_image_with_idx:
                 batch_prompts.append({"idx": idx, "image_path": df.at[idx, input_image_key], "prompt": df.at[idx, input_conversation_key][-1]["content"]})
             else:

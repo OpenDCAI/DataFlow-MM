@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .generaterow.prompted_t2i_sample_generator import PromptedT2ISampleGenerator
     from .generate.prompted_t2i_text_generator import PromptedT2ITextGenerator
 
 else:

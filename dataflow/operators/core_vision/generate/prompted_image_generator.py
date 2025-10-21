@@ -55,7 +55,8 @@ class PromptedImageGenerator(OperatorABC):
         for idx, row in df.iterrows():
             if output_image_key in row.keys():
                 if len(row[output_image_key]) > 0:
-                    continue
+                    if row[output_image_key][0] != "":
+                        continue
 
             conv = df.at[idx, input_conversation_key]
             if isinstance(conv, (list, tuple)):
