@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .generate.video_caption_to_qa_generator import VideoCaptionToQAGenerator
     from .generate.video_video_to_caption_generator import VideoToCaptionGenerator
     from .generate.sk_vqa_generator import ImageSKVQAGenerate
+    from .generate.image_caprl_mcq_generator import CapRLMCQGenerate, CapRLMCQConfig
 
     # === Filter ===
     from .filter.video_clip_filter import VideoClipFilter
