@@ -15,9 +15,6 @@ from dataflow.utils.registry import OPERATOR_REGISTRY
 from tqdm import tqdm
 
 
-# -----------------------------
-# Prompts（来自官方）
-# -----------------------------
 VLM_PROMPT_1 = (
     "Describe the fine-grained content of the image, including scenes, objects, "
     "relationships, instance location, and any text present."
