@@ -12,6 +12,8 @@ from dataflow.core import OperatorABC, VLMServingABC
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.utils.registry import OPERATOR_REGISTRY
 
+from tqdm import tqdm
+
 
 # -----------------------------
 # Prompts（来自官方）
@@ -347,39 +349,52 @@ class ImageScaleCaptionGenerate(OperatorABC):
         out_records: List[Dict[str, Any]] = []
 
         for i, row in enumerate(rows):
+            print(f"Processing {i + 1}/{len(rows)} images...", end="\r")
             image_path = row.get(image_key, "")
             if not image_path:
                 continue
 
             # 1) 初稿
-            init_caption = self._gen_init_caption(image_path)
+            try:
+                init_caption = self._gen_init_caption(image_path)
 
-            # 2) goldens
-            goldens = self._pick_golden_sentences(image_path, init_caption)
+                # 2) goldens
+                goldens = self._pick_golden_sentences(image_path, init_caption)
 
-            # 3) 追问
-            obj_qs, pos_qs = self._gen_questions(goldens)
+                # 3) 追问
+                obj_qs, pos_qs = self._gen_questions(goldens)
 
-            # 4) 回答 + 可选过滤
-            obj_ans_raw = self._vlm_batch_answers(obj_qs, image_path)
-            pos_ans_raw = self._vlm_batch_answers(pos_qs, image_path)
-            obj_ans = self._filter_answers_yesno(obj_ans_raw, image_path)
-            pos_ans = self._filter_answers_yesno(pos_ans_raw, image_path)
+                # 4) 回答 + 可选过滤
+                obj_ans_raw = self._vlm_batch_answers(obj_qs, image_path)
+                pos_ans_raw = self._vlm_batch_answers(pos_qs, image_path)
+                obj_ans = self._filter_answers_yesno(obj_ans_raw, image_path)
+                pos_ans = self._filter_answers_yesno(pos_ans_raw, image_path)
 
-            qa_filtered = _uniq(obj_ans + pos_ans)
+                qa_filtered = _uniq(obj_ans + pos_ans)
 
-            # 5) 整合
-            final_caption = self._integrate(goldens=goldens, obj_details=obj_ans, pos_details=pos_ans)
+                # 5) 整合
+                final_caption = self._integrate(goldens=goldens, obj_details=obj_ans, pos_details=pos_ans)
 
-            record = {
-                "image": image_path,
-                "init_caption": init_caption,
-                "golden_sentences": goldens,
-                "object_questions": obj_qs,
-                "position_questions": pos_qs,
-                "qa_answers_filtered": qa_filtered,
-                "final_caption": final_caption,
-            }
+                record = {
+                    "image": image_path,
+                    "init_caption": init_caption,
+                    "golden_sentences": goldens,
+                    "object_questions": obj_qs,
+                    "position_questions": pos_qs,
+                    "qa_answers_filtered": qa_filtered,
+                    "final_caption": final_caption,
+                }
+            except Exception as e:
+                print(f"\n[Error] Failed processing image {image_path}: {e}")
+                record = {
+                    "image": image_path,
+                    "init_caption": "error",
+                    "golden_sentences": [],
+                    "object_questions": [],
+                    "position_questions": [],
+                    "qa_answers_filtered": [],
+                    "final_caption": "",
+                }
             out_records.append(record)
 
             if use_df:

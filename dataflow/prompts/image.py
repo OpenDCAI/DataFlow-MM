@@ -1,5 +1,3 @@
-import random
-
 class CaptionGeneratorPrompt:
     '''
     The prompt for the AutoPromptGenerator.
@@ -8,7 +6,7 @@ class CaptionGeneratorPrompt:
         pass
 
     def caption_generator_prompt(self) -> str:
-        prompt = "<image>\nPlease provide a detailed and comprehensive description of the image."
+        prompt = "<image>\nPlease provide a comprehensive description of the image."
 
         system_prompt = f'''You are a image caption generator. Your task is to generate a concise and informative caption for the given image content.'''
 
@@ -69,3 +67,26 @@ class PersQAGeneratorPrompt:
         system_prompt = f'''You are a personal question-answer generator. Your task is to generate a concise and informative answer for the given question about the main character in the image. The question should be related to the character's appearance or attributes, and the answer should be directly related to the character's features.'''
 
         return prompt, system_prompt
+
+class SKVQAGeneratorPrompt:
+    '''
+    The prompt for the SKVQAGeneratorPrompt.
+    '''
+    def __init__(self):
+        pass
+
+    def skvqa_generator_prompt(self) -> str:
+
+        prompt = """
+        <image>\nWrite a Wikipedia article related to this image without directly referring to the image. Then write question answer pairs. The question answer pairs should satisfy the following criteria.
+        1: The question should refer to the image.
+        2: The question should avoid mentioning the name of the object in the image.
+        3: The question should be answered by reasoning over the Wikipedia article.
+        4: The question should sound natural and concise.
+        5: The answer should be extracted from the Wikipedia article.
+        6: The answer should not be any objects in the image.
+        7: The answer should be a single word or phrase and list all correct answers separated by commas.
+        8: The answer should not contain 'and', 'or', rather you can split them into multiple answers.
+        """
+        
+        return prompt
