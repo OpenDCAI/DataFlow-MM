@@ -64,7 +64,7 @@ def main():
 
     # vLLM 模型（HF 仓库 ID，可配合 hf-mirror）
     model = LocalModelVLMServing_vllm(
-        hf_model_name_or_path="/data0/happykeyan/Models/Qwen2.5-VL-3B-Instruct",
+        hf_model_name_or_path="Qwen/Qwen2.5-VL-3B-Instruct",
         vllm_tensor_parallel_size=1,   # 按你的 GPU 数量改
         vllm_temperature=0.7,
         vllm_top_p=0.9,

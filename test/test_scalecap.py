@@ -121,7 +121,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ScaleCap Dense Captioning Pipeline (DataFlow)")
 
     # 模型
-    parser.add_argument("--vlm_model_path", default="/mnt/public/model/huggingface/Qwen2.5-VL-3B-Instruct")
+    parser.add_argument("--vlm_model_path", default="Qwen/Qwen2.5-VL-3B-Instruct")
     parser.add_argument("--llm_model_path", default="")  # 可不填：默认与 VLM 共用
     parser.add_argument("--hf_cache_dir", default="~/.cache/huggingface")
     parser.add_argument("--download_dir", default="./ckpt/models")

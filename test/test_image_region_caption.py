@@ -13,7 +13,7 @@ storage = FileStorage(
 )
 
 model = LocalModelVLMServing_vllm(
-    hf_model_name_or_path="/mnt/public/model/huggingface/Qwen2.5-VL-3B-Instruct",
+    hf_model_name_or_path="Qwen/Qwen2.5-VL-3B-Instruct",
     hf_cache_dir="~/.cache/huggingface",
     hf_local_dir="./ckpt",
     vllm_tensor_parallel_size=1,

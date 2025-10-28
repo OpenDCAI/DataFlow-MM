@@ -62,7 +62,7 @@ class PersQAPipeline:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Batch image → QA pair (auto)")
 
-    parser.add_argument("--model_path", default="/mnt/public/model/huggingface/Qwen2.5-VL-3B-Instruct")
+    parser.add_argument("--model_path", default="Qwen/Qwen2.5-VL-3B-Instruct")
     parser.add_argument("--hf_cache_dir", default="~/.cache/huggingface")
     parser.add_argument("--download_dir", default="./ckpt/models")
     parser.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
