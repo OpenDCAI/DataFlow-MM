@@ -113,7 +113,7 @@ if __name__ == "__main__":
     # Model paths
     parser.add_argument(
         "--qwen_model_path",
-        default="/data0/happykeyan/Models/Qwen2.5-VL-3B-Instruct",
+        default="/mnt/public/model/huggingface/Qwen2.5-VL-3B-Instruct",
         help="Path to Qwen model (for CoT generation)"
     )
     parser.add_argument(

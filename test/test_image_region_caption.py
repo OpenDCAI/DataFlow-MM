@@ -13,7 +13,7 @@ storage = FileStorage(
 )
 
 model = LocalModelVLMServing_vllm(
-    hf_model_name_or_path="/data0/happykeyan/Models/Qwen2.5-VL-7B-Instruct",
+    hf_model_name_or_path="/mnt/public/model/huggingface/Qwen2.5-VL-3B-Instruct",
     vllm_tensor_parallel_size=1,
     vllm_temperature=0.0,
     vllm_top_p=0.9,
