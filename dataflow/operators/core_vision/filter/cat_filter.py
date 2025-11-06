@@ -13,6 +13,12 @@ from dataflow.utils.registry import OPERATOR_REGISTRY
 
 
 def _load_stanza_pipeline():
+    import stanza
+    import torch
+    import numpy as np
+
+    # 兼容 PyTorch 2.6+ 权重加载安全限制
+    torch.serialization.add_safe_globals([np.core.multiarray._reconstruct])
     try:
         import stanza
     except ImportError:
