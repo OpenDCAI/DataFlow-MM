@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 from dataflow.utils.registry import OPERATOR_REGISTRY
 from dataflow import get_logger
 
@@ -31,6 +32,7 @@ class PromptedImageGenerator(OperatorABC):
         storage: DataFlowStorage,
         input_conversation_key: str = "conversation",
         output_image_key: str = "images",
+        save_image_with_idx: bool = True,
     ):
         if output_image_key is None:
             raise ValueError("At least one of output_key must be provided.")
@@ -42,42 +44,40 @@ class PromptedImageGenerator(OperatorABC):
             raise ValueError("storage.read must return a pandas DataFrame")
 
         # Initialize the output column with empty lists
-        df[output_image_key] = [[] for _ in range(len(df))]
+        if output_image_key not in df.columns:
+            df[output_image_key] = [[] for _ in range(len(df))]
 
         processed = 0
         total = len(df)
-        ########## batch processing move to the serving ##########
-        # for start in range(0, total, self.batch_size):
-        #     batch_indices = list(range(start, min(start + self.batch_size, total)))
-        #     batch_prompts = [
-        #         df.at[idx, input_conversation_key][-1]["content"]
-        #         for idx in batch_indices
-        #     ]
 
-        #     # Generate images for the batch
-        #     generated = self.t2i_serving.generate_from_input(batch_prompts)
-
-        #     # Assign generated images back to DataFrame and periodically save
-        #     for idx, prompt in zip(batch_indices, batch_prompts):
-        #         df.at[idx, output_image_key] = generated.get(prompt, [])
-        #         processed += 1
-        #         if processed % self.save_interval == 0:
-        #             storage.media_key = output_image_key
-        #             storage.write(df)
         prompts_and_idx = []
-        for idx in range(total):
+        save_id_list = []
+        for idx, row in df.iterrows():
+            if output_image_key in row.keys():
+                if len(row[output_image_key]) > 0:
+                    if row[output_image_key][0] != "":
+                        continue
+
             conv = df.at[idx, input_conversation_key]
             if isinstance(conv, (list, tuple)):
-                for msg in conv:
+                for c_idx, msg in enumerate(conv):
                     if isinstance(msg, dict) and isinstance(msg.get("content"), str) and msg["content"].strip():
-                        prompts_and_idx.append((msg["content"], idx))
+                        save_id_list.append({"text_prompt": msg["content"],
+                                             "sample_id": f"sample{idx}_condition{c_idx}"})
+                        if save_image_with_idx:
+                            prompts_and_idx.append((f"sample{idx}_condition{c_idx}", idx))
+                        else:
+                            prompts_and_idx.append((msg["content"], idx))
 
         if not prompts_and_idx:
             storage.media_key = output_image_key
             storage.write(df)
             return
 
-        batch_prompts = [p for p, _ in prompts_and_idx]
+        if save_image_with_idx:
+            batch_prompts = save_id_list
+        else:
+            batch_prompts = [p for p, _ in prompts_and_idx]
         generated = self.t2i_serving.generate_from_input(batch_prompts)
         for prompt, idx in prompts_and_idx:
             imgs = generated.get(prompt, [])

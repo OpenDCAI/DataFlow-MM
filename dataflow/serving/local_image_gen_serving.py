@@ -105,9 +105,31 @@ class LocalImageGenServing(VLMServingABC):
         """
         Helper to generate images for a batch of prompts on a single pipeline.
         """
+        if len(prompts) == 0:
+            raise ValueError("prompts must be non-empty")
+
         if self.image_gen_task == "text2image":
+            
+            is_dict_input = isinstance(prompts[0], dict)
+
+            if is_dict_input:
+                for i, item in enumerate(prompts):
+                    if not isinstance(item, dict):
+                        raise ValueError(f"All items must be dict when using dict input, but prompts[{i}] is {type(item)}")
+                    if "text_prompt" not in item or "sample_id" not in item:
+                        raise ValueError(f"prompts[{i}] must contain 'text_prompt' and 'sample_id'")
+                    if not isinstance(item["text_prompt"], str):
+                        raise ValueError(f"prompts[{i}]['text_prompt'] must be str")
+
+                text_prompts = [p["text_prompt"] for p in prompts]
+            else:
+                for i, p in enumerate(prompts):
+                    if not isinstance(p, str):
+                        raise ValueError(f"text2image expects List[str] or List[dict], but prompts[{i}] is {type(p)}")
+                text_prompts = prompts
+
             output = pipe(
-                prompt=prompts,
+                prompt=text_prompts,
                 height=self.diffuser_image_height,
                 width=self.diffuser_image_width,
                 num_inference_steps=self.diffuser_num_inference_steps,
@@ -115,8 +137,33 @@ class LocalImageGenServing(VLMServingABC):
                 num_images_per_prompt=self.diffuser_num_images_per_prompt,
             )
         elif self.image_gen_task == "imageedit":
+
+            is_dict_input = isinstance(prompts[0], dict)
+
+            if is_dict_input:
+                for i, item in enumerate(prompts):
+                    if not isinstance(item, dict):
+                        raise ValueError(f"All items must be dict when using dict input, but prompts[{i}] is {type(item)}")
+                    if "image_path" not in item or "prompt" not in item:
+                        raise ValueError(f"prompts[{i}] must contain 'image' and 'prompt'")
+                    if not isinstance(item["prompt"], str):
+                        raise ValueError(f"prompts[{i}]['prompt'] must be str")
+                if isinstance(prompts[0]["image_path"], str):
+                    input_prompts = [(p["image_path"], p["prompt"]) for p in prompts]
+                else:
+                    input_prompts = [(p["image_path"][0], p["prompt"]) for p in prompts]
+            else:
             # prompts expected as list of tuples (image, prompt)
-            images, texts = zip(*prompts)
+                for i, it in enumerate(prompts):
+                    if not (isinstance(it, (list, tuple)) and len(it) == 2):
+                        raise ValueError(f"imageedit expects List[(image, prompt)], got prompts[{i}]={it}")
+                # input_prompts = prompts
+                if isinstance(prompts[0][0], str):
+                    input_prompts = prompts
+                else:
+                    input_prompts = [(p[0][0], p[1]) for p in prompts]
+
+            images, texts = zip(*input_prompts)
             images = self.image_io.read(list(images))
             output = pipe(
                 image=images,
@@ -133,15 +180,29 @@ class LocalImageGenServing(VLMServingABC):
         all_images = output.images
         grouped: Dict[str, List[Image.Image]] = {}
         if self.image_gen_task == "text2image":
-            for idx, prompt in enumerate(prompts):
-                start = idx * self.diffuser_num_images_per_prompt
-                end = start + self.diffuser_num_images_per_prompt
-                grouped[prompt] = all_images[start:end]
+            if isinstance(prompts[0], dict):
+                for idx in range(len(text_prompts)):
+                    start = idx * self.diffuser_num_images_per_prompt
+                    end = start + self.diffuser_num_images_per_prompt
+                    key = str(prompts[idx]["sample_id"])
+                    grouped[key] = all_images[start:end]
+            else:
+                for idx, prompt_text in enumerate(text_prompts):
+                    start = idx * self.diffuser_num_images_per_prompt
+                    end = start + self.diffuser_num_images_per_prompt
+                    grouped[prompt_text] = all_images[start:end]
         else:
-            for idx, (_, text) in enumerate(prompts):
-                start = idx * self.diffuser_num_images_per_prompt
-                end = start + self.diffuser_num_images_per_prompt
-                grouped[text] = all_images[start:end]
+            if isinstance(prompts[0], dict):
+                for idx in range(len(prompts)):
+                    start = idx * self.diffuser_num_images_per_prompt
+                    end = start + self.diffuser_num_images_per_prompt
+                    key = "sample_" + str(prompts[idx]["idx"])
+                    grouped[key] = all_images[start:end]
+            else:
+                for idx, (_, text) in enumerate(prompts):
+                    start = idx * self.diffuser_num_images_per_prompt
+                    end = start + self.diffuser_num_images_per_prompt
+                    grouped[text] = all_images[start:end]
         return grouped
     
     def generate_from_input(self, user_inputs: List[Any]):
