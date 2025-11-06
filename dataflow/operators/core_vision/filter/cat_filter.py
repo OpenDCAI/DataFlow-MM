@@ -13,7 +13,6 @@ from dataflow.utils.registry import OPERATOR_REGISTRY
 
 
 def _load_stanza_pipeline():
-    import stanza
     import torch
     import numpy as np
 
