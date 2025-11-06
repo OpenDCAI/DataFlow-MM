@@ -12,25 +12,25 @@ from dataflow.utils.storage import DataFlowStorage
 from dataflow.utils.registry import OPERATOR_REGISTRY
 
 
-def _load_stanza_pipeline():
-    import torch
-    import numpy as np
+# def _load_stanza_pipeline():
+#     import torch
+#     import numpy as np
 
-    # 兼容 PyTorch 2.6+ 权重加载安全限制
-    torch.serialization.add_safe_globals([np.core.multiarray._reconstruct, np.ndarray])
-    try:
-        import stanza
-    except ImportError:
-        subprocess.run([sys.executable, "-m", "pip", "install", "stanza==1.8.2"], check=True)
-        import stanza
-    try:
-        return stanza.Pipeline(lang="en", processors="tokenize,pos,lemma,depparse", use_gpu=False, verbose=False, weights_only=False)
-    except Exception:
-        stanza.download("en")
-        return stanza.Pipeline(lang="en", processors="tokenize,pos,lemma,depparse", use_gpu=False, verbose=False, weights_only=False)
+#     # 兼容 PyTorch 2.6+ 权重加载安全限制
+#     torch.serialization.add_safe_globals([np.core.multiarray._reconstruct, np.ndarray])
+#     try:
+#         import stanza
+#     except ImportError:
+#         subprocess.run([sys.executable, "-m", "pip", "install", "stanza==1.8.2"], check=True)
+#         import stanza
+#     try:
+#         return stanza.Pipeline(lang="en", processors="tokenize,pos,lemma,depparse", use_gpu=False, verbose=False, weights_only=False)
+#     except Exception:
+#         stanza.download("en")
+#         return stanza.Pipeline(lang="en", processors="tokenize,pos,lemma,depparse", use_gpu=False, verbose=False, weights_only=False)
 
 
-_nlp = _load_stanza_pipeline()
+# _nlp = _load_stanza_pipeline()
 
 
 @OPERATOR_REGISTRY.register()
