@@ -3,6 +3,7 @@
 **/.ipynb_checkpoints/
 *.egg
 *.egg-info  
+*.txt.gz
 /dataflow/example/ReasoningPipeline/pipeline_math_step*.jsonl
 !/dataflow/example/ReasoningPipeline/pipeline_math.json
 
@@ -12,14 +13,15 @@ requirement_added.txt
 mineru.json
 
 test/example
-
-cache
-cache_local
-.cache
+reasoning_chains
+cache*
+ckpt*
+flash_attn*
 dataflow_cache/
 dataflow/operators/eval/GeneralText/gen/cider/coco-val-df.p
 test_mineru
 test/test_cli
+dataflow/operators/core_vision/generate/llava
 
 .vscode
 
@@ -28,3 +30,4 @@ build
 
 .DS_store
 
+ljs
