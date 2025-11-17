@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'  # 设置可见的GPU设备
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'  # 设置可见的GPU设备
 
 from dataflow.utils.storage import FileStorage
 from dataflow.operators.core_audio import (
@@ -22,19 +22,20 @@ class Pipeline:
         )
 
         self.serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/mnt/public/data/guotianyu/Models/whisper-large-v3",
+            hf_model_name_or_path="/share/project/guotianyu/models/whisper-large-v3",
             hf_cache_dir="./dataflow_cache",
-            vllm_tensor_parallel_size=2,
+            vllm_tensor_parallel_size=1,
             vllm_temperature=0.3,
             vllm_top_p=0.9,
             vllm_max_tokens=512,
+            vllm_max_model_len=448,
             vllm_gpu_memory_utilization=0.9
         )
 
         self.silero_vad_generator = SileroVADGenerator(
-            repo_or_dir="/mnt/public/data/guotianyu/dataflow_project/silero-vad",
-            source="local",
-            device=['cuda:2'],
+            repo_or_dir="snakers4/silero-vad",
+            source="github",
+            device=['cuda:1'],
             num_workers=2,
         )
         
@@ -46,14 +47,14 @@ class Pipeline:
         )
 
         # self.filter = CTCForcedAlignFilter(
-        #     model_path="/mnt/public/data/guotianyu/Models/mms-300m-1130-forced-aligner",
-        #     device=["cuda:3"],
+        #     model_path="/share/project/guotianyu/models/mms-300m-1130-forced-aligner",
+        #     device=["cuda:1"],
         #     num_workers=1,
         # )
 
         self.evaluator = CTCForcedAlignSampleEvaluator(
-            model_path="/mnt/public/data/guotianyu/Models/mms-300m-1130-forced-aligner",
-            device=["cuda:3"],
+            model_path="/share/project/guotianyu/models/mms-300m-1130-forced-aligner",
+            device=["cuda:1"],
             num_workers=2,
         )
 
@@ -107,7 +108,7 @@ class Pipeline:
         #     micro_batch_size=16,
         #     chinese_to_pinyin=False,
         #     retain_word_level_alignment=True,
-        #     threshold=0.1,
+        #     threshold=0.7,
         #     threshold_mode="min",
         #     romanize=True,
         # )
