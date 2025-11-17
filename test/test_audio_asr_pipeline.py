@@ -12,6 +12,7 @@ from dataflow.operators.core_audio import (
 from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.prompts.whisper_prompt_generator import WhisperTranscriptionPrompt
 
+
 class Pipeline:
     def __init__(self):
         self.storage = FileStorage(
