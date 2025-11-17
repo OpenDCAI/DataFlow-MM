@@ -15,8 +15,6 @@ class SileroVADGeneratorEval:
             repo_or_dir="/mnt/public/data/guotianyu/dataflow_project/silero-vad",
             source="local",
             device=['cuda:0'],
-            #device=['cuda:1', 'cuda:0'],
-            #device="cuda:0",
             num_workers=1,
         )
     
