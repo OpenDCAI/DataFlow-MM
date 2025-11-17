@@ -36,7 +36,7 @@ class MergeChunksByTimestamps(OperatorABC):
 
     def run(self,
         storage: DataFlowStorage,
-        dst_folder: Optional[str] = None,
+        dst_folder: str,
         input_audio_key: str = "audio",
         input_timestamps_key: str = "timestamps",
         timestamp_type: Literal["frame", "time"] = "time",  # 手动指定类型

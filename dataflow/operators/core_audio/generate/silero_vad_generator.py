@@ -7,7 +7,7 @@ from dataflow import get_logger
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.core import OperatorABC
 
-from typing import Union, Optional, Callable, Text, List, Dict, Any
+from typing import Union, List, Dict, Any
 import warnings
 
 from tqdm import tqdm
@@ -79,15 +79,14 @@ class SileroVADGenerator(OperatorABC):
         threshold: float = 0.5,
         use_min_cut: bool = False,
         sampling_rate: int = 16000,
-        min_speech_duration_s: int = 0.25,
+        min_speech_duration_s: float = 0.25,
         max_speech_duration_s: float = float('inf'),
-        min_silence_duration_s: int = 0.1,
-        speech_pad_s: int = 0.03,
+        min_silence_duration_s: float = 0.1,
+        speech_pad_s: float = 0.03,
         return_seconds: bool = False,
         time_resolution: int = 1,
         neg_threshold: float = None,
-        window_size_samples: int = 512,
-        min_silence_at_max_speech: float = 98,
+        min_silence_at_max_speech: float = 0.098,
         use_max_poss_sil_at_max_speech: bool = True            
     ):
         if output_answer_key is None:
@@ -104,7 +103,7 @@ class SileroVADGenerator(OperatorABC):
             "return_seconds": return_seconds,
             "time_resolution": time_resolution,
             "neg_threshold": neg_threshold,
-            "window_size_samples": window_size_samples,
+            "window_size_samples": 512,
             "min_silence_at_max_speech": min_silence_at_max_speech,
             "use_max_poss_sil_at_max_speech": use_max_poss_sil_at_max_speech,
         }
