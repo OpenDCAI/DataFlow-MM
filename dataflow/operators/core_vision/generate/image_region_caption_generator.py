@@ -87,39 +87,102 @@ def conv():
     conv = "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions."
     return conv
 
-def extract_boxes_from_image(image_path, min_area=100, min_aspect_ratio=0.1, max_aspect_ratio=10):
+def non_max_suppression(boxes, overlap_thresh=0.3):
     """
-    从图片中提取自带的框（矩形）坐标
-    Args:
-        image_path: 图片路径
-        min_area: 最小框面积（过滤噪声）
-        min_aspect_ratio: 最小宽高比（过滤过窄/过宽的框）
-        max_aspect_ratio: 最大宽高比
-    Returns:
-        boxes: 框坐标列表，格式为 [(x, y, w, h), ...]，其中(x,y)为左上角坐标，w/h为宽高
+    非极大值抑制 NMS 算法，去除重叠过多的框
     """
-    # 读取图片并预处理
+    if len(boxes) == 0:
+        return []
+
+    boxes = np.array(boxes)
+    x1 = boxes[:, 0]
+    y1 = boxes[:, 1]
+    x2 = boxes[:, 0] + boxes[:, 2]  # x2 = x + w
+    y2 = boxes[:, 1] + boxes[:, 3]  # y2 = y + h
+
+    areas = boxes[:, 2] * boxes[:, 3]
+    idxs = np.argsort(areas)[::-1]
+
+    keep = []
+    while len(idxs) > 0:
+        i = idxs[0]
+        keep.append(i)
+
+        xx1 = np.maximum(x1[i], x1[idxs[1:]])
+        yy1 = np.maximum(y1[i], y1[idxs[1:]])
+        xx2 = np.minimum(x2[i], x2[idxs[1:]])
+        yy2 = np.minimum(y2[i], y2[idxs[1:]])
+
+        w = np.maximum(0, xx2 - xx1)
+        h = np.maximum(0, yy2 - yy1)
+        intersection_area = w * h
+
+        overlap = intersection_area / areas[idxs[1:]]
+
+        idxs = np.delete(idxs, np.concatenate(([0], np.where(overlap > overlap_thresh)[0] + 1)))
+
+    return boxes[keep].tolist()
+
+def extract_boxes_from_image(image_path, min_area_ratio=0.01, max_area_ratio=0.8, min_aspect_ratio=0.1, max_aspect_ratio=5):
+    """
+    从图片中提取主体物体（矩形）坐标，使用形态学和自适应阈值进行优化。
+        min_area_ratio (float): Minimum box area as a ratio
+        max_area_ratio (float): Maximum box area as a ratio
+        min_aspect_ratio (float): Minimum aspect ratio (w/h)
+        max_aspect_ratio (float): Maximum aspect ratio (w/h)
+    """
     image = cv2.imread(image_path)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # 转为灰度图
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)  # 高斯模糊去噪
-    edges = cv2.Canny(blurred, 50, 150)  # 边缘检测
+    if image is None:
+        print(f"Error: Could not read image at {image_path}")
+        return []
+    
+    h_img, w_img, _ = image.shape
+    min_area = w_img * h_img * min_area_ratio
+    max_area = w_img * h_img * max_area_ratio 
+
+    # 灰度化和去噪
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    # 自适应阈值
+    thresh = cv2.adaptiveThreshold(
+        blurred, 255, 
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        cv2.THRESH_BINARY_INV, 
+        11, 
+        2 
+    )
+
+    # 形态学闭运算
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (8, 8))
+    closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
 
     # 查找轮廓
-    contours, _ = cv2.findContours(edges.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(closed.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
     boxes = []
-
     for contour in contours:
-        # 拟合最小外接矩形
-        x, y, w, h = cv2.boundingRect(contour)
-        area = w * h
-        aspect_ratio = w / h if h != 0 else 0
+        area = cv2.contourArea(contour)
+        x, y, w, h = cv2.boundingRect(contour) 
 
-        # 过滤不符合条件的框（面积过小、宽高比异常）
-        if area < min_area or aspect_ratio < min_aspect_ratio or aspect_ratio > max_aspect_ratio:
+        # 过滤
+        if h == 0: continue
+        aspect_ratio = w / h
+        
+        if area < min_area or area > max_area:
+            continue
+            
+        if min_aspect_ratio > aspect_ratio or aspect_ratio > max_aspect_ratio:
+            continue
+            
+        if w > w_img * 0.9 or h > h_img * 0.9:
             continue
 
         boxes.append((x, y, w, h))
-
+        
+    # 非极大值抑制
+    boxes = non_max_suppression(boxes, overlap_thresh=0.3)
+            
     return boxes
 
 @dataclass
