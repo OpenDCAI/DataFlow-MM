@@ -112,9 +112,74 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
     @staticmethod
     def get_desc(lang: str = "zh"):
         if lang == "zh":
-            return "使用CTC强制对齐计算语音和文本转录对齐分数"
+            desc = (
+                "该算子用于计算语音和文本转录对齐分数。\n\n"
+                "输入参数：\n"
+                "- dataframe: 输入数据帧，通常由上游算子写入到 storage 中的 'dataframe'\n"
+                "- input_audio_key: 音频路径所在列名，默认 'audio'\n"
+                "- input_conversation_key: 文本/对话所在列名，默认 'conversation'\n"
+                "- sampling_rate: 采样率\n"
+                "- language: 文本语言（ISO 639-1/639-3），用于 romanize 与正则化，例如 'en'、'zh'\n"
+                "- micro_batch_size: 每次前向计算时并行处理的音频块数量\n"
+                "- chinese_to_pinyin: 是否先将中文转为拼音再对齐\n"
+                "- retain_word_level_alignment: 是否输出词/片段级别时间戳（word_timestamps）\n"
+                "- romanize: 是否对文本进行罗马化（使用 uroman），通常对非拉丁文字有帮助\n\n"
+                "运行行为:\n"
+                "- 串行模式：num_workers <= 1 时，在单个 device 上顺序处理每条样本\n"
+                "- 并行模式：num_workers > 1 时，使用 multiprocessing 在多个进程上并行处理，"
+                "每个子进程各自持有一份对齐模型实例\n\n"
+                "输出（写回 dataframe 的列）:\n"
+                "- output_answer_key（默认 'forced_alignment_results'）: 每行一个 dict，包含:\n"
+                "  * spans: List[Dict]，逐字符/子单位的对齐片段，字段:\n"
+                "      - label: 单位标签（通常为对齐后的字母或 <blank>）\n"
+                "      - start: 片段起始帧索引（CTC 步长下标）\n"
+                "      - end  : 片段结束帧索引（含）\n"
+                "      - score: 该片段得分的指数形式（exp 后的置信度近似值）\n"
+                "  * word_timestamps: List[Dict]，可选的词级/片段级时间戳，字段:\n"
+                "      - start: 起始时间（秒）\n"
+                "      - end  : 结束时间（秒）\n"
+                "      - text : 对应的文本片段\n"
+                "      - score: 该片段累积得分的指数形式\n"
+                "  * error: 若当前样本对齐过程中出现异常，将写入错误信息字符串，否则为 None\n\n"
+            )
         else:
-            return "Using CTCForcedAlignmentSampleEvaluator to compute the audio-text transcription alignment score"
+            desc = (
+                "This operator computes alignment scores between speech audio "
+                "and its transcription text using a CTC-based forced alignment model.\n\n"
+
+                "Input parameters:\n"
+                "- dataframe: Input dataframe, typically read from the upstream operator via the "
+                "  storage key 'dataframe'\n"
+                "- input_audio_key: Column name containing audio paths, default 'audio'\n"
+                "- input_conversation_key: Column name containing transcript/text, default 'conversation'\n"
+                "- sampling_rate: Sampling rate used for audio loading/resampling\n"
+                "- language: Text language (ISO 639-1/639-3), used for romanization and normalization, "
+                "  e.g., 'en', 'zh'\n"
+                "- micro_batch_size: Number of audio chunks processed in parallel per forward pass\n"
+                "- chinese_to_pinyin: Whether to convert Chinese text into pinyin before alignment\n"
+                "- retain_word_level_alignment: Whether to output word/segment-level timestamps (word_timestamps)\n"
+                "- romanize: Whether to romanize text using uroman (useful for non-Latin scripts)\n\n"
+
+                "Runtime behavior:\n"
+                "- Serial mode: When num_workers <= 1, samples are processed sequentially on a single device\n"
+                "- Parallel mode: When num_workers > 1, multiprocessing is used, and each worker "
+                "  holds its own instance of the alignment model\n\n"
+
+                "Output (written back into the dataframe):\n"
+                "- output_answer_key (default 'forced_alignment_results'): A dict per row containing:\n"
+                "  * spans: List[Dict], frame-level alignment units with fields:\n"
+                "      - label: Unit label (typically aligned characters or <blank>)\n"
+                "      - start: Start frame index (CTC time step)\n"
+                "      - end  : End frame index (inclusive)\n"
+                "      - score: Exponential of the alignment score (confidence-like value)\n"
+                "  * word_timestamps: List[Dict], optional word/segment-level timestamps with fields:\n"
+                "      - start: Start time in seconds\n"
+                "      - end  : End time in seconds\n"
+                "      - text : Corresponding text segment\n"
+                "      - score: Exponential of the aggregated alignment score\n"
+                "  * error: Error message string if alignment failed for this sample, otherwise None\n\n"
+            )
+        return desc
 
     def eval(
         self, 
