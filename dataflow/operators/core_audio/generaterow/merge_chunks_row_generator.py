@@ -20,7 +20,7 @@ def chunk_list(data, num_chunks):
     return [data[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(num_chunks) if data[i * k + min(i, m):(i + 1) * k + min(i + 1, m)]]
 
 @OPERATOR_REGISTRY.register()
-class MergeChunksByTimestamps(OperatorABC):
+class MergeChunksRowGenerator(OperatorABC):
     def __init__(self, num_workers=1):
         super().__init__()
         self.logger = get_logger(__name__)
@@ -62,7 +62,7 @@ class MergeChunksByTimestamps(OperatorABC):
         if self.is_parallel:
             args_chunks = chunk_list(args_iter, self.num_workers)
             # args_chunks = [chunk.tolist() for chunk in args_chunks if len(chunk) > 0]
-            worker = partial(MergeChunksByTimestamps._process_audio_chunk_static)
+            worker = partial(MergeChunksRowGenerator._process_audio_chunk_static)
             for chunk_result in tqdm(self.pool.imap(worker, args_chunks), total=len(args_chunks),
                             desc="Merging Chunks", unit=" chunk"):
                 output_dataframe.extend(chunk_result)
@@ -71,7 +71,7 @@ class MergeChunksByTimestamps(OperatorABC):
             #                 desc="Merging Chunks", unit=" row"))
         else:
             for args in tqdm(args_iter, desc="Merging", unit=" row", total=len(args_iter)):
-                ret = MergeChunksByTimestamps._process_audio(args)
+                ret = MergeChunksRowGenerator._process_audio(args)
                 output_dataframe.extend(ret)
 
         output_dataframe = pd.DataFrame(output_dataframe)
@@ -88,7 +88,7 @@ class MergeChunksByTimestamps(OperatorABC):
         """静态方法封装，给多进程用"""
         results = []
         for args in tqdm(args_chunk, desc="Merging", unit=" row", total=len(args_chunk)):
-            results.extend(MergeChunksByTimestamps._process_audio(args))
+            results.extend(MergeChunksRowGenerator._process_audio(args))
         return results
 
     @staticmethod

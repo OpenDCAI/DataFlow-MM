@@ -1,14 +1,13 @@
 from dataflow.utils.storage import FileStorage
 from dataflow.operators.core_audio import (
     SileroVADGenerator,
-    MergeChunksByTimestamps,
+    MergeChunksRowGenerator,
     PromptedAQAGenerator,
-    CTCForcedAlignFilter,
-    CTCForcedAlignSampleEvaluator,
+    CTCForcedAlignmentFilter,
+    CTCForcedAlignmentSampleEvaluator,
 )
 from dataflow.serving import LocalModelVLMServing_vllm
-from dataflow.wrapper import BatchWrapper
-from dataflow.prompts.whisper_prompt_generator import WhisperTranscriptionPrompt
+from dataflow.prompts.audio import WhisperTranscriptionPrompt
 
 class Pipeline:
     def __init__(self):
@@ -20,39 +19,40 @@ class Pipeline:
         )
 
         self.serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/mnt/public/data/guotianyu/Models/whisper-large-v3",
+            hf_model_name_or_path="openai/whisper-large-v3",
             hf_cache_dir="./dataflow_cache",
             vllm_tensor_parallel_size=2,
             vllm_temperature=0.3,
             vllm_top_p=0.9,
             vllm_max_tokens=512,
+            vllm_max_model_len=448,
             vllm_gpu_memory_utilization=0.9
         )
 
         self.silero_vad_generator = SileroVADGenerator(
-            repo_or_dir="/mnt/public/data/guotianyu/dataflow_project/silero-vad",
-            source="local",
+            repo_or_dir="snakers4/silero-vad",
+            source="github",
             device=['cuda:2'],
             #device="cuda:0",
             num_workers=1,
         )
 
-        self.merger = MergeChunksByTimestamps(num_workers=128)
+        self.merger = MergeChunksRowGenerator(num_workers=128)
 
         self.prompted_generator = PromptedAQAGenerator(
             vlm_serving=self.serving,
-            system_prompt="<|startoftranscript|><|de|><|transcribe|><|notimestamps|>"
+            system_prompt=WhisperTranscriptionPrompt().generate_prompt(language="german", task="transcribe", with_timestamps=False)
         )
 
-        # self.filter = CTCForcedAlignFilter(
-        #     model_path="/mnt/public/data/guotianyu/Models/mms-300m-1130-forced-aligner",
+        # self.filter = CTCForcedAlignmentFilter(
+        #     model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
         #     device=["cuda:3"],
         #     num_workers=1,
         # )
 
 
-        self.evaluator = CTCForcedAlignSampleEvaluator(
-            model_path="/mnt/public/data/guotianyu/Models/mms-300m-1130-forced-aligner",
+        self.evaluator = CTCForcedAlignmentSampleEvaluator(
+            model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
             device=["cuda:3"],
             num_workers=2,
         )
@@ -71,7 +71,6 @@ class Pipeline:
             return_seconds=True,
             time_resolution=1,
             neg_threshold=0.35,
-            window_size_samples=512,
             min_silence_at_max_speech=0.098,
             use_max_poss_sil_at_max_speech=True
         )

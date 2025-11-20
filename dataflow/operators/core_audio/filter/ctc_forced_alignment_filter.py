@@ -4,15 +4,15 @@ from dataflow import get_logger
 
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.core import OperatorABC
-from dataflow.operators.core_audio import CTCForcedAlignSampleEvaluator
+from dataflow.operators.core_audio import CTCForcedAlignmentSampleEvaluator
 
 from typing import Union, List, Dict, Any
 
 @OPERATOR_REGISTRY.register()
-class CTCForcedAlignFilter(OperatorABC):
+class CTCForcedAlignmentFilter(OperatorABC):
     def __init__(self, model_path: str = "MahmoudAshraf/mms-300m-1130-forced-aligner", device: Union[str, List[str]] = "cuda", num_workers: int = 1):
         self.logger = get_logger(__name__)
-        self.evaluator = CTCForcedAlignSampleEvaluator(model_path=model_path, num_workers=num_workers,device=device)
+        self.evaluator = CTCForcedAlignmentSampleEvaluator(model_path=model_path, num_workers=num_workers,device=device)
     
     def run(self, 
             storage: DataFlowStorage,

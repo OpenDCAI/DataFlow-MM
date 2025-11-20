@@ -23,15 +23,6 @@ from dataflow.core import OperatorABC
 from dataclasses import dataclass
 
 from iso639 import Lang
-# from ctc_forced_aligner import (
-#     load_alignment_model,
-#     generate_emissions,
-#     preprocess_text,
-#     get_alignments,
-#     get_spans,
-#     postprocess_results,
-#     merge_repeats
-# )
 
 from tqdm import tqdm
 import multiprocessing
@@ -64,10 +55,6 @@ def _parallel_worker(payload: Dict[str, Any]) -> List[List[Dict[str, float]]]:
     audio_paths_chunk = payload['audio_paths_chunk']
     text_chunk = payload['text_chunk']
     ctc_params = payload['ctc_params']
-    # sampling_rate = ctc_params['sampling_rate']
-    # language = ctc_params['language']
-    # micro_batch_size = ctc_params['micro_batch_size']
-    # retain_word_level_alignment = ctc_params['retain_word_level_alignment']
 
     records = []
     # 使用已经存在于子进程中的 _worker_model_processor
@@ -80,9 +67,9 @@ def _parallel_worker(payload: Dict[str, Any]) -> List[List[Dict[str, float]]]:
     
 
 @OPERATOR_REGISTRY.register()
-class CTCForcedAlignSampleEvaluator(OperatorABC):
+class CTCForcedAlignmentSampleEvaluator(OperatorABC):
     '''
-    CTCForcedAligner is a class that performs CTC forced aligner on audio data.
+    CTCForcedAlignmentSampleEvaluator is a class that performs CTC forced alignment on audio data.
     '''
     def __init__(
         self, 
@@ -104,10 +91,6 @@ class CTCForcedAlignSampleEvaluator(OperatorABC):
 
             # 准备每个 worker 的静态配置
             self.devices = device if isinstance(device, list) else [device]
-            # self.worker_configs = [
-            #     {'device': devices[i % len(devices)], **self.model_init_args}
-            #     for i in range(self.num_workers)
-            # ]
 
             # 使用 initializer 在每个子进程启动时加载模型
             ctx = multiprocessing.get_context('spawn')
@@ -131,7 +114,7 @@ class CTCForcedAlignSampleEvaluator(OperatorABC):
         if lang == "zh":
             return "使用CTC强制对齐计算语音和文本转录对齐分数"
         else:
-            return "Using CTCForcedAligner to compute the audio-text transcription alignment score"
+            return "Using CTCForcedAlignmentSampleEvaluator to compute the audio-text transcription alignment score"
 
     def eval(
         self, 

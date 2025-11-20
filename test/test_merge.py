@@ -1,7 +1,7 @@
 from dataflow.utils.storage import FileStorage
-from dataflow.operators.core_audio import MergeChunksByTimestamps
+from dataflow.operators.core_audio import MergeChunksRowGenerator
 
-class TestMergeChunksByTimestamps:
+class TestMergeChunksRowGenerator:
     def __init__(self):
         self.storage = FileStorage(
             first_entry_file_name="./dataflow/example/merge_chunks/sample_data_local.jsonl",
@@ -10,7 +10,7 @@ class TestMergeChunksByTimestamps:
             cache_type="jsonl",
         )
 
-        self.merger = MergeChunksByTimestamps(num_workers=16)
+        self.merger = MergeChunksRowGenerator(num_workers=16)
 
     def forward(self):
         self.merger.run(
@@ -25,5 +25,5 @@ class TestMergeChunksByTimestamps:
         )
 
 if __name__ == "__main__":
-    pipeline = TestMergeChunksByTimestamps()
+    pipeline = TestMergeChunksRowGenerator()
     pipeline.forward()

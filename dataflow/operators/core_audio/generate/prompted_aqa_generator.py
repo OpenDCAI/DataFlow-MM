@@ -6,8 +6,6 @@ from dataflow.utils.storage import DataFlowStorage
 from dataflow.core import OperatorABC
 from dataflow.core import VLMServingABC
 
-from dataflow.operators.core_vision import PromptedVQAGenerator
-
 @OPERATOR_REGISTRY.register()
 class PromptedAQAGenerator(OperatorABC):
     '''
