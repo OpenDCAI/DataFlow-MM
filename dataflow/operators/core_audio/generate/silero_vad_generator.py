@@ -71,6 +71,97 @@ class SileroVADGenerator(OperatorABC):
                 repo_or_dir=repo_or_dir, source=source, device=single_device
             )
 
+    @staticmethod
+    def get_desc(lang: str = "zh"):
+        if lang == "zh":
+            desc = (
+                "该算子基于 Silero VAD 对输入音频进行语音活动检测（VAD），"
+                "为每条音频样本输出语音片段的起止时间戳，可选返回秒或采样点。\n\n"
+
+                "初始化参数（__init__）：\n"
+                "- repo_or_dir: Silero VAD 模型所在的 repo 或本地目录，默认 'snakers4/silero-vad'\n"
+                "- source: torch.hub 加载来源，默认 'github'\n"
+                "- device: 推理设备或设备列表，例如 'cuda'、'cpu' 或 ['cuda:0', 'cuda:1']\n"
+                "- num_workers: 并行进程数，大于 1 时启用多进程并行 VAD\n\n"
+
+                "运行参数（run）：\n"
+                "- input_audio_key: 音频路径所在列名，默认 'audio'\n"
+                "- output_answer_key: 写回 VAD 结果的列名，默认 'timestamps'\n"
+                "- threshold: 语音阈值，VAD 输出的概率高于该值视为“语音”，默认 0.5\n"
+                "- use_min_cut: 在长语音段超过 max_speech_duration_s 时，是否使用最小能量点进行更平滑的切分\n"
+                "- sampling_rate: 采样率，当前 Silero VAD 支持 8000 和 16000（或后者的整数倍），默认 16000\n"
+                "- min_speech_duration_s: 最短语音段时长（秒），短于该时长的片段会被丢弃，默认 0.25\n"
+                "- max_speech_duration_s: 最长语音段时长（秒），超过后会在合适的静音处（若可用）切分，默认无限长\n"
+                "- min_silence_duration_s: 判定为语音段结束所需的最小静音时长（秒），默认 0.1\n"
+                "- speech_pad_s: 在语音段首尾额外保留的 padding（秒），默认 0.03\n"
+                "- return_seconds: 是否返回“秒”级时间戳（True）或“采样点索引”（False），默认 False\n"
+                "- time_resolution: 当 return_seconds=True 时，时间戳保留的小数位数，默认 1\n"
+                "- neg_threshold: 负阈值（从语音状态切回静音的阈值），默认 threshold - 0.15\n"
+                "- min_silence_at_max_speech: 当语音段接近 max_speech_duration_s 时，用于寻找切分点的最小静音时长（秒），默认 0.098\n"
+                "- use_max_poss_sil_at_max_speech: 在超长语音段中，是否优先选择“最长静音”作为切分点，默认 True\n\n"
+
+                "运行行为：\n"
+                "- 串行模式（num_workers <= 1）：在单个 device 上依次对每条音频执行 VAD\n"
+                "- 并行模式（num_workers > 1）：使用 multiprocessing，将音频列表按 worker 数拆分，"
+                "  每个子进程持有独立的 SileroVADModel 实例并行执行 VAD\n"
+                "- 对每条音频调用 Silero VAD，返回一个语音片段列表\n\n"
+
+                "输出：\n"
+                "- 覆盖写回到 storage 的 'dataframe'，新增一列 output_answer_key（默认 'timestamps'），\n"
+                "  每行对应一个 List[Dict]，每个 dict 通常包含：\n"
+                "    * start: 语音片段起点（秒或采样点，取决于 return_seconds）\n"
+                "    * end  : 语音片段终点（秒或采样点）\n"
+                "  以及 Silero VAD 内部可能附加的其他字段（如需要可在下游进一步使用）。\n"
+            )
+        else:
+            desc = (
+                "This operator runs Silero VAD on input audio to perform voice activity detection, "
+                "and outputs speech segment timestamps per sample (either in seconds or in samples).\n\n"
+
+                "Initialization parameters (__init__):\n"
+                "- repo_or_dir: Repo or local directory for Silero VAD, default 'snakers4/silero-vad'\n"
+                "- source: Source argument for torch.hub.load, default 'github'\n"
+                "- device: Inference device or device list, e.g. 'cuda', 'cpu', or ['cuda:0', 'cuda:1']\n"
+                "- num_workers: Number of parallel worker processes; >1 enables multiprocessing VAD\n\n"
+
+                "Runtime parameters (run):\n"
+                "- input_audio_key: Column name containing audio paths, default 'audio'\n"
+                "- output_answer_key: Column name to store VAD results, default 'timestamps'\n"
+                "- threshold: Speech probability threshold; values above are treated as speech, default 0.5\n"
+                "- use_min_cut: When a speech segment exceeds max_speech_duration_s, whether to use a\n"
+                "               minimum-energy point for smoother cutting\n"
+                "- sampling_rate: Audio sampling rate; Silero VAD currently supports 8000 and 16000\n"
+                "                 (or multiples of 16000 that are internally downsampled), default 16000\n"
+                "- min_speech_duration_s: Minimum duration (in seconds) of a valid speech segment; "
+                "segments shorter than this are discarded, default 0.25\n"
+                "- max_speech_duration_s: Maximum duration (in seconds) of a speech segment; longer segments\n"
+                "                         are split at suitable silences if available, default infinity\n"
+                "- min_silence_duration_s: Minimum silence duration (in seconds) to finalize a speech segment, default 0.1\n"
+                "- speech_pad_s: Padding (in seconds) added to both sides of each final speech segment, default 0.03\n"
+                "- return_seconds: Whether to return timestamps in seconds (True) or in sample indices (False), default False\n"
+                "- time_resolution: Number of decimal places to keep when return_seconds=True, default 1\n"
+                "- neg_threshold: Negative (exit) threshold for switching from SPEECH to NON-SPEECH; "
+                "defaults to threshold - 0.15 if None\n"
+                "- min_silence_at_max_speech: Minimal silence duration (in seconds) used as candidate cut points "
+                "when max_speech_duration_s is reached, default 0.098\n"
+                "- use_max_poss_sil_at_max_speech: If True, use the longest possible silence as cut point in an overly long segment; "
+                "otherwise use the last silence, default True\n\n"
+
+                "Runtime behavior:\n"
+                "- Serial mode (num_workers <= 1): process all audio samples sequentially on a single device.\n"
+                "- Parallel mode (num_workers > 1): use multiprocessing; the audio list is split into chunks and each worker\n"
+                "  holds its own SileroVADModel instance to run VAD in parallel.\n"
+                "- For each audio file, Silero VAD returns a list of speech segments.\n\n"
+
+                "Output:\n"
+                "- The 'dataframe' in storage is overwritten with an additional column output_answer_key "
+                "(default 'timestamps'). Each row contains a List[Dict], where each dict typically has:\n"
+                "    * start: start of the speech segment (seconds or samples, depending on return_seconds)\n"
+                "    * end  : end of the speech segment (seconds or samples)\n"
+                "  plus any extra fields that Silero VAD may include, which can be consumed by downstream operators.\n"
+            )
+        return desc
+
     def run(
         self,
         storage: DataFlowStorage,

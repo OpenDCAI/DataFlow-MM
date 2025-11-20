@@ -5,14 +5,14 @@ if TYPE_CHECKING:
     from .generate.prompted_aqa_generator import PromptedAQAGenerator
     from .generate.silero_vad_generator import SileroVADGenerator
     
-    from .generaterow.cut_and_merge import MergeChunksByTimestamps
+    from .generaterow.merge_chunks_row_generator import MergeChunksRowGenerator
 
     # === Filter ===
-    from .filter.ctc_forced_aligner_filter import CTCForcedAlignFilter
+    from .filter.ctc_forced_alignment_filter import CTCForcedAlignmentFilter
 
     # === Eval ===
     from .eval.video_audio_similarity_evaluator import VideoAudioSimilarity
-    from .eval.ctc_forced_aligner import CTCForcedAlignSampleEvaluator
+    from .eval.ctc_forced_alignment_evaluator import CTCForcedAlignmentSampleEvaluator
 
 else:
     import sys

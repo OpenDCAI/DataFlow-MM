@@ -143,3 +143,15 @@ class WhisperTranscriptionPrompt:
                 special_tokens.append("<|notimestamps|>")
 
         return "".join(special_tokens)
+
+
+class AudioCaptionGeneratorPrompt:
+    def __init__(self):
+        pass
+
+    def generate_prompt(self):
+        system_prompt = (
+            "You are an audio caption generator."
+            "Your job is to provide a detailed, accurate, and informative caption for the sound content."
+        )
+        return system_prompt
