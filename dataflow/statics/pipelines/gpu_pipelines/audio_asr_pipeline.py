@@ -24,7 +24,6 @@ class Pipeline:
             vllm_tensor_parallel_size=2,
             vllm_temperature=0.3,
             vllm_top_p=0.9,
-            vllm_max_tokens=512,
             vllm_max_model_len=448,
             vllm_gpu_memory_utilization=0.9
         )
