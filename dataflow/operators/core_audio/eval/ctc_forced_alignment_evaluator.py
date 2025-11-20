@@ -32,7 +32,10 @@ from uroman import Uroman
 
 import math
 
-from typing import Optional, Tuple
+from dataflow.utils.audio import (
+    _read_audio_remote,
+    _read_audio_local,
+)
 
 
 SAMPLING_FREQ = 16000
@@ -335,7 +338,11 @@ class Aligner:
         micro_batch_size = kwargs.get('micro_batch_size', 16)
         retain_word_level_alignment = kwargs.get('retain_word_level_alignment', False)
         try:
-            audio, sr = librosa.load(audio_path, sr=sampling_rate)
+            # audio, sr = librosa.load(audio_path, sr=sampling_rate)
+            if audio_path.startswith("http://") or audio_path.startswith("https://"):
+                audio, sr = _read_audio_remote(audio_path, sr=sampling_rate)
+            else:
+                audio, sr = _read_audio_local(audio_path, sr=sampling_rate)
             audio = torch.from_numpy(audio).to(self.device)
 
             spans_list = []

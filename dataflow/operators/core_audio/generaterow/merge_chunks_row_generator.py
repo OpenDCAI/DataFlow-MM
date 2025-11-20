@@ -15,6 +15,11 @@ from tqdm import tqdm
 import multiprocessing
 from functools import partial
 
+from dataflow.utils.audio import (
+    _read_audio_remote,
+    _read_audio_local,
+)
+
 def chunk_list(data, num_chunks):
     k, m = divmod(len(data), num_chunks)
     return [data[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(num_chunks) if data[i * k + min(i, m):(i + 1) * k + min(i + 1, m)]]
@@ -175,7 +180,11 @@ class MergeChunksRowGenerator(OperatorABC):
             audio_path = audio_path[0]
 
         try:
-            audio, sr = librosa.load(audio_path, sr=sampling_rate)
+            # audio, sr = librosa.load(audio_path, sr=sampling_rate)
+            if audio_path.startswith("http://") or audio_path.startswith("https://"):
+                audio, sr = _read_audio_remote(audio_path, sr=sampling_rate)
+            else:
+                audio, sr = _read_audio_local(audio_path, sr=sampling_rate)
         except Exception as e:
             print(f"Error loading {audio_path}: {e}")
             return []
