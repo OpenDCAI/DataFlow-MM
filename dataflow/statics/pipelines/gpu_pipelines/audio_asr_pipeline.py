@@ -37,7 +37,7 @@ class Pipeline:
             num_workers=1,
         )
 
-        self.merger = MergeChunksRowGenerator(num_workers=128)
+        self.merger = MergeChunksRowGenerator(num_workers=1)
 
         self.prompted_generator = PromptedAQAGenerator(
             vlm_serving=self.serving,
