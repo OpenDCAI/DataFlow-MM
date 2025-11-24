@@ -9,7 +9,7 @@ class ImageGenerationPipeline():
     def __init__(self):
         self.storage = FileStorage(
             first_entry_file_name="../example_data/image_gen/text2image/prompts.jsonl",
-            cache_path="./cache_local/multi2single_image_gen",
+            cache_path="./cache_local/text_to_image_generation",
             file_name_prefix="dataflow_cache_step",
             cache_type="jsonl"
         )

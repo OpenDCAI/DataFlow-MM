@@ -18,7 +18,7 @@ class MultiImages2ImagePipeline():
     ):
         self.storage = FileStorage(
             first_entry_file_name="../example_data/image_gen/multi_image_input_gen/prompts.jsonl",
-            cache_path="./cache_local/multi_images_to_image_gen",
+            cache_path="./cache_local/multi_subjects_driven_image_generation",
             file_name_prefix="dataflow_cache_step",
             cache_type="jsonl"
         )

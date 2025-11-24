@@ -240,8 +240,11 @@ class APIVLMServing_openai(LLMServingABC):
         """
         model = model or self.model_name
         if isinstance(image_path, list):
-            b64 = self.combine_images_to_base64(image_paths=image_path, mode="grid")
-            fmt = "png"
+            if len(image_path) > 1:
+                b64 = self.combine_images_to_base64(image_paths=image_path, mode="grid")
+                fmt = "png"
+            elif len(image_path) == 1:
+                b64, fmt = self._encode_image_to_base64(image_path[0])
         else: b64, fmt = self._encode_image_to_base64(image_path)
         content = [
             {"type": "text", "text": text_prompt},

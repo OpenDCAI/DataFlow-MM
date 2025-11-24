@@ -11,7 +11,7 @@ class ImageGenerationPipeline():
     def __init__(self, serving_type="local", api_url="http://123.129.219.111:3000/v1/"):
         self.storage = FileStorage(
             first_entry_file_name="../example_data/image_gen/image_edit/prompts.jsonl",
-            cache_path="./cache_local/multi2single_image_gen",
+            cache_path="./cache_local/image_editing",
             file_name_prefix="dataflow_cache_step",
             cache_type="jsonl"
         )
