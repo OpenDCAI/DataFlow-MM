@@ -30,8 +30,8 @@ class ImageGenerationPipeline():
     def forward(self):
         self.text_to_image_generator.run(
             storage=self.storage.step(),
-            input_conversation_key="input_text",
-            output_image_key="input_image",
+            input_conversation_key="conversations",
+            output_image_key="images",
         )
 
 if __name__ == "__main__":
