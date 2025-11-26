@@ -17,6 +17,8 @@ from dataflow.utils.storage import DataFlowStorage
 from dataflow.utils.registry import OPERATOR_REGISTRY
 from qwen_vl_utils import process_vision_info
 
+from dataflow.prompts.image import MCTReasoningPrompt
+
 try:
     import wandb
 except Exception:
@@ -87,38 +89,6 @@ def _extract_think_points(chain_text: str):
                 pass
     return pts
 
-_SYSTEM_PROMPTS = {
-    "web_grounding": (
-        "A conversation between User and Assistant. The User asks a question, and the Assistant solves it. "
-        "The Assistant systematically reasons through the problem step by step, verifying each step and grounding every step to a specific point in the image.\n\n"
-        "All reasoning processes must be enclosed within a single set of '<think>' tags, with each reasoning step explicitly referencing a coordinate:\n\n"
-        "<think>\n[Reasoning text with grounded points inline] (x1, y1). [Further reasoning] (x2, y2), [Final refinement] (x3, y3).\n</think>\n\n"
-        "The final answer should be enclosed in '<answer>' tags in the format:\n<answer> (xf, yf) </answer>\n\n"
-        "Your task is to help the user identify the precise coordinates (x, y) of a specific area/element/object on the screen based on a description.\n"
-        "- Aim to point to the center or a representative point within the described area/element/object as accurately as possible.\n"
-        "- If the description is unclear or ambiguous, infer the most relevant area or element based on its likely context or purpose.\n"
-        "- The final output should be the single most precise coordinate for the requested element.\n"
-        "- The Assistant should verify each step and check multiple possible solutions before selecting the final answer."
-    ),
-    "spatial": (
-        "A conversation between User and Assistant. The User asks a question, and the Assistant solves it. "
-        "The Assistant systematically reasons through the problem step by step by checking and verifying possible solutions and image regions, "
-        "while grounding reasoning steps to specific objects and their relationships in the image using (x,y) coordinates. "
-        "There may be one image or two images concatenated together.\n\n"
-        "All reasoning processes must be enclosed within a single set of '<think>' tags.\n\n"
-        "The final answer should be enclosed in '<answer>' tags in the format:\n<answer> {text of selected answer choice} </answer>\n"
-        "- Your answer should be the exact text of the selected option."
-    ),
-    "web_action": (
-        "You are a helpful Assistant tasked with navigating a web browser. "
-        "Each reasoning step must be enclosed within '<think>' tags and reference exactly one specific coordinate (x, y). "
-        "When ready, provide exactly one final action in <answer>...</answer>."
-    ),
-    "vstar": (
-        "You are an assistant answering a visual question by reasoning through image regions. "
-        "All reasoning in one <think>...</think>; final answer in <answer>...</answer>."
-    ),
-}
 
 @OPERATOR_REGISTRY.register()
 class VisionMCTSReasoningSFTGenerate(OperatorABC):
@@ -139,6 +109,7 @@ class VisionMCTSReasoningSFTGenerate(OperatorABC):
         self.log_to_wandb = log_to_wandb
         self.max_samples_per_file = max_samples_per_file
         self.draw_points = draw_points
+        self.prompt_generator = MCTReasoningPrompt()
         random.seed(seed)
 
     @staticmethod
@@ -188,9 +159,10 @@ class VisionMCTSReasoningSFTGenerate(OperatorABC):
         return zh if lang.lower().startswith("zh") else en
 
     def _choose_system_prompt(self) -> str:
-        if self.prompt_type not in _SYSTEM_PROMPTS:
+        system_prompt = self.self.prompt_generator.build_prompt()
+        if self.prompt_type not in system_prompt:
             raise ValueError(f"Invalid prompt_type: {self.prompt_type}")
-        return _SYSTEM_PROMPTS[self.prompt_type]
+        return system_prompt[self.prompt_type]
 
     def _gen_with_llm(self, question: str, image_path: Optional[str]) -> str:
         sys_prompt = self._choose_system_prompt()

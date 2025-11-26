@@ -14,6 +14,7 @@ from dataflow.utils.registry import OPERATOR_REGISTRY
 from dataflow import get_logger
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.core import LLMServingABC
+from dataflow.prompts.image import ImageGCoTPrompt
 
 
 @OPERATOR_REGISTRY.register()
@@ -47,6 +48,7 @@ class ImageGCoTGenerate(OperatorABC):
         
         # Qwen serving (for CoT generation)
         self.llm_serving = llm_serving
+        self.prompt_generator = ImageGCoTPrompt()
         
         # Ovis model config
         self.model_path = model_path
@@ -205,26 +207,11 @@ class ImageGCoTGenerate(OperatorABC):
             question = row[self.input_question_key]
             answer = row[self.input_answer_key]
             
-            cot_prompt = (
-                f"Question: {question}\n"
-                f"Answer: {answer}\n\n"
-                f"Task: Provide a detailed step-by-step reasoning (Chain-of-Thought) that explains "
-                f"how to arrive at this answer based on the image.\n\n"
-                f"Then, extract key nouns and objects mentioned in your reasoning that are "
-                f"visible in the image and can be spatially located.\n\n"
-                f"Requirements for keywords:\n"
-                f"1. Include concrete objects (e.g., cat, table, person, glasses)\n"
-                f"2. Include objects with attributes (e.g., red apple, wooden chair)\n"
-                f"3. Exclude pronouns (it, this, that) and abstract concepts (step, answer, image)\n"
-                f"4. Exclude pure spatial words (left, right) unless combined with objects\n"
-                f"5. Only include objects that can be visually located in the image\n\n"
-                f"Format:\n"
-                f"Step 1: ...\n"
-                f"Step 2: ...\n"
-                f"Answer: {answer}\n"
-                f"Keywords: object1, object2, object3\n"
-            )
-            
+            cot_prompt = self.prompt_generator.build_prompt(
+                "cot",
+                question=question,
+                answer=answer,
+            )                      
             raw_prompt = [{
                 "role": "user",
                 "content": [
@@ -340,14 +327,10 @@ class ImageGCoTGenerate(OperatorABC):
             return []
         
         prompts = [
-            f'Please locate all instances of <ref>"{sq["keyword"]}"</ref> in this image.\n\n'
-            f'Instructions:\n'
-            f'1. If you can see "{sq["keyword"]}", provide bounding boxes for all instances\n'
-            f'2. If "{sq["keyword"]}" is not visible, respond with: "not found"\n'
-            f'3. Only return boxes you are confident about\n\n'
-            f'Response format:\n'
-            f'- If found: <box>(x1,y1),(x2,y2)</box> <box>(x1,y1),(x2,y2)</box> ...\n'
-            f'- If not found: not found\n'
+            self.prompt_generator.build_prompt(
+                "bbox",
+                keyword=sq["keyword"],
+            )
             for sq in sub_questions
         ]
         

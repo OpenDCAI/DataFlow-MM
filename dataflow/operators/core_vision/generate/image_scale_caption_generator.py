@@ -12,74 +12,7 @@ from dataflow.core import OperatorABC, VLMServingABC
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.utils.registry import OPERATOR_REGISTRY
 
-from tqdm import tqdm
-
-
-VLM_PROMPT_1 = (
-    "Describe the fine-grained content of the image, including scenes, objects, "
-    "relationships, instance location, and any text present."
-)
-
-LLM_PROMPT_1 = '''Your task is to convert each Object mentioned in a given sentence into a corresponding instruction, and all the resulting instructions are output as "Describe more details about the [Object]". Ensure your instructions do not cover the raw question, options, or thought process of answering the instructions. You should ignore the Objects that appear in some inferences, such as the sentences that begins with 'it might be' or 'there are probably'.
-Sentence: 
-The image depicts a man in a suit and tie jumping in the air above a bed in a bedroom
-Instructions:
-Describe more details about the man.
-Describe more details about the suit.
-Describe more details about the tie.
-Describe more details about the bed.
-Describe more details about the bedroom.
-
-Sentence:
-The train appears to be the main subject of the image, showcasing its sleek design and modern appearance
-Instructions:
-Describe more details about the train.
-
-Sentence:
-The table has a few other items on it, including a camera, a jar of jam, and a spoon, suggesting that there might be some people ready to eat
-Instructions:
-Describe more details about the table.
-Describe more details about the camera.
-Describe more details about the jam.
-Describe more details about the spoon.
-
-Sentence:
-The text "You see the world as you are!" is a playful and thought-provoking statement, encouraging viewers to appreciate their unique qualities and perspectives
-Instructions:
-Describe more details about the text.
-
-Sentence:
-1. **Preheat the Oven**: Preheat your oven to 350\u00b0F (175\u00bC).
-Instructions:
-Describe more details about the oven.
-Describe more details about the preheat temperature.
-
-Sentence:
-{}
-Instructions:
-'''
-
-LLM_PROMPT_2 = '''Descriptions:
-{}
-
-Collect all details about each object from the descriptions, including detailed appearance, structure, material, and special marks or logos. Do not include any analysis or your opinions.'''
-
-LLM_PROMPT_3 = '''Descriptions:
-{}
-
-Extract and abstract only the position information about each object from the decriptions. Do not include any analysis or your opinions.'''
-
-LLM_PROMPT_4 = '''Basic Context:
-{}
-
-Object Information:
-{}
-
-Position Information:
-{}
-
-Following the logic of the above Basic Context, organize all details provided in Object Information and Position Information to give a very comprehensive description about the image. Do not include any analysis or your opinions.'''
-
+from dataflow.prompts.image import ImageScaleCaptionPrompt
 
 # -----------------------------
 # Helpers
@@ -143,6 +76,7 @@ class ImageScaleCaptionGenerate(OperatorABC):
     def __init__(self, vlm_serving: VLMServingABC, config: Optional[ImageScaleCaptionGenerateConfig] = None):
         self.serving = vlm_serving
         self.cfg = config or ImageScaleCaptionGenerateConfig()
+        self.prompt_generator = ImageScaleCaptionPrompt()
 
     @staticmethod
     def get_desc(lang: str = "zh") -> str:
@@ -251,7 +185,7 @@ class ImageScaleCaptionGenerate(OperatorABC):
 
     # ---------- Pipeline 步骤 ----------
     def _gen_init_caption(self, image_path: str) -> str:
-        return self._gen_with_image(VLM_PROMPT_1, image_path)
+        return self._gen_with_image(self.prompt_generator.build_prompt()["VLM_PROMPT_1"], image_path)
 
     def _pick_golden_sentences(self, image_path: str, init_caption: str) -> List[str]:
         """
@@ -268,7 +202,7 @@ class ImageScaleCaptionGenerate(OperatorABC):
         return goldens if goldens else [init_caption]
 
     def _gen_instructions_per_sentence(self, sentence: str) -> List[str]:
-        out = self._gen_text(LLM_PROMPT_1.format(sentence))
+        out = self._gen_text(self.prompt_generator.build_prompt()["LLM_PROMPT_1"].format(sentence))
         # 规整为行，并去重，只保留“Describe more details about ...”模板
         out = out[: out.rfind(".") + 1] if "." in out else out
         lines = [t.strip() for t in out.split("\n") if t.strip()]
@@ -309,9 +243,9 @@ class ImageScaleCaptionGenerate(OperatorABC):
         return [a for a, f in zip(answers, flags) if f.startswith("y")]
 
     def _integrate(self, goldens: List[str], obj_details: List[str], pos_details: List[str]) -> str:
-        obj_caption = self._gen_text(LLM_PROMPT_2.format("\n".join(obj_details)))
-        pos_caption = self._gen_text(LLM_PROMPT_3.format("\n".join(pos_details)))
-        final_caption = self._gen_text(LLM_PROMPT_4.format("\n".join(goldens), obj_caption, pos_caption))
+        obj_caption = self._gen_text(self.prompt_generator.build_prompt()["LLM_PROMPT_2"].format("\n".join(obj_details)))
+        pos_caption = self._gen_text(self.prompt_generator.build_prompt()["LLM_PROMPT_3"].format("\n".join(pos_details)))
+        final_caption = self._gen_text(self.prompt_generator.build_prompt()["LLM_PROMPT_4"].format("\n".join(goldens), obj_caption, pos_caption))
         return final_caption
 
     # ---------- 主入口 ----------

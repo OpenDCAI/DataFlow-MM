@@ -13,6 +13,8 @@ from dataflow.core import OperatorABC, VLMServingABC
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.utils.registry import OPERATOR_REGISTRY
 
+from dataflow.prompts.image import ImageCaprlPrompt
+
 # -----------------------------
 # Prompts
 # -----------------------------
@@ -38,7 +40,6 @@ SYS_PROMPT_MCQ = (
 )
 USER_PROMPT_MCQ = "Here is the image"
 
-# 过滤阶段：只返回字母
 ANSWER_LETTER_INSTRUCTION = "{}. Answer the question with only the correct letter"
 
 # -----------------------------
@@ -220,6 +221,7 @@ class CapRLMCQGenerate(OperatorABC):
     def __init__(self, vlm_serving: VLMServingABC, config: Optional[CapRLMCQConfig] = None):
         self.serving = vlm_serving
         self.cfg = config or CapRLMCQConfig()
+        self.prompt_generator = ImageCaprlPrompt()
 
     @staticmethod
     def get_desc(lang: str = "zh") -> str:
@@ -236,11 +238,11 @@ class CapRLMCQGenerate(OperatorABC):
     # ---------- 调用 VLM ----------
     def _gen_mcq_raw(self, image_path: str) -> str:
         """用系统提示 + <image> 让 VLM 生成 5 道 MCQ 的原始文本。"""
-        conversations = [[{"from": "human", "value": f"<image>\n{USER_PROMPT_MCQ}"}]]
+        conversations = [[{"from": "human", "value": f"<image>\n{self.prompt_generator.build_prompt()["USER_PROMPT_MCQ"]}"}]]
         outs = self.serving.generate_from_input_messages(
             conversations=conversations,
             image_list=[[image_path]],
-            system_prompt=SYS_PROMPT_MCQ
+            system_prompt=self.prompt_generator.build_prompt()["SYS_PROMPT_MCQ"]
         )
         return outs[0] if outs else ""
 
@@ -274,8 +276,8 @@ class CapRLMCQGenerate(OperatorABC):
             if self.cfg.add_none_above_for_visual and not re.search(r"^\s*-\s*E\)", q_rot, re.M):
                 q_vis = q_vis + "\n   - E) None of the above"
 
-            vis_prompt = ANSWER_LETTER_INSTRUCTION.format(q_vis)
-            txt_prompt = ANSWER_LETTER_INSTRUCTION.format(q_rot)
+            vis_prompt = self.prompt_generator.build_prompt()[ANSWER_LETTER_INSTRUCTION].format(q_vis)
+            txt_prompt = self.prompt_generator.build_prompt()[ANSWER_LETTER_INSTRUCTION].format(q_rot)
 
             v_out = self._ask_letter_with_image(vis_prompt, image_path)
             l_out = self._ask_letter_text_only(txt_prompt)
