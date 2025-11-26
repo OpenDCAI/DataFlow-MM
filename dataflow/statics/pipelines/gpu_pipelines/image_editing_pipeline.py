@@ -8,10 +8,10 @@ from dataflow.io import ImageIO
 
 
 class ImageGenerationPipeline():
-    def __init__(self, serving_type="local", api_key="", api_url="http://123.129.219.111:3000/v1/"):
+    def __init__(self, serving_type="local", api_url="http://123.129.219.111:3000/v1/"):
         self.storage = FileStorage(
-            first_entry_file_name="./dataflow/example/image_gen/image_edit/prompts.jsonl",
-            cache_path="./cache_local/multi2single_image_gen",
+            first_entry_file_name="../example_data/image_gen/image_edit/prompts.jsonl",
+            cache_path="./cache_local/image_editing",
             file_name_prefix="dataflow_cache_step",
             cache_type="jsonl"
         )
@@ -58,12 +58,8 @@ if __name__ == "__main__":
         default='api',
     )
     parser.add_argument(
-        '--api_key', type=str, default='',
-    )
-    parser.add_argument(
         '--api_url', type=str, default='http://123.129.219.111:3000/v1/',
     )
     args = parser.parse_args()
-    os.environ['DF_API_KEY'] = args.api_key
-    model = ImageGenerationPipeline(serving_type=args.serving_type, api_key=args.api_key, api_url=args.api_url)
+    model = ImageGenerationPipeline(serving_type=args.serving_type, api_url=args.api_url)
     model.forward()
