@@ -13,7 +13,7 @@ storage = FileStorage(
 )
 
 model = LocalModelVLMServing_vllm(
-    hf_model_name_or_path="Qwen/Qwen2.5-VL-3B-Instruct",
+    hf_model_name_or_path="Qwen/Qwen2.5-VL-7B-Instruct",
     hf_cache_dir="~/.cache/huggingface",
     hf_local_dir="./ckpt",
     vllm_tensor_parallel_size=1,
@@ -25,7 +25,7 @@ model = LocalModelVLMServing_vllm(
 cfg = ExistingBBoxDataGenConfig(
     max_boxes=10,
     input_jsonl_path="./dataflow/example/image_to_text_pipeline/region_captions.jsonl",
-    output_jsonl_path="./dataflow/example/image_to_text_pipeline/region_captions_results.jsonl",
+    output_jsonl_path="./dataflow/example/image_to_text_pipeline/region_captions_results_v1.jsonl",
     draw_visualization=True
 )
 
@@ -33,7 +33,7 @@ operator = ImageRegionCaptionGenerate(llm_serving=model, config=cfg)
 
 operator.run(
     storage=storage.step(),
-    image_key="image",
+    input_key="image",
     bbox_key="bbox",
     output_key="mdvp_record"
 )

@@ -351,6 +351,7 @@ class CapRLMCQGenerate(OperatorABC):
 
         if use_df:
             rows = [{input_image_key: v} for v in df[input_image_key].tolist()]
+            df[output_key] = None
         else:
             if not self.cfg.input_jsonl_path:
                 raise ValueError("No input found. Provide DataFrame[image] or config.input_jsonl_path.")

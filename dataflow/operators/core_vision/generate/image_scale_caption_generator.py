@@ -328,9 +328,11 @@ class ImageScaleCaptionGenerate(OperatorABC):
                 }
             out_records.append(record)
 
+            if use_df and output_key not in df.columns:
+                df[output_key] = None
             if use_df:
-                df.at[i, output_key] = json.dumps(record, ensure_ascii=False)
-
+                df.at[i, output_key] = record
+                
         # 写回
         if use_df:
             storage.write(df)
