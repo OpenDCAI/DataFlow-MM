@@ -33,7 +33,7 @@ operator = ImageRegionCaptionGenerate(llm_serving=model, config=cfg)
 
 operator.run(
     storage=storage.step(),
-    input_key="image",
-    bbox_key="bbox",
+    input_image_key="image",
+    input_bbox_key="bbox",
     output_key="mdvp_record"
 )
