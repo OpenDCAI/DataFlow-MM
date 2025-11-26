@@ -443,9 +443,9 @@ class ImageGCoTGenerate(OperatorABC):
     def run(
         self,
         storage: DataFlowStorage,
-        question_key: str = "question",
-        answer_key: str = "answer",
-        image_key: str = "image",
+        input_question_key: str = "question",
+        input_answer_key: str = "answer",
+        input_image_key: str = "image",
         output_key: str = "gcot",
         save_intermediate: bool = False,
         qwen_unload_callback = None

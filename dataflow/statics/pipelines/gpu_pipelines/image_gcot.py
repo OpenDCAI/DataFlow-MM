@@ -93,9 +93,9 @@ class ImageGCoTPipeline:
         """Run GCoT generation pipeline"""
         self.gcot_generator.run(
             storage=self.storage.step(),
-            question_key=self.question_key,
-            answer_key=self.answer_key,
-            image_key=self.image_key,
+            input_question_key=self.question_key,
+            input_answer_key=self.answer_key,
+            input_image_key=self.image_key,
             output_key=self.output_key,
             save_intermediate=self.save_intermediate,
             qwen_unload_callback=self._unload_qwen

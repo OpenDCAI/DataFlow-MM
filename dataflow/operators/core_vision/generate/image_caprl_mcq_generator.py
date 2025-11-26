@@ -327,7 +327,7 @@ class CapRLMCQGenerate(OperatorABC):
     def run(
         self,
         storage: DataFlowStorage,
-        image_key: str = "image",
+        input_image_key: str = "image",
         output_key: str = "cap_rl_qa",
     ):
         """

@@ -19,25 +19,6 @@ class InMemoryStorage:
         return self._df
 
 
-# def _install_dummy_registry():
-#     if "dataflow.utils.registry" in sys.modules:
-#         return
-#     dummy = types.ModuleType("dataflow.utils.registry")
-#     class _DummyRegistry:
-#         def register(self, *a, **kw):
-#             def deco(cls): 
-#                 return cls
-#             return deco
-#     dummy.OPERATOR_REGISTRY = _DummyRegistry()
-#     sys.modules["dataflow.utils.registry"] = dummy
-
-# def load_operator_from_file(py_path: str):
-#     _install_dummy_registry()
-#     spec = importlib.util.spec_from_file_location("vision_mcts_generate_mod", py_path)
-#     mod = importlib.util.module_from_spec(spec)
-#     spec.loader.exec_module(mod)
-#     return mod.VisionMCTSReasoningSFTGenerate
-
 def main():
     # 可选：走 hf-mirror 下载 72B
     os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
@@ -51,7 +32,6 @@ def main():
         "true_answer": ["[420, 560]"]
     })
 
-    # 仅用于算子确定输出目录 reasoning_chains/*
     jsonl_stub = "./dataflow/example/image_to_text_pipeline/test_mct.jsonl"
     os.makedirs(os.path.dirname(jsonl_stub), exist_ok=True)
     with open(jsonl_stub, "w", encoding="utf-8") as f:
@@ -59,10 +39,6 @@ def main():
 
     storage = InMemoryStorage(df, first_entry_file_name=jsonl_stub)
 
-    # op_file = "/data0/happykeyan/DataFlow-MM/Dataflow-MM-Preview/dataflow/operators/generate/image_caption/vision_mct_reasoning_sft_generator.py"
-    # VisionMCTSReasoningSFTGenerate = load_operator_from_file(op_file)
-
-    # vLLM 模型（HF 仓库 ID，可配合 hf-mirror）
     model = LocalModelVLMServing_vllm(
         hf_model_name_or_path="Qwen/Qwen2.5-VL-3B-Instruct",
         vllm_tensor_parallel_size=1,   # 按你的 GPU 数量改
@@ -82,10 +58,10 @@ def main():
 
     op.run(
         storage=storage,
-        question_key="question",
-        image_key="image",
-        tree_key="tree",               
-        true_answer_key="true_answer",
+        input_question_key="question",
+        input_image_key="image",
+        input_tree_key="tree",               
+        input_true_answer_key="true_answer",
         output_key="sft_entry",
     )
 

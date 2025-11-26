@@ -264,10 +264,10 @@ class VisionMCTSReasoningSFTGenerate(OperatorABC):
     def run(
         self,
         storage: DataFlowStorage,
-        question_key: str = "question",
-        image_key: str = "image",
-        tree_key: Optional[str] = "tree",
-        true_answer_key: str = "true_answer",
+        input_question_key: str = "question",
+        input_image_key: str = "image",
+        input_tree_key: Optional[str] = "tree",
+        input_true_answer_key: str = "true_answer",
         output_key: str = "sft_entry",
     ):
         df = storage.read("dataframe")

@@ -54,7 +54,7 @@ class CapRLPipeline:
     def forward(self):
         self.op.run(
             storage=self.storage.step(),
-            image_key=self.image_key,
+            input_image_key=self.image_key,
             output_key=self.output_key,
         )
         print("[CapRLPipeline] Done →", self.storage.cache_path)

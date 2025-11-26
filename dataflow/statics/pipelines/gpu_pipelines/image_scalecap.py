@@ -3,12 +3,6 @@ from typing import Any, List, Optional
 
 from dataflow.utils.storage import FileStorage
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
-
-# 👇 改成你保存算子的文件名
-# from operator_scalecap_single import (
-#     ScaleCapCaptionBuildSingle,
-#     ScaleCapSingleConfig,
-# )
 from dataflow.operators.core_vision import ImageScaleCaptionGenerate, ImageScaleCaptionGenerateConfig
 
 
@@ -109,8 +103,8 @@ class ScaleCapPipeline:
             图片 → （init_caption → goldens → QAs → final_caption）→ 写回 storage
         """
         self.operator.run(
-            storage=self.storage.step(),   # Pipeline 负责推进 step
-            image_key=self.image_key,
+            storage=self.storage.step(),   
+            input_image_key=self.image_key,
             output_key=self.output_key,
         )
         print("[ScaleCapPipeline] Done. Cached to:", self.storage.cache_path)
@@ -122,7 +116,7 @@ if __name__ == "__main__":
 
     # 模型
     parser.add_argument("--vlm_model_path", default="Qwen/Qwen2.5-VL-3B-Instruct")
-    parser.add_argument("--llm_model_path", default="")  # 可不填：默认与 VLM 共用
+    parser.add_argument("--llm_model_path", default="")  
     parser.add_argument("--hf_cache_dir", default="~/.cache/huggingface")
     parser.add_argument("--download_dir", default="./ckpt/models")
     parser.add_argument("--device", choices=["cuda", "cpu", "mps"], default="cuda")
