@@ -95,7 +95,7 @@ class ImageGCoTGenerate(OperatorABC):
     
     def _validate_dataframe(self, dataframe: pd.DataFrame):
         """Validate input dataframe"""
-        required_keys = [self.question_key, self.answer_key, self.image_key]
+        required_keys = [self.input_question_key, self.input_answer_key, self.input_image_key]
         forbidden_keys = [self.output_key, 'cot', 'bboxes']
         
         missing = [k for k in required_keys if k not in dataframe.columns]
@@ -201,9 +201,9 @@ class ImageGCoTGenerate(OperatorABC):
         image_inputs_list = []
         
         for idx, row in dataframe.iterrows():
-            image_path = row[self.image_key]
-            question = row[self.question_key]
-            answer = row[self.answer_key]
+            image_path = row[self.input_image_key]
+            question = row[self.input_question_key]
+            answer = row[self.input_answer_key]
             
             cot_prompt = (
                 f"Question: {question}\n"
@@ -455,9 +455,9 @@ class ImageGCoTGenerate(OperatorABC):
         
         Args:
             storage: DataFlow storage
-            question_key: Field name for questions
-            answer_key: Field name for answers
-            image_key: Field name for image paths
+            input_question_key: Field name for questions
+            input_answer_key: Field name for answers
+            input_image_key: Field name for image paths
             output_key: Field name for GCoT output
             save_intermediate: Whether to save intermediate results
             qwen_unload_callback: Callback to unload Qwen model
@@ -465,9 +465,9 @@ class ImageGCoTGenerate(OperatorABC):
         Returns:
             List of output field names
         """
-        self.question_key = question_key
-        self.answer_key = answer_key
-        self.image_key = image_key
+        self.input_question_key = input_question_key
+        self.input_answer_key = input_answer_key
+        self.input_image_key = input_image_key
         self.output_key = output_key
         
         dataframe = storage.read("dataframe")
@@ -489,7 +489,7 @@ class ImageGCoTGenerate(OperatorABC):
                 for keyword in keywords:
                     all_sub_questions.append({
                         'id': row_id,
-                        'image': row[self.image_key],
+                        'image': row[self.input_image_key],
                         'keyword': keyword
                     })
                 row_id_map[row_id] = (start_idx, len(all_sub_questions))

@@ -170,8 +170,8 @@ class ImageScaleCaptionGenerate(OperatorABC):
                 "        非 DataFrame 模式下，读取的输入 JSONL 路径（每行至少含 {\"image\": ...}）。\n"
                 "    - output_jsonl_path: Optional[str]\n"
                 "        非 DataFrame 模式下，落盘输出路径（默认写为 *.scalecap.jsonl）。\n"
-                "  • run(storage, image_key=\"image\", output_key=\"scalecap_record\")：\n"
-                "    - image_key：输入图像路径列名（或 JSONL 的字段名）。\n"
+                "  • run(storage, input_image_key=\"image\", output_key=\"scalecap_record\")：\n"
+                "    - input_image_key：输入图像路径列名（或 JSONL 的字段名）。\n"
                 "    - output_key：将生成记录以 JSON 字符串写回到该列；JSONL 模式下写文件。\n"
                 "\n"
                 "新增条目解释（输出结构，写入 output_key）：\n"
@@ -203,8 +203,8 @@ class ImageScaleCaptionGenerate(OperatorABC):
                 "    - second_filter (bool, False): enable a second yes/no self-check on answers to filter generic/hallucinated text.\n"
                 "    - input_jsonl_path (Optional[str]): input JSONL path when not using DataFrame (each line has at least {\"image\": ...}).\n"
                 "    - output_jsonl_path (Optional[str]): output JSONL path in non-DataFrame mode (defaults to *.scalecap.jsonl).\n"
-                "  • run(storage, image_key=\"image\", output_key=\"scalecap_record\"):\n"
-                "    - image_key: field/column name of the image path.\n"
+                "  • run(storage, input_image_key=\"image\", output_key=\"scalecap_record\"):\n"
+                "    - input_image_key: field/column name of the image path.\n"
                 "    - output_key: where the JSON record is written (as a string) or saved to file in JSONL mode.\n"
                 "\n"
                 "Produced record (written to output_key):\n"
@@ -334,12 +334,12 @@ class ImageScaleCaptionGenerate(OperatorABC):
         df = None
         try:
             df = storage.read("dataframe")
-            use_df = image_key in df.columns
+            use_df = input_image_key in df.columns
         except Exception:
             use_df = False
 
         rows = _read_jsonl(self.cfg.input_jsonl_path) if (not use_df and self.cfg.input_jsonl_path) \
-               else ([{image_key: v} for v in df[image_key].tolist()] if use_df else [])
+               else ([{input_image_key: v} for v in df[input_image_key].tolist()] if use_df else [])
         if not rows and not use_df:
             raise ValueError("No input found. Provide DataFrame[image] or config.input_jsonl_path.")
 
@@ -347,7 +347,7 @@ class ImageScaleCaptionGenerate(OperatorABC):
 
         for i, row in enumerate(rows):
             print(f"Processing {i + 1}/{len(rows)} images...", end="\r")
-            image_path = row.get(image_key, "")
+            image_path = row.get(input_image_key, "")
             if not image_path:
                 continue
 

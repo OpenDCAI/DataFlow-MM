@@ -271,7 +271,7 @@ class VisionMCTSReasoningSFTGenerate(OperatorABC):
         output_key: str = "sft_entry",
     ):
         df = storage.read("dataframe")
-        need_cols = [question_key]
+        need_cols = [input_question_key]
         for c in need_cols:
             if c not in df.columns:
                 raise ValueError(f"Missing required column: {c}")
@@ -287,14 +287,14 @@ class VisionMCTSReasoningSFTGenerate(OperatorABC):
         train_idx_set = set(range(cut))
 
         for i, row in enumerate(tqdm(df.itertuples(), desc=f"Implementing {self.__class__.__name__}")):
-            q = getattr(row, question_key, "")
-            img = getattr(row, image_key, None) if image_key in df.columns else None
-            gt = getattr(row, true_answer_key, "")
+            q = getattr(row, input_question_key, "")
+            img = getattr(row, input_image_key, None) if input_image_key in df.columns else None
+            gt = getattr(row, input_true_answer_key, "")
             chain_list: List[str] = []
 
-            if tree_key and tree_key in df.columns and getattr(row, tree_key, None):
+            if input_tree_key and input_tree_key in df.columns and getattr(row, input_tree_key, None):
                 try:
-                    tree_obj = getattr(row, tree_key)
+                    tree_obj = getattr(row, input_tree_key)
                     if isinstance(tree_obj, str):
                         tree_obj = json.loads(tree_obj)
                     sample_json = {"tree": tree_obj}

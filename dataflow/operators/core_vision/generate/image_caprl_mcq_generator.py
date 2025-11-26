@@ -343,12 +343,12 @@ class CapRLMCQGenerate(OperatorABC):
         df = None
         try:
             df = storage.read("dataframe")
-            use_df = image_key in df.columns
+            use_df = input_image_key in df.columns
         except Exception:
             use_df = False
 
         if use_df:
-            rows = [{image_key: v} for v in df[image_key].tolist()]
+            rows = [{input_image_key: v} for v in df[input_image_key].tolist()]
         else:
             if not self.cfg.input_jsonl_path:
                 raise ValueError("No input found. Provide DataFrame[image] or config.input_jsonl_path.")
@@ -358,7 +358,7 @@ class CapRLMCQGenerate(OperatorABC):
         outputs: List[Dict[str, Any]] = []
 
         for i, row in enumerate(rows):
-            image_path = row.get(image_key, "")
+            image_path = row.get(input_image_key, "")
             if not image_path:
                 continue
 
