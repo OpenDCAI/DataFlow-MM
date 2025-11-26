@@ -71,7 +71,7 @@ class ImageQAGenerate(OperatorABC):
         """
         Construct batched prompts and multimodal inputs from media paths.
         """
-        prompts, system_prompt = self.prompt_generator.qa_generator_prompt()
+        prompts, system_prompt = self.prompt_generator.build_prompt()
 
         prompt_list = []
         image_inputs_list = []
@@ -102,13 +102,13 @@ class ImageQAGenerate(OperatorABC):
     def run(
         self,
         storage: DataFlowStorage,
-        multi_modal_key: str = "image",
+        input_modal_key: str = "image",
         output_key: str = "output"
     ):
         """
         Runs the QA generation process in batch mode.
         """
-        self.multi_modal_key, self.output_key = multi_modal_key, output_key
+        self.multi_modal_key, self.output_key = input_modal_key, output_key
         # storage.step()
         dataframe = storage.read("dataframe")
         self._validate_dataframe(dataframe)

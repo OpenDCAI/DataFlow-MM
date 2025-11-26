@@ -5,7 +5,7 @@ class CaptionGeneratorPrompt:
     def __init__(self):
         pass
 
-    def caption_generator_prompt(self) -> str:
+    def build_prompt(self) -> str:
         prompt = "<image>\nPlease provide a comprehensive description of the image."
 
         system_prompt = f'''You are a image caption generator. Your task is to generate a concise and informative caption for the given image content.'''
@@ -19,10 +19,7 @@ class QAGeneratorPrompt:
     def __init__(self):
         pass
 
-    def qa_generator_prompt(self) -> str:
-        # 请对给定的图像内容生成一个简洁且信息丰富的字幕，然后从中提取出一个问题和答案对。
-        # 生成的字幕应包含图像的主要内容和细节。
-        # 问题应与图像内容相关，答案应直接从生成的字幕中提取。
+    def build_prompt(self) -> str:
         prompt = "<image>\nPlease provide a detailed and comprehensive description of the image, then extract a question and answer pair from it. Just return the question and answer pair in the format: Question: <question>, Answer: <answer>."
 
         system_prompt = f'''You are a image caption generator and question-answer pair extractor. Your task is to generate a concise and informative caption for the given image content, then extract a question and answer pair from it. The generated caption should contain the main content and details of the image. The question should be related to the image content, and the answer should be directly extracted from the generated caption.'''
@@ -61,7 +58,7 @@ class PersQAGeneratorPrompt:
             ]
         }
 
-    def pers_generator_prompt(self) -> str:
+    def build_prompt(self) -> str:
 
         prompt = ''
         system_prompt = f'''You are a personal question-answer generator. Your task is to generate a concise and informative answer for the given question about the main character in the image. The question should be related to the character's appearance or attributes, and the answer should be directly related to the character's features.'''
@@ -75,7 +72,7 @@ class SKVQAGeneratorPrompt:
     def __init__(self):
         pass
 
-    def skvqa_generator_prompt(self) -> str:
+    def build_prompt(self) -> str:
 
         prompt = """
         <image>\nWrite a Wikipedia article related to this image without directly referring to the image. Then write question answer pairs. The question answer pairs should satisfy the following criteria.

@@ -14,7 +14,7 @@ from dataflow.utils.registry import OPERATOR_REGISTRY
 
 @OPERATOR_REGISTRY.register()
 class MultimodalMathGenerate(OperatorABC):
-    def __init__(self, image_dir: str = "/data0/mt/Dataflow-MM-Preview/cache", seed: int | None = None):
+    def __init__(self, image_dir: str = "~/cache", seed: int | None = None):
         self.logger = get_logger()
         self.image_dir = image_dir
         os.makedirs(self.image_dir, exist_ok=True)
@@ -26,51 +26,80 @@ class MultimodalMathGenerate(OperatorABC):
     def get_desc(lang: str = "zh"):
         if lang == "zh":
             return (
-                "该算子用于生成多模态数学题目（函数图像 + 问答对）。\n\n"
+                "该算子用于根据输入 dataframe 每一行的模式值（simple 或 complex），自动生成对应的多模态数学题目（函数图像 + QA），并将结果拼接回原始 dataframe。\n\n"
                 "输入参数：\n"
-                "  - n: 生成样本数量 (默认: 200)\n"
-                "  - mode: 生成模式，'simple'简单模式或'complex'复杂模式 (默认: 'complex')\n"
-                "  - output_key: 输出数据字段名前缀 (默认: 'multimodal_math')\n"
-                "  - seed: 随机种子，用于结果可复现 (可选)\n"
-                "输出参数：\n"
-                "  - image_path: 生成的函数图像文件路径\n"
-                "  - question: 基于函数图像的数学问题\n"
+                "  - dataframe（由 storage 自动读取）\n"
+                "  - input_key: 模式列的字段名（默认: 'mode'）。\n"
+                "      - 当该列的值为 'simple' 时生成简单模式题目\n"
+                "      - 其他任何值均按 complex 模式处理\n\n"
+                "模式说明：\n"
+                "  ● simple 模式（简单题）\n"
+                "      - 使用固定函数类型（一次、二次、三角、指数）\n"
+                "      - 随机选取 x 值，计算 f(x)\n"
+                "      - 题目形式为：给定函数表达式，求 x = a 时的函数值\n"
+                "      - 更偏向数值代入和基础函数认知\n\n"
+                "  ● complex 模式（复杂题）\n"
+                "      - 随机选取函数类型（如二次、三角、指数）\n"
+                "      - 随机生成三类复杂数学问题之一：\n"
+                "          1) derivative：判断某点导数（变化率）正/负\n"
+                "          2) extremum：求函数在区间内的极小值点\n"
+                "          3) monotonicity：判断函数在某区间是否单调\n"
+                "      - 更强调数学分析能力（导数、极值、单调性）\n\n"
+                "输出字段：\n"
+                "  - image_path: 函数图像路径\n"
+                "  - question: 自动生成的问题文本\n"
                 "  - answer: 问题答案\n"
-                "  - solution: 解题步骤和说明\n"
+                "  - solution: 步骤说明或解释\n\n"
+                "处理流程：\n"
+                "  1. 遍历 dataframe 的每一行，根据 mode 生成对应题目\n"
+                "  2. 自动绘图库生成函数图像并保存\n"
+                "  3. 将生成的四列（image_path, question, answer, solution）与原 dataframe 横向拼接\n"
+                "  4. 将新 dataframe 写回 storage\n\n"
                 "功能特点：\n"
-                "  - 支持多种函数类型：一次函数、二次函数、三角函数、指数函数等\n"
-                "  - 提供两种生成模式：简单数值计算和复杂数学概念\n"
-                "  - 复杂模式包含导数判断、极值点分析、单调性分析等高级题目\n"
-                "  - 自动生成对应的函数图像并保存\n"
-                "  - 支持随机种子设置，确保结果可复现\n"
-                "应用场景：\n"
-                "  - 多模态数学教育数据集构建\n"
-                "  - 视觉问答模型训练\n"
-                "  - 数学推理能力评估\n"
+                "  - 支持 simple/complex 两种清晰的题目生成模式\n"
+                "  - 行级别生成，适用于大规模数据集构建\n"
+                "  - 自动绘图与文本生成结合\n"
+                "  - 输出结构稳定，方便后续训练或评估使用\n"
             )
+
         elif lang == "en":
             return (
-                "This operator generates multimodal math questions (function plots + QA pairs).\n\n"
+                "This operator generates multimodal math questions (function plots + QA) for each row\n"
+                "in the input dataframe, based on a mode column that specifies either 'simple' or 'complex'.\n\n"
                 "Input Parameters:\n"
-                "  - n: Number of samples to generate (default: 200)\n"
-                "  - mode: Generation mode, 'simple' or 'complex' (default: 'complex')\n"
-                "  - output_key: Output data field name prefix (default: 'multimodal_math')\n"
-                "  - seed: Random seed for reproducibility (optional)\n"
-                "Output Parameters:\n"
-                "  - image_path: Path to generated function plot image\n"
-                "  - question: Math question based on the function plot\n"
-                "  - answer: Answer to the question\n"
-                "  - solution: Step-by-step solution and explanation\n"
+                "  - dataframe (automatically read from storage)\n"
+                "  - input_key: Name of the mode column (default: 'mode')\n"
+                "      - If a row's value is 'simple', a simple question is generated\n"
+                "      - Any other value is treated as complex mode\n\n"
+                "Modes:\n"
+                "  ● simple mode\n"
+                "      - Uses predefined function types (linear, quadratic, sine, exponential)\n"
+                "      - Randomly selects an x-value and asks for f(x)\n"
+                "      - Question type: direct value substitution\n"
+                "      - Focuses on basic numerical comprehension\n\n"
+                "  ● complex mode\n"
+                "      - Uses quadratic, sine, or exponential functions\n"
+                "      - Randomly generates one of the following advanced question types:\n"
+                "          1) derivative sign at a point (positive / negative / zero)\n"
+                "          2) extremum location within the domain\n"
+                "          3) monotonicity of the function on an interval\n"
+                "      - Emphasizes mathematical reasoning (derivatives, extrema, monotonicity)\n\n"
+                "Output Fields:\n"
+                "  - image_path: Path of the generated function plot\n"
+                "  - question: Generated math question\n"
+                "  - answer: Final answer\n"
+                "  - solution: Explanation or reasoning steps\n\n"
+                "Processing Steps:\n"
+                "  1. Iterate over all rows of the dataframe\n"
+                "  2. Generate the corresponding simple/complex question\n"
+                "  3. Create and save the function plot\n"
+                "  4. Append the four output columns to the original dataframe\n"
+                "  5. Save the updated dataframe back to storage\n\n"
                 "Features:\n"
-                "  - Supports multiple function types: linear, quadratic, trigonometric, exponential, etc.\n"
-                "  - Two generation modes: simple numerical computation and complex math concepts\n"
-                "  - Complex mode includes advanced topics: derivative analysis, extremum points, monotonicity\n"
-                "  - Automatically generates and saves corresponding function plots\n"
-                "  - Supports random seed for reproducible results\n"
-                "Applications:\n"
-                "  - Multimodal math education dataset construction\n"
-                "  - Visual question answering model training\n"
-                "  - Mathematical reasoning ability evaluation\n"
+                "  - Clear simple vs. complex modes\n"
+                "  - Row-wise multimodal sample generation\n"
+                "  - Automatic plot creation\n"
+                "  - Suitable for dataset construction and VQA/ML training\n"
             )
         else:
             return "MultimodalMathGenerate produces math questions with function plots for multimodal learning."
@@ -81,7 +110,7 @@ class MultimodalMathGenerate(OperatorABC):
         plt.figure(figsize=(5, 4))
         plt.plot(x, y, label="f(x)")
         plt.grid(True)
-        plt.title("函数图像")
+        plt.title("Function Plot")
         plt.xlabel("x")
         plt.ylabel("f(x)")
         plt.legend()
@@ -91,10 +120,10 @@ class MultimodalMathGenerate(OperatorABC):
 
     def generate_sample(self, idx: int):
         func_types = [
-            ("一次函数", lambda x: 2 * x + 1, "f(x) = 2x + 1"),
-            ("二次函数", lambda x: x**2, "f(x) = x²"),
-            ("正弦函数", lambda x: np.sin(x), "f(x) = sin(x)"),
-            ("指数函数", lambda x: np.exp(x / 2), "f(x) = exp(x/2)"),
+            ("Linear function", lambda x: 2 * x + 1, "f(x) = 2x + 1"),
+            ("Quadratic function", lambda x: x**2, "f(x) = x²"),
+            ("Sine function", lambda x: np.sin(x), "f(x) = sin(x)"),
+            ("Exponential function", lambda x: np.exp(x / 2), "f(x) = exp(x/2)"),
         ]
         label, f, expr = random.choice(func_types)
         img_path = os.path.join(self.image_dir, f"plot_{idx}.png")
@@ -102,9 +131,9 @@ class MultimodalMathGenerate(OperatorABC):
         self.create_function_plot(f, x_range, img_path)
         x_val = round(random.uniform(1.0, 4.0), 1)
         y_val = round(float(f(x_val)), 3)
-        question = f"函数图像表示 {expr}，请问在 x={x_val} 时，函数值是多少？"
+        question = f"The function plot represents {expr}. What is the function value at x={x_val}?"
         answer = str(y_val)
-        solution = f"根据函数表达式 {expr}，代入 x={x_val}，计算得 y={y_val}。"
+        solution = f"According to the function expression {expr}, substitute x={x_val} to get y={y_val}."
         return {
             "image_path": img_path,
             "question": question,
@@ -132,44 +161,44 @@ class MultimodalMathGenerate(OperatorABC):
             y = self.f(x)
             d = np.diff(y)
             if np.all(d > 0):
-                return "递增"
+                return "increasing"
             if np.all(d < 0):
-                return "递减"
-            return "不单调"
+                return "decreasing"
+            return "not monotonic"
 
     def generate_derivative_question(self, fn: "MultimodalMathGenerate.MathFunction"):
         x = round(random.uniform(*fn.domain), 1)
         sign = fn.derivative_sign(x)
-        direction = "正" if sign > 0 else "负" if sign < 0 else "为零"
+        direction = "positive" if sign > 0 else "negative" if sign < 0 else "zero"
         return {
-            "question": f"函数图像表示 {fn.expr}，请判断在 x={x} 处函数的变化率是正的还是负的？",
+            "question": f"The function plot represents {fn.expr}. Is the rate of change (derivative) at x={x} positive or negative?",
             "answer": direction,
-            "solution": f"观察图像在 x={x} 附近的斜率，可知变化率为{direction}。",
+            "solution": f"By observing the slope of the plot near x={x}, the rate of change is {direction}.",
         }
 
     def generate_extremum_question(self, fn: "MultimodalMathGenerate.MathFunction"):
         x_min, y_min = fn.min_arg()
         x_min = round(x_min, 2)
         return {
-            "question": f"函数图像表示 {fn.expr}，该函数在图像中取得最小值的位置是在哪个 x？",
+            "question": f"The function plot represents {fn.expr}. At which x-value does the function reach its minimum value in the shown domain?",
             "answer": str(x_min),
-            "solution": f"观察图像可知最小值出现在 x={x_min}，对应 y={round(y_min, 2)}",
+            "solution": f"From the plot, the minimum occurs at x={x_min}, with y={round(y_min, 2)}",
         }
 
     def generate_monotonicity_question(self, fn: "MultimodalMathGenerate.MathFunction"):
         a, b = sorted([round(random.uniform(*fn.domain), 1) for _ in range(2)])
         mono = fn.monotonicity(a, b)
         return {
-            "question": f"函数图像表示 {fn.expr}，请判断在区间 [{a}, {b}] 内函数是单调递增还是递减？",
+            "question": f"The function plot represents {fn.expr}. Is the function monotonically increasing or decreasing in the interval [{a}, {b}]?",
             "answer": mono,
-            "solution": f"在区间 [{a}, {b}] 内观察函数值变化趋势，可知函数是{mono}的。",
+            "solution": f"By observing the function value trend in the interval [{a}, {b}], the function is {mono}.",
         }
 
     def generate_complex_sample(self, idx: int):
         fn_list = [
-            self.MathFunction("平方", lambda x: x**2, "f(x) = x²", domain=(0, 5), kind="quadratic"),
-            self.MathFunction("正弦", lambda x: np.sin(x), "f(x) = sin(x)", domain=(0, 6), kind="sin"),
-            self.MathFunction("指数", lambda x: np.exp(x / 2), "f(x) = exp(x/2)", domain=(0, 5), kind="exp"),
+            self.MathFunction("Quadratic", lambda x: x**2, "f(x) = x²", domain=(0, 5), kind="quadratic"),
+            self.MathFunction("Sine", lambda x: np.sin(x), "f(x) = sin(x)", domain=(0, 6), kind="sin"),
+            self.MathFunction("Exponential", lambda x: np.exp(x / 2), "f(x) = exp(x/2)", domain=(0, 5), kind="exp"),
         ]
         fn = random.choice(fn_list)
         img_path = os.path.join(self.image_dir, f"plot_{idx}.png")
@@ -181,17 +210,25 @@ class MultimodalMathGenerate(OperatorABC):
     def run(
         self,
         storage: DataFlowStorage,
-        n: int = 200,
-        mode: str = "complex",
-        output_key: str = "multimodal_math",
+        input_key: str = "mode",
     ):
         rows = []
-        if mode == "simple":
-            for i in range(n):
+        dataframe = storage.read("dataframe")
+        modes = dataframe[input_key].tolist() # 很多条
+        for i, mode in enumerate(modes):
+            if mode == "simple":
                 rows.append(self.generate_sample(i))
-        else:
-            for i in range(n):
+            else:
                 rows.append(self.generate_complex_sample(i))
-        df = pd.DataFrame(rows, columns=["image_path", "question", "answer", "solution"])
-        storage.write(df)
+
+        # 将 rows 变成一个 dataframe
+        df_new = pd.DataFrame(rows, columns=["image_path", "question", "answer", "solution"])
+
+        # 按行合并（横向拼接）
+        dataframe_merged = pd.concat([dataframe.reset_index(drop=True),
+                                    df_new.reset_index(drop=True)],
+                                    axis=1)
+
+        # 保存
+        storage.write(dataframe_merged)
         return ["image_path", "question", "answer", "solution"]
