@@ -12,74 +12,7 @@ from dataflow.core import OperatorABC, VLMServingABC
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.utils.registry import OPERATOR_REGISTRY
 
-from tqdm import tqdm
-
-
-VLM_PROMPT_1 = (
-    "Describe the fine-grained content of the image, including scenes, objects, "
-    "relationships, instance location, and any text present."
-)
-
-LLM_PROMPT_1 = '''Your task is to convert each Object mentioned in a given sentence into a corresponding instruction, and all the resulting instructions are output as "Describe more details about the [Object]". Ensure your instructions do not cover the raw question, options, or thought process of answering the instructions. You should ignore the Objects that appear in some inferences, such as the sentences that begins with 'it might be' or 'there are probably'.
-Sentence: 
-The image depicts a man in a suit and tie jumping in the air above a bed in a bedroom
-Instructions:
-Describe more details about the man.
-Describe more details about the suit.
-Describe more details about the tie.
-Describe more details about the bed.
-Describe more details about the bedroom.
-
-Sentence:
-The train appears to be the main subject of the image, showcasing its sleek design and modern appearance
-Instructions:
-Describe more details about the train.
-
-Sentence:
-The table has a few other items on it, including a camera, a jar of jam, and a spoon, suggesting that there might be some people ready to eat
-Instructions:
-Describe more details about the table.
-Describe more details about the camera.
-Describe more details about the jam.
-Describe more details about the spoon.
-
-Sentence:
-The text "You see the world as you are!" is a playful and thought-provoking statement, encouraging viewers to appreciate their unique qualities and perspectives
-Instructions:
-Describe more details about the text.
-
-Sentence:
-1. **Preheat the Oven**: Preheat your oven to 350\u00b0F (175\u00bC).
-Instructions:
-Describe more details about the oven.
-Describe more details about the preheat temperature.
-
-Sentence:
-{}
-Instructions:
-'''
-
-LLM_PROMPT_2 = '''Descriptions:
-{}
-
-Collect all details about each object from the descriptions, including detailed appearance, structure, material, and special marks or logos. Do not include any analysis or your opinions.'''
-
-LLM_PROMPT_3 = '''Descriptions:
-{}
-
-Extract and abstract only the position information about each object from the decriptions. Do not include any analysis or your opinions.'''
-
-LLM_PROMPT_4 = '''Basic Context:
-{}
-
-Object Information:
-{}
-
-Position Information:
-{}
-
-Following the logic of the above Basic Context, organize all details provided in Object Information and Position Information to give a very comprehensive description about the image. Do not include any analysis or your opinions.'''
-
+from dataflow.prompts.image import ImageScaleCaptionPrompt
 
 # -----------------------------
 # Helpers
@@ -143,6 +76,7 @@ class ImageScaleCaptionGenerate(OperatorABC):
     def __init__(self, vlm_serving: VLMServingABC, config: Optional[ImageScaleCaptionGenerateConfig] = None):
         self.serving = vlm_serving
         self.cfg = config or ImageScaleCaptionGenerateConfig()
+        self.prompt_generator = ImageScaleCaptionPrompt()
 
     @staticmethod
     def get_desc(lang: str = "zh") -> str:
@@ -170,8 +104,8 @@ class ImageScaleCaptionGenerate(OperatorABC):
                 "        非 DataFrame 模式下，读取的输入 JSONL 路径（每行至少含 {\"image\": ...}）。\n"
                 "    - output_jsonl_path: Optional[str]\n"
                 "        非 DataFrame 模式下，落盘输出路径（默认写为 *.scalecap.jsonl）。\n"
-                "  • run(storage, image_key=\"image\", output_key=\"scalecap_record\")：\n"
-                "    - image_key：输入图像路径列名（或 JSONL 的字段名）。\n"
+                "  • run(storage, input_image_key=\"image\", output_key=\"scalecap_record\")：\n"
+                "    - input_image_key：输入图像路径列名（或 JSONL 的字段名）。\n"
                 "    - output_key：将生成记录以 JSON 字符串写回到该列；JSONL 模式下写文件。\n"
                 "\n"
                 "新增条目解释（输出结构，写入 output_key）：\n"
@@ -203,8 +137,8 @@ class ImageScaleCaptionGenerate(OperatorABC):
                 "    - second_filter (bool, False): enable a second yes/no self-check on answers to filter generic/hallucinated text.\n"
                 "    - input_jsonl_path (Optional[str]): input JSONL path when not using DataFrame (each line has at least {\"image\": ...}).\n"
                 "    - output_jsonl_path (Optional[str]): output JSONL path in non-DataFrame mode (defaults to *.scalecap.jsonl).\n"
-                "  • run(storage, image_key=\"image\", output_key=\"scalecap_record\"):\n"
-                "    - image_key: field/column name of the image path.\n"
+                "  • run(storage, input_image_key=\"image\", output_key=\"scalecap_record\"):\n"
+                "    - input_image_key: field/column name of the image path.\n"
                 "    - output_key: where the JSON record is written (as a string) or saved to file in JSONL mode.\n"
                 "\n"
                 "Produced record (written to output_key):\n"
@@ -251,7 +185,7 @@ class ImageScaleCaptionGenerate(OperatorABC):
 
     # ---------- Pipeline 步骤 ----------
     def _gen_init_caption(self, image_path: str) -> str:
-        return self._gen_with_image(VLM_PROMPT_1, image_path)
+        return self._gen_with_image(self.prompt_generator.build_prompt()["VLM_PROMPT_1"], image_path)
 
     def _pick_golden_sentences(self, image_path: str, init_caption: str) -> List[str]:
         """
@@ -268,7 +202,7 @@ class ImageScaleCaptionGenerate(OperatorABC):
         return goldens if goldens else [init_caption]
 
     def _gen_instructions_per_sentence(self, sentence: str) -> List[str]:
-        out = self._gen_text(LLM_PROMPT_1.format(sentence))
+        out = self._gen_text(self.prompt_generator.build_prompt()["LLM_PROMPT_1"].format(sentence))
         # 规整为行，并去重，只保留“Describe more details about ...”模板
         out = out[: out.rfind(".") + 1] if "." in out else out
         lines = [t.strip() for t in out.split("\n") if t.strip()]
@@ -309,16 +243,16 @@ class ImageScaleCaptionGenerate(OperatorABC):
         return [a for a, f in zip(answers, flags) if f.startswith("y")]
 
     def _integrate(self, goldens: List[str], obj_details: List[str], pos_details: List[str]) -> str:
-        obj_caption = self._gen_text(LLM_PROMPT_2.format("\n".join(obj_details)))
-        pos_caption = self._gen_text(LLM_PROMPT_3.format("\n".join(pos_details)))
-        final_caption = self._gen_text(LLM_PROMPT_4.format("\n".join(goldens), obj_caption, pos_caption))
+        obj_caption = self._gen_text(self.prompt_generator.build_prompt()["LLM_PROMPT_2"].format("\n".join(obj_details)))
+        pos_caption = self._gen_text(self.prompt_generator.build_prompt()["LLM_PROMPT_3"].format("\n".join(pos_details)))
+        final_caption = self._gen_text(self.prompt_generator.build_prompt()["LLM_PROMPT_4"].format("\n".join(goldens), obj_caption, pos_caption))
         return final_caption
 
     # ---------- 主入口 ----------
     def run(
         self,
         storage: DataFlowStorage,
-        image_key: str = "image",
+        input_image_key: str = "image",
         output_key: str = "scalecap_record",
     ):
         """
@@ -334,12 +268,12 @@ class ImageScaleCaptionGenerate(OperatorABC):
         df = None
         try:
             df = storage.read("dataframe")
-            use_df = image_key in df.columns
+            use_df = input_image_key in df.columns
         except Exception:
             use_df = False
 
         rows = _read_jsonl(self.cfg.input_jsonl_path) if (not use_df and self.cfg.input_jsonl_path) \
-               else ([{image_key: v} for v in df[image_key].tolist()] if use_df else [])
+               else ([{input_image_key: v} for v in df[input_image_key].tolist()] if use_df else [])
         if not rows and not use_df:
             raise ValueError("No input found. Provide DataFrame[image] or config.input_jsonl_path.")
 
@@ -347,7 +281,7 @@ class ImageScaleCaptionGenerate(OperatorABC):
 
         for i, row in enumerate(rows):
             print(f"Processing {i + 1}/{len(rows)} images...", end="\r")
-            image_path = row.get(image_key, "")
+            image_path = row.get(input_image_key, "")
             if not image_path:
                 continue
 
@@ -394,9 +328,11 @@ class ImageScaleCaptionGenerate(OperatorABC):
                 }
             out_records.append(record)
 
+            if use_df and output_key not in df.columns:
+                df[output_key] = None
             if use_df:
-                df.at[i, output_key] = json.dumps(record, ensure_ascii=False)
-
+                df.at[i, output_key] = record
+                
         # 写回
         if use_df:
             storage.write(df)

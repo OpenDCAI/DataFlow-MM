@@ -26,15 +26,15 @@ if TYPE_CHECKING:
     from .filter.video_motion_score_filter import VideoMotionScoreFilter
     from .filter.video_resolution_filter import VideoResolutionFilter
     from .filter.image_aesthetic_filter import ImageAestheticFilter
-    from .filter.cat_filter import CatFilter
-    from .filter.clip_filter import ClipFilter
-    from .filter.complexity_filter import ComplexityFilter
-    from .filter.consistency_filter import ConsistencyFilter
-    from .filter.text_image_diversity_filter import TextImageDiversityFilter
-    from .filter.sensitive_filter import SensitiveFilter
+    from .filter.image_cat_filter import ImageCatFilter
+    from .filter.image_clip_filter import ImageClipFilter
+    from .filter.image_complexity_filter import ImageComplexityFilter
+    from .filter.image_consistency_filter import ImageConsistencyFilter
+    from .filter.image_diversity_filter import ImageDiversityFilter
+    from .filter.image_sensitive_filter import ImageSensitiveFilter
     from .refine.vision_seg_cutout_refine import VisionSegCutoutRefine
     from .filter.rule_base_filter import RuleBaseFilter
-    from .filter.deduplication_filter import DeduplicateFilter
+    from .filter.image_deduplication_filter import ImageDeduplicateFilter
     from .filter.knn_similarity_filter import KNNSimilarityFilter
     from .filter.clipscore_filter import CLIPScoreFilter
     from .filter.datatailor_filter import DataTailorFilter
@@ -47,9 +47,9 @@ if TYPE_CHECKING:
     from .eval.video_ocr_evaluator import VideoOCREvaluator
     from .eval.emscore_evaluator import EMScoreEval
     from .eval.image.image_evaluator import EvalImageGenerationGenerator
-    from .eval.image_text.clip_image_text_evaluator import CLIPEvaluator
-    from .eval.image_text.long_clip_image_text_evaluator import LongCLIPEvaluator
-    from .eval.image_text.vqa_score_image_text_evaluator import VQAScoreEvaluator
+    from .eval.image_clip_evaluator import ImageCLIPEvaluator
+    from .eval.image_longclip_evaluator import ImageLongCLIPEvaluator
+    from .eval.image_vqascore_evaluator import ImageVQAScoreEvaluator
 
 else:
     import sys
