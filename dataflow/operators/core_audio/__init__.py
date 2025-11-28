@@ -3,16 +3,16 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     # === generate ===
     from .generate.prompted_aqa_generator import PromptedAQAGenerator
-    from .generate.silero_vad_generator import SileroVADGenerator
+    from .generate.audio_silero_voice_activity_detection_timestamps_generator import SileroVADGenerator
     
-    from .generaterow.merge_chunks_row_generator import MergeChunksRowGenerator
+    from .generaterow.audio_merge_chunks_by_timestamps_row_generator import MergeChunksRowGenerator
 
     # === Filter ===
-    from .filter.ctc_forced_alignment_filter import CTCForcedAlignmentFilter
+    from .filter.audio_ctc_forced_alignment_transcription_quality_filter import CTCForcedAlignmentFilter
 
     # === Eval ===
     from .eval.video_audio_similarity_evaluator import VideoAudioSimilarity
-    from .eval.ctc_forced_alignment_evaluator import CTCForcedAlignmentSampleEvaluator
+    from .eval.audio_ctc_forced_alignment_transcription_quality_evaluator import CTCForcedAlignmentSampleEvaluator
 
 else:
     import sys

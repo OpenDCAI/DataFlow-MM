@@ -79,11 +79,23 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
         model_path: str = "MahmoudAshraf/mms-300m-1130-forced-aligner",
         device: Union[str, List[str]] = "cuda", 
         num_workers: int = 1,
+        sampling_rate: int = 16000,
+        language: str = "en",
+        micro_batch_size: int = 16,
+        chinese_to_pinyin: bool = False,
+        retain_word_level_alignment: bool = False,
+        romanize: bool = True,
     ):
         self.logger = get_logger()
         self.model_init_args = {'model_path': model_path}
         self.num_workers = num_workers
         self.is_parallel = self.num_workers > 1
+        self.sampling_rate = sampling_rate
+        self.language = language
+        self.micro_batch_size = micro_batch_size
+        self.chinese_to_pinyin = chinese_to_pinyin
+        self.retain_word_level_alignment = retain_word_level_alignment
+        self.romanize = romanize
 
         if self.is_parallel:
             # --- 并行模式配置 ---
@@ -116,71 +128,248 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
     def get_desc(lang: str = "zh"):
         if lang == "zh":
             desc = (
-                "该算子用于计算语音和文本转录对齐分数。\n\n"
-                "输入参数：\n"
-                "- dataframe: 输入数据帧，通常由上游算子写入到 storage 中的 'dataframe'\n"
-                "- input_audio_key: 音频路径所在列名，默认 'audio'\n"
-                "- input_conversation_key: 文本/对话所在列名，默认 'conversation'\n"
-                "- sampling_rate: 采样率\n"
-                "- language: 文本语言（ISO 639-1/639-3），用于 romanize 与正则化，例如 'en'、'zh'\n"
-                "- micro_batch_size: 每次前向计算时并行处理的音频块数量\n"
-                "- chinese_to_pinyin: 是否先将中文转为拼音再对齐\n"
-                "- retain_word_level_alignment: 是否输出词/片段级别时间戳（word_timestamps）\n"
-                "- romanize: 是否对文本进行罗马化（使用 uroman），通常对非拉丁文字有帮助\n\n"
-                "运行行为:\n"
-                "- 串行模式：num_workers <= 1 时，在单个 device 上顺序处理每条样本\n"
-                "- 并行模式：num_workers > 1 时，使用 multiprocessing 在多个进程上并行处理，"
-                "每个子进程各自持有一份对齐模型实例\n\n"
-                "输出（写回 dataframe 的列）:\n"
-                "- output_answer_key（默认 'forced_alignment_results'）: 每行一个 dict，包含:\n"
-                "  * spans: List[Dict]，逐字符/子单位的对齐片段，字段:\n"
-                "      - label: 单位标签（通常为对齐后的字母或 <blank>）\n"
-                "      - start: 片段起始帧索引（CTC 步长下标）\n"
-                "      - end  : 片段结束帧索引（含）\n"
-                "      - score: 该片段得分的指数形式（exp 后的置信度近似值）\n"
-                "  * word_timestamps: List[Dict]，可选的词级/片段级时间戳，字段:\n"
-                "      - start: 起始时间（秒）\n"
-                "      - end  : 结束时间（秒）\n"
-                "      - text : 对应的文本片段\n"
-                "      - score: 该片段累积得分的指数形式\n"
-                "  * error: 若当前样本对齐过程中出现异常，将写入错误信息字符串，否则为 None\n\n"
+                "CTCForcedAlignmentSampleEvaluator 算子基于 CTC 强制对齐模型，对语音与其转录文本进行对齐打分，"
+                "支持串行与多进程并行两种运行模式。\n\n"
+
+                "一、__init__ 初始化参数\n"
+                "- model_path: str = \"MahmoudAshraf/mms-300m-1130-forced-aligner\"\n"
+                "  预训练 CTC 强制对齐模型在 Hugging Face 或本地的路径。\n\n"
+                "- device: Union[str, List[str]] = \"cuda\"\n"
+                "  用于推理的设备配置：\n"
+                "  * 串行模式：可以是 \"cpu\" 或 \"cuda\" 等单个设备字符串；\n"
+                "  * 并行模式：可以是设备字符串列表，例如 [\"cuda:0\", \"cuda:1\"]，"
+                "    不同进程会轮流使用这些设备。\n\n"
+                "- num_workers: int = 1\n"
+                "  工作进程数：\n"
+                "  * num_workers <= 1：串行模式，仅在主进程中加载并运行模型；\n"
+                "  * num_workers  > 1：多进程并行模式，每个子进程各自持有一份对齐模型实例。\n\n"
+                "- sampling_rate: int = 16000\n"
+                "  加载与重采样音频时使用的采样率（Hz）。\n\n"
+                "- language: str = \"en\"\n"
+                "  文本语言代码（ISO 639-1 或 639-3），用于文本正则化与罗马化，例如 \"en\"、\"zh\"。\n\n"
+                "- micro_batch_size: int = 16\n"
+                "  进行模型前向推理时的微批大小，用于控制 generate_emissions 中的批处理大小。\n\n"
+                "- chinese_to_pinyin: bool = False\n"
+                "  若为 True，将在对齐前使用 pypinyin 将中文文本转换为拼音（以空格分隔）。\n\n"
+                "- retain_word_level_alignment: bool = False\n"
+                "  若为 True，则在输出中附加词/片段级别的时间戳信息（word_timestamps），\n"
+                "  否则仅输出帧级对齐结果（spans）。\n\n"
+                "- romanize: bool = True\n"
+                "  若为 True，则使用 uroman 对文本进行罗马化（适用于非拉丁文字），并在对齐时使用该罗马化序列。\n\n"
+                "初始化行为：\n"
+                "- 若 num_workers <= 1：\n"
+                "  * 在指定 device 上实例化 Aligner，并在当前进程中加载模型；\n"
+                "  * 后续所有样本在同一进程、同一设备上顺序处理。\n"
+                "- 若 num_workers  > 1：\n"
+                "  * 使用 multiprocessing (spawn) 启动 num_workers 个子进程；\n"
+                "  * 通过 _init_worker 在每个子进程中创建 Aligner 实例并加载模型；\n"
+                "  * 主进程仅负责切分数据并调度任务，不在主进程中加载模型本体。\n\n"
+
+                "二、run 接口参数\n"
+                "def run(\n"
+                "    self,\n"
+                "    storage: DataFlowStorage,\n"
+                "    input_audio_key: str = \"audio\",\n"
+                "    input_conversation_key: str = \"conversation\",\n"
+                "    output_answer_key: str = \"forced_alignment_results\",\n"
+                "):\n\n"
+                "- storage: DataFlowStorage\n"
+                "  数据流存储对象，上游应已将包含样本信息的 DataFrame 写入其中。\n\n"
+                "- input_audio_key: str = \"audio\"\n"
+                "  DataFrame 中音频路径所在的列名；每行可以是字符串或仅含单个路径的列表。\n\n"
+                "- input_conversation_key: str = \"conversation\"\n"
+                "  DataFrame 中文本/转录所在的列名：\n"
+                "  * 若为字符串，视为整行文本；\n"
+                "  * 若为带有字典的列表且字典含 'value' 键，则使用 conversation[0]['value'] 作为文本内容。\n\n"
+                "- output_answer_key: str = \"forced_alignment_results\"\n"
+                "  运行结束后，对齐结果将写入 DataFrame 的该列，类型为逐行一个 dict。\n\n"
+
+                "三、run 执行行为\n"
+                "1）从 storage 中读取上游写入的 DataFrame 。\n\n"
+                "2）调用 eval 函数进行批量对齐：\n"
+                "   - 根据 input_audio_key 获取音频路径列表 audio_paths；\n"
+                "   - 根据 input_conversation_key 获取文本/对话列表 conversations；\n"
+                "   - 对每条文本执行归一化预处理：\n"
+                "     * 若 chinese_to_pinyin 为 True，则使用 pypinyin 将中文转换为拼音；\n"
+                "     * 若 romanize 为 True，则使用 uroman 按照 language 指定的 ISO 639 代码进行罗马化；\n"
+                "     * 统一转换得到 texts_normalized 列表。\n\n"
+                "3）根据是否并行运行，选择不同的处理路径：\n"
+                "   - 串行模式（num_workers <= 1）：\n"
+                "     * 遍历 (audio_path, text_normalized) 对；\n"
+                "     * 调用 Aligner.process_audio_file 逐条完成：\n"
+                "       - 读取本地或远程音频（支持 http/https）；\n"
+                "       - 重采样至指定 sampling_rate，转换为 torch.Tensor 并迁移至对应 device；\n"
+                "       - 调用 generate_emissions 生成 CTC 发射概率（log_probs）；\n"
+                "       - 调用 preprocess_text 将文本拆分为 tokens_starred 与 text_starred；\n"
+                "       - 调用 get_alignments 进行强制对齐，得到 segments（Segment 列表）及 scores；\n"
+                "       - 调用 get_spans 将对齐结果整理成帧级片段 spans；\n"
+                "       - 若 retain_word_level_alignment 为 True，则调用 postprocess_results 计算词/片段级时间戳；\n"
+                "       - 将所有信息整合为一条 record（dict）。\n\n"
+                "   - 并行模式（num_workers > 1）：\n"
+                "     * 使用 numpy.array_split 将 audio_paths 和 texts_normalized 按 worker 数划分为多个子列表；\n"
+                "     * 为每个子列表构造 payload（包含 audio_paths_chunk、text_chunk 与 ctc_params）；\n"
+                "     * 通过 multiprocessing.Pool 的 imap 接口分发到各个子进程，由 _parallel_worker 调用 "
+                "       进程内缓存的 _worker_model_processor（即 Aligner 实例）进行批量处理；\n"
+                "     * 收集各子进程返回的结果列表，并展开为与输入行数一一对应的 records 列表。\n\n"
+                "4）将 records 作为新列 output_answer_key 写回到原 DataFrame 中，并通过 storage.write 持久化。\n\n"
+
+                "四、输出结果格式\n"
+                "run 函数执行结束后，DataFrame 中每一行会新增一列 output_answer_key，其值为一个 dict，结构为：\n\n"
+                "- 'spans': List[Dict]\n"
+                "  帧级对齐片段列表，每个元素表示一个连续的 CTC 对齐跨度，字段包括：\n"
+                "  * 'label': str\n"
+                "    该片段对应的标签（通常是对齐后的字符或 <blank>）。\n"
+                "  * 'start': int\n"
+                "    片段在 CTC 时间步上的起始索引（包含）。\n"
+                "  * 'end': int\n"
+                "    片段在 CTC 时间步上的结束索引（包含）。\n"
+                "  * 'score': float\n"
+                "    从 CTC 对齐 scores 中对应帧段的得分，经过 math.exp 后的值，可视作置信度近似。\n\n"
+                "- 'word_timestamps': List[Dict]\n"
+                "  （仅在 retain_word_level_alignment=True 时非空）词/片段级对齐结果列表，字段包括：\n"
+                "  * 'start': float\n"
+                "    该文本片段在原音频中的起始时间（秒）。\n"
+                "  * 'end': float\n"
+                "    该文本片段在原音频中的结束时间（秒）。\n"
+                "  * 'text': str\n"
+                "    对应的原始文本片段（来自 text_starred）。\n"
+                "  * 'score': float\n"
+                "    该片段聚合对齐得分的指数值（math.exp 之后）。\n\n"
+                "- 'error': Optional[str]\n"
+                "  若当前样本在处理/对齐过程中发生异常，则为错误信息字符串；\n"
+                "  若无异常，则为 None。\n\n"
+                "总结：\n"
+                "该算子适合作为质量评估或标注辅助工具，用于计算语音-文本对的对齐质量指标，"
+                "支持高吞吐量的多进程推理，并可根据需求选择是否输出词级时间戳。"
             )
         else:
             desc = (
-                "This operator computes alignment scores between speech audio "
-                "and its transcription text using a CTC-based forced alignment model.\n\n"
+                "CTCForcedAlignmentSampleEvaluator performs CTC-based forced alignment between "
+                "speech audio and its transcription, supporting both serial and multi-process "
+                "parallel execution.\n\n"
 
-                "Input parameters:\n"
-                "- dataframe: Input dataframe, typically read from the upstream operator via the "
-                "  storage key 'dataframe'\n"
-                "- input_audio_key: Column name containing audio paths, default 'audio'\n"
-                "- input_conversation_key: Column name containing transcript/text, default 'conversation'\n"
-                "- sampling_rate: Sampling rate used for audio loading/resampling\n"
-                "- language: Text language (ISO 639-1/639-3), used for romanization and normalization, "
-                "  e.g., 'en', 'zh'\n"
-                "- micro_batch_size: Number of audio chunks processed in parallel per forward pass\n"
-                "- chinese_to_pinyin: Whether to convert Chinese text into pinyin before alignment\n"
-                "- retain_word_level_alignment: Whether to output word/segment-level timestamps (word_timestamps)\n"
-                "- romanize: Whether to romanize text using uroman (useful for non-Latin scripts)\n\n"
+                "1. __init__ parameters\n"
+                "- model_path: str = \"MahmoudAshraf/mms-300m-1130-forced-aligner\"\n"
+                "  Path to the pretrained CTC forced alignment model (Hugging Face hub or local path).\n\n"
+                "- device: Union[str, List[str]] = \"cuda\"\n"
+                "  Device configuration for inference:\n"
+                "  * Serial mode: a single string like \"cpu\" or \"cuda\";\n"
+                "  * Parallel mode: a list of device strings, e.g. [\"cuda:0\", \"cuda:1\"],\n"
+                "    and workers will round-robin over these devices.\n\n"
+                "- num_workers: int = 1\n"
+                "  Number of worker processes:\n"
+                "  * num_workers <= 1: serial mode, model is loaded and used only in the main process;\n"
+                "  * num_workers  > 1: multi-processing mode, each worker holds its own Aligner instance.\n\n"
+                "- sampling_rate: int = 16000\n"
+                "  Sampling rate (Hz) used when loading and resampling audio.\n\n"
+                "- language: str = \"en\"\n"
+                "  Language code (ISO 639-1 or 639-3) for text normalization and romanization, "
+                "  e.g. \"en\", \"zh\".\n\n"
+                "- micro_batch_size: int = 16\n"
+                "  Micro batch size used when generating emissions in generate_emissions.\n\n"
+                "- chinese_to_pinyin: bool = False\n"
+                "  If True, Chinese text is first converted into pinyin (space-separated) using pypinyin.\n\n"
+                "- retain_word_level_alignment: bool = False\n"
+                "  If True, word/segment-level timestamps (word_timestamps) are produced in the output;\n"
+                "  otherwise, only frame-level spans are returned.\n\n"
+                "- romanize: bool = True\n"
+                "  If True, text is romanized using uroman given the specified language code, which is\n"
+                "  useful for non-Latin scripts.\n\n"
+                "Initialization behavior:\n"
+                "- If num_workers <= 1:\n"
+                "  * Create a single Aligner instance on the specified device;\n"
+                "  * All samples are processed sequentially within the same process and device.\n"
+                "- If num_workers  > 1:\n"
+                "  * Spawn num_workers child processes via multiprocessing (spawn context);\n"
+                "  * Use _init_worker to create an Aligner instance and load the model in each worker;\n"
+                "  * The main process only splits data and dispatches tasks; it does not load the model itself.\n\n"
 
-                "Runtime behavior:\n"
-                "- Serial mode: When num_workers <= 1, samples are processed sequentially on a single device\n"
-                "- Parallel mode: When num_workers > 1, multiprocessing is used, and each worker "
-                "  holds its own instance of the alignment model\n\n"
+                "2. run interface\n"
+                "def run(\n"
+                "    self,\n"
+                "    storage: DataFlowStorage,\n"
+                "    input_audio_key: str = \"audio\",\n"
+                "    input_conversation_key: str = \"conversation\",\n"
+                "    output_answer_key: str = \"forced_alignment_results\",\n"
+                "):\n\n"
+                "- storage: DataFlowStorage\n"
+                "  DataFlow storage object. \n\n"
+                "- input_audio_key: str = \"audio\"\n"
+                "  Column name in the DataFrame containing audio paths. Each row can be a string or a\n"
+                "  single-element list of strings.\n\n"
+                "- input_conversation_key: str = \"conversation\"\n"
+                "  Column name containing text/transcripts:\n"
+                "  * If the cell is a string, it is treated as the full transcript;\n"
+                "  * If the cell is a list whose first element is a dict with key 'value', then\n"
+                "    conversation[0]['value'] is used as the text.\n\n"
+                "- output_answer_key: str = \"forced_alignment_results\"\n"
+                "  Name of the column where alignment results (one dict per row) will be written.\n\n"
 
-                "Output (written back into the dataframe):\n"
-                "- output_answer_key (default 'forced_alignment_results'): A dict per row containing:\n"
-                "  * spans: List[Dict], frame-level alignment units with fields:\n"
-                "      - label: Unit label (typically aligned characters or <blank>)\n"
-                "      - start: Start frame index (CTC time step)\n"
-                "      - end  : End frame index (inclusive)\n"
-                "      - score: Exponential of the alignment score (confidence-like value)\n"
-                "  * word_timestamps: List[Dict], optional word/segment-level timestamps with fields:\n"
-                "      - start: Start time in seconds\n"
-                "      - end  : End time in seconds\n"
-                "      - text : Corresponding text segment\n"
-                "      - score: Exponential of the aggregated alignment score\n"
-                "  * error: Error message string if alignment failed for this sample, otherwise None\n\n"
+                "3. run execution behavior\n"
+                "1) Read the input DataFrame from storage.\n\n"
+                "2) Call eval to perform batch alignment:\n"
+                "   - Collect audio_paths from column input_audio_key;\n"
+                "   - Collect conversations from column input_conversation_key;\n"
+                "   - Normalize text for each row:\n"
+                "     * If chinese_to_pinyin is True, convert Chinese text into pinyin;\n"
+                "     * If romanize is True, romanize the text via uroman using the ISO 639 language code;\n"
+                "     * Store all processed strings in texts_normalized.\n\n"
+                "3) Depending on the execution mode:\n"
+                "   - Serial mode (num_workers <= 1):\n"
+                "     * Iterate over (audio_path, text_normalized) pairs;\n"
+                "     * For each pair, call Aligner.process_audio_file which:\n"
+                "       - Loads local or remote audio (http/https supported);\n"
+                "       - Resamples to sampling_rate and moves tensor to the configured device;\n"
+                "       - Calls generate_emissions to obtain CTC emissions (log-probs);\n"
+                "       - Calls preprocess_text to obtain tokens_starred and text_starred;\n"
+                "       - Calls get_alignments to perform forced alignment and obtain segments and scores;\n"
+                "       - Calls get_spans to convert alignment results into frame-level spans;\n"
+                "       - Optionally (if retain_word_level_alignment=True) calls postprocess_results to\n"
+                "         compute word/segment-level timestamps;\n"
+                "       - Packages all information into a single record dict.\n\n"
+                "   - Parallel mode (num_workers > 1):\n"
+                "     * Use numpy.array_split to split audio_paths and texts_normalized into chunks\n"
+                "       according to num_workers;\n"
+                "     * For each chunk, build a payload containing audio_paths_chunk, text_chunk and\n"
+                "       ctc_params;\n"
+                "     * Dispatch these payloads via multiprocessing.Pool.imap to _parallel_worker, which\n"
+                "       routes the work to the per-process _worker_model_processor (Aligner instance);\n"
+                "     * Collect the nested lists returned by workers and flatten them into a records list\n"
+                "       aligned with the input rows.\n\n"
+                "4) Attach records as a new column output_answer_key to the DataFrame and write it back\n"
+                "   into storage.\n\n"
+
+                "4. Output format\n"
+                "After run completes, each row in the DataFrame will have a dict stored under\n"
+                "output_answer_key, with the following structure:\n\n"
+                "- 'spans': List[Dict]\n"
+                "  Frame-level alignment segments. Each element describes a contiguous CTC span:\n"
+                "  * 'label': str\n"
+                "    Label of this span (typically an aligned character or <blank>).\n"
+                "  * 'start': int\n"
+                "    Start index of the span in CTC time steps (inclusive).\n"
+                "  * 'end': int\n"
+                "    End index of the span in CTC time steps (inclusive).\n"
+                "  * 'score': float\n"
+                "    Exponential of the alignment score over this frame range (math.exp), serving as\n"
+                "    a confidence-like value.\n\n"
+                "- 'word_timestamps': List[Dict]\n"
+                "  (Non-empty only if retain_word_level_alignment=True) Word/segment-level alignment\n"
+                "  results, each with:\n"
+                "  * 'start': float\n"
+                "    Start time (in seconds) in the original audio.\n"
+                "  * 'end': float\n"
+                "    End time (in seconds) in the original audio.\n"
+                "  * 'text': str\n"
+                "    Corresponding text chunk from text_starred.\n"
+                "  * 'score': float\n"
+                "    Exponential of the aggregated alignment score (math.exp).\n\n"
+                "- 'error': Optional[str]\n"
+                "  If an exception occurs while processing this sample, this field contains the\n"
+                "  error message; otherwise it is None.\n\n"
+                "In summary, this operator is suitable for evaluating the consistency between speech\n"
+                "and transcription, providing both low-level frame spans and optional word-level\n"
+                "timestamps, and can be scaled up via multi-process parallel inference."
             )
         return desc
 
@@ -189,33 +378,27 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
         dataframe: pd.DataFrame,
         input_audio_key: str = "audio",
         input_conversation_key: str = "conversation",
-        sampling_rate: int = 16000,
-        language: str = "en",
-        micro_batch_size: int = 16,
-        chinese_to_pinyin: bool = False,
-        retain_word_level_alignment: bool = False,  
-        romanize: bool = True,
     ):
-        if chinese_to_pinyin:
+        if self.chinese_to_pinyin:
             from pypinyin import lazy_pinyin
             def convert_chinese_to_pinyin(text: str) -> str:
                 pinyin = lazy_pinyin(text, iso_code="cmn")
                 return " ".join(pinyin)
 
-        if romanize:
+        if self.romanize:
             import uroman
             ur = uroman.Uroman()
 
         ctc_params = {
-            'sampling_rate': sampling_rate,
-            'language': language,
-            'micro_batch_size': micro_batch_size,
-            'retain_word_level_alignment': retain_word_level_alignment,
+            'sampling_rate': self.sampling_rate,
+            'language': self.language,
+            'micro_batch_size': self.micro_batch_size,
+            'retain_word_level_alignment': self.retain_word_level_alignment,
         }
 
         self.logger.info("Running CTC Forced Aligner...")
-        self.input_audio_key = input_audio_key
-        audio_paths = dataframe.get(self.input_audio_key, pd.Series([])).tolist()
+        # self.input_audio_key = input_audio_key
+        audio_paths = dataframe.get(input_audio_key, pd.Series([])).tolist()
         conversations = dataframe.get(input_conversation_key, pd.Series([])).tolist()
 
         texts_normalized = []
@@ -225,11 +408,11 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
             else:
                 text = conversation
             
-            if chinese_to_pinyin:
+            if self.chinese_to_pinyin:
                 text = convert_chinese_to_pinyin(text)
             
-            if romanize:
-                text = ur.romanize_string(text, lang=Lang(language).pt3)
+            if self.romanize:
+                text = ur.romanize_string(text, lang=Lang(self.language).pt3)
             texts_normalized.append(text)
 
         if self.is_parallel:
@@ -285,24 +468,12 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
         input_audio_key: str = "audio",
         input_conversation_key: str = "conversation",
         output_answer_key='forced_alignment_results',
-        sampling_rate: int = 16000,
-        language: str = "en",
-        micro_batch_size: int = 16,
-        chinese_to_pinyin: bool = False,
-        retain_word_level_alignment: bool = False,
-        romanize=True,
     ):
         dataframe = storage.read('dataframe')
         records = self.eval(
             dataframe=dataframe,
             input_audio_key=input_audio_key,
             input_conversation_key=input_conversation_key,
-            sampling_rate=sampling_rate,
-            language=language,
-            micro_batch_size=micro_batch_size,
-            chinese_to_pinyin=chinese_to_pinyin,
-            retain_word_level_alignment=retain_word_level_alignment,
-            romanize=romanize,
         )
 
         dataframe = dataframe.copy()
