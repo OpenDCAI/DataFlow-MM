@@ -5,7 +5,7 @@ if TYPE_CHECKING:
     from .generate.prompted_aqa_generator import PromptedAQAGenerator
     from .generate.audio_silero_voice_activity_detection_timestamps_generator import SileroVADGenerator
     
-    from .generaterow.audio_merge_chunks_by_timestamps_row_generator import MergeChunksByTimestampsRowGenerator
+    from .generaterow.audio_merge_chunks_by_timestamps_row_generator import MergeChunksRowGenerator
 
     # === Filter ===
     from .filter.audio_ctc_forced_alignment_transcription_quality_filter import CTCForcedAlignmentFilter
