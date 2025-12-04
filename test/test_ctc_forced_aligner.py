@@ -11,7 +11,7 @@ class ForcedAlignEval():
         )
 
         self.aligner = CTCForcedAlignmentSampleEvaluator(
-            model_path="/share/project/guotianyu/models/mms-300m-1130-forced-aligner",
+            model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
             device="cpu",
             language="en",      
             micro_batch_size=16,

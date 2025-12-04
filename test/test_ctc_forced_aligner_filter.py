@@ -11,7 +11,7 @@ class testCTCForcedAlignmentFilter:
         )
         
         self.filter = CTCForcedAlignmentFilter(
-            model_path="/share/project/guotianyu/models/mms-300m-1130-forced-aligner",
+            model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
             device=["cuda:0"],
             num_workers=1,
             language="en",  

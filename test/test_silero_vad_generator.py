@@ -12,8 +12,8 @@ class SileroVADGeneratorEval:
         )
 
         self.silero_vad_generator = SileroVADGenerator(
-            repo_or_dir="/share/project/guotianyu/models/silero-vad",
-            source="local",
+            repo_or_dir="snakers4/silero-vad",
+            source="github",
             device=['cuda:0'],
             num_workers=1,
             threshold=0.5,
