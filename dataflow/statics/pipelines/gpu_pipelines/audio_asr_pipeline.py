@@ -24,7 +24,6 @@ class Pipeline:
             vllm_tensor_parallel_size=2,
             vllm_temperature=0.3,
             vllm_top_p=0.9,
-            vllm_max_tokens=512,
             vllm_max_model_len=448,
             vllm_gpu_memory_utilization=0.9
         )
@@ -33,35 +32,7 @@ class Pipeline:
             repo_or_dir="snakers4/silero-vad",
             source="github",
             device=['cuda:2'],
-            #device="cuda:0",
             num_workers=1,
-        )
-
-        self.merger = MergeChunksRowGenerator(num_workers=1)
-
-        self.prompted_generator = PromptedAQAGenerator(
-            vlm_serving=self.serving,
-            system_prompt=WhisperTranscriptionPrompt().generate_prompt(language="german", task="transcribe", with_timestamps=False)
-        )
-
-        # self.filter = CTCForcedAlignmentFilter(
-        #     model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
-        #     device=["cuda:3"],
-        #     num_workers=1,
-        # )
-
-
-        self.evaluator = CTCForcedAlignmentSampleEvaluator(
-            model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
-            device=["cuda:3"],
-            num_workers=2,
-        )
-
-    def forward(self):
-        self.silero_vad_generator.run(
-            storage=self.storage.step(),
-            input_audio_key='audio',
-            output_answer_key='timestamps',
             threshold=0.5,
             use_min_cut=True,
             sampling_rate=16000,
@@ -75,17 +46,60 @@ class Pipeline:
             use_max_poss_sil_at_max_speech=True
         )
 
-        self.silero_vad_generator.close()     # 关闭多进程
-
-        self.merger.run(
-            storage=self.storage.step(),
+        self.merger = MergeChunksRowGenerator(
+            num_workers=1,
             dst_folder="./cache",
-            input_audio_key="audio",
-            input_timestamps_key="timestamps",
             timestamp_type="time",  # 手动指定类型
             max_audio_duration=30.0,
             hop_size_samples=512,  # hop_size, 是样本点数量
             sampling_rate=16000,
+        )
+
+        self.prompted_generator = PromptedAQAGenerator(
+            vlm_serving=self.serving,
+            system_prompt=WhisperTranscriptionPrompt().generate_prompt(language="german", task="transcribe", with_timestamps=False)
+        )
+
+        # self.filter = CTCForcedAlignmentFilter(
+        #     model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
+        #     device=["cuda:3"],
+        #     num_workers=1,
+        #     sampling_rate=16000,
+        #     language="de",
+        #     micro_batch_size=16,
+        #     chinese_to_pinyin=False,
+        #     retain_word_level_alignment=True,
+        #     threshold=0.1,
+        #     threshold_mode="min",
+        #     romanize=True,
+        # )
+
+
+        self.evaluator = CTCForcedAlignmentSampleEvaluator(
+            model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
+            device=["cuda:3"],
+            num_workers=2,
+            sampling_rate=16000,
+            language="de",
+            micro_batch_size=16,
+            chinese_to_pinyin=False,
+            retain_word_level_alignment=True,
+            romanize=True,
+        )
+        
+    def forward(self):
+        self.silero_vad_generator.run(
+            storage=self.storage.step(),
+            input_audio_key='audio',
+            output_answer_key='timestamps',
+        )
+
+        self.silero_vad_generator.close()     # 关闭多进程
+
+        self.merger.run(
+            storage=self.storage.step(),
+            input_audio_key="audio",
+            input_timestamps_key="timestamps",
         )
 
         self.merger.close()
@@ -101,14 +115,6 @@ class Pipeline:
         #     storage=self.storage.step(),
         #     input_audio_key="audio",
         #     input_conversation_key="transcript",
-        #     sampling_rate=16000,
-        #     language="de",
-        #     micro_batch_size=16,
-        #     chinese_to_pinyin=False,
-        #     retain_word_level_alignment=True,
-        #     threshold=0.1,
-        #     threshold_mode="min",
-        #     romanize=True,
         # )
         # self.filter.close()
 
@@ -116,12 +122,7 @@ class Pipeline:
             storage=self.storage.step(),
             input_audio_key="audio",
             input_conversation_key="transcript",
-            sampling_rate=16000,
-            language="de",
-            micro_batch_size=16,
-            chinese_to_pinyin=False,
-            retain_word_level_alignment=True,
-            romanize=True,
+            output_answer_key="forced_alignment_results",
         )
 
         self.evaluator.close()

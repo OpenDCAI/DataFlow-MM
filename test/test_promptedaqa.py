@@ -16,7 +16,7 @@ class AQAGenerator():
         )
 
         self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/share/project/guotianyu/models/Qwen2-Audio-7B-Instruct",
+            hf_model_name_or_path="Qwen/Qwen2-Audio-7B-Instruct",
             hf_cache_dir='./dataflow_cache',
             vllm_tensor_parallel_size=2,
             vllm_temperature=0.7,

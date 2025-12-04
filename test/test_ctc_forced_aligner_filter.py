@@ -11,9 +11,15 @@ class testCTCForcedAlignmentFilter:
         )
         
         self.filter = CTCForcedAlignmentFilter(
-            model_path="/share/project/guotianyu/models/mms-300m-1130-forced-aligner",
+            model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
             device=["cuda:0"],
             num_workers=1,
+            language="en",  
+            micro_batch_size=16,
+            chinese_to_pinyin=False,
+            retain_word_level_alignment=True,
+            threshold=0.900,
+            threshold_mode="min" 
         )
     
     def forward(self):
@@ -21,12 +27,7 @@ class testCTCForcedAlignmentFilter:
             storage=self.storage.step(),
             input_audio_key='audio',
             input_conversation_key='conversation',
-            language="en",  
-            micro_batch_size=16,
-            chinese_to_pinyin=False,
-            retain_word_level_alignment=True,
-            threshold=0.900,
-            threshold_mode="min"    
+   
         )
         self.filter.close()
 

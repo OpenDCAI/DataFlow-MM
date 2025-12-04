@@ -17,7 +17,7 @@ class AQAGenerator():
         )
 
         self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/share/project/guotianyu/models/whisper-large-v3",
+            hf_model_name_or_path="openai/whisper-large-v3",
             hf_cache_dir='./dataflow_cache',
             vllm_tensor_parallel_size=2,
             vllm_temperature=0.3,

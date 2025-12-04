@@ -11,8 +11,12 @@ class ForcedAlignEval():
         )
 
         self.aligner = CTCForcedAlignmentSampleEvaluator(
-            model_path="/share/project/guotianyu/models/mms-300m-1130-forced-aligner",
-            device="cpu"
+            model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
+            device="cpu",
+            language="en",      
+            micro_batch_size=16,
+            chinese_to_pinyin=False,
+            retain_word_level_alignment=True,
         )
     
     def forward(self):
@@ -21,10 +25,6 @@ class ForcedAlignEval():
             input_audio_key='audio',
             input_conversation_key='conversation',
             output_answer_key="forced_alignment_results",
-            language="en",      
-            micro_batch_size=16,
-            chinese_to_pinyin=False,
-            retain_word_level_alignment=True,
         )
 
 if __name__ == "__main__":
