@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     from .generate.image_scale_caption_generator import ImageScaleCaptionGenerate, ImageScaleCaptionGenerateConfig
     from .generate.prompted_image_generator import PromptedImageGenerator
     from .generate.prompted_vqa_generator import PromptedVQAGenerator
+    from .generate.prompt_templated_vqa_generator import PromptTemplatedVQAGenerator
+    from .generate.fix_prompted_vqa_generator import FixPromptedVQAGenerator
     from .generate.video_clip_generator import VideoClipGenerator
     from .generate.video_caption_to_qa_generator import VideoCaptionToQAGenerator
     from .generate.video_video_to_caption_generator import VideoToCaptionGenerator
