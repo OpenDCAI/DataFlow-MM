@@ -116,7 +116,7 @@ class FixPromptedVQAGenerator(OperatorABC):
 if __name__ == "__main__":
     # Initialize model
     model = LocalModelVLMServing_vllm(
-        hf_model_name_or_path="/data0/happykeyan/Models/Qwen2.5-VL-3B-Instruct",
+        hf_model_name_or_path="Qwen/Qwen2.5-VL-3B-Instruct",
         vllm_tensor_parallel_size=1,
         vllm_temperature=0.7,
         vllm_top_p=0.9,
