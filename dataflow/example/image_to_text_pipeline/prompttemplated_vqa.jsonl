@@ -1,0 +1,3 @@
+{"image": "./dataflow/example/image_to_text_pipeline/capsbench_images/0.png", "descriptions": "A cozy living room with warm yellow light and a soft sofa.", "type": "furniture"}
+{"image": "./dataflow/example/image_to_text_pipeline/capsbench_images/1.png", "descriptions": "Two children are visible, one clearly standing on the left.", "type": "person"}
+{"image": "./dataflow/example/image_to_text_pipeline/capsbench_images/2.png", "descriptions": "A busy street with several vehicles and people walking on the sidewalk.", "type": "vehicle"}

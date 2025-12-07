@@ -9,22 +9,24 @@ from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 from qwen_vl_utils import process_vision_info
 
 @OPERATOR_REGISTRY.register()
-class PromptedVQAGenerator(OperatorABC):
+class FixPromptedVQAGenerator(OperatorABC):
     '''
-    PromptedVQAGenerator read prompt and image/video to generate answers.
+    FixPromptedVQAGenerator generate answers for questions based on provided context. The context can be image/video.
     '''
     def __init__(self, 
                  serving: LLMServingABC, 
-                 system_prompt: str = "You are a helpful assistant."):
+                 system_prompt: str = "You are a helpful assistant.",
+                 user_prompt: str = "Please caption the media in detail."):
         self.logger = get_logger()
         self.serving = serving
         self.system_prompt = system_prompt
+        self.user_prompt = user_prompt
             
     @staticmethod
     def get_desc(lang: str = "zh"):
-        return "读取 prompt 和 image/video 生成答案" if lang == "zh" else "Read prompt and image/video to generate answers."
+        return "基于给定的 system prompt 和 user prompt，并读取 image/video 生成答案" if lang == "zh" else "Generate answers for questions based on provided context. The context can be image/video."
     
-    def _prepare_batch_inputs(self, prompts, input_media_paths, is_image: bool = True):
+    def _prepare_batch_inputs(self, input_media_paths, is_image: bool = True):
         """
         Construct batched prompts and multimodal inputs from media paths.
         """
@@ -32,20 +34,20 @@ class PromptedVQAGenerator(OperatorABC):
         media_paths = []
         type_media = "image" if is_image else "video"
 
-
-        for paths, p in zip(input_media_paths, prompts):
+        for paths in input_media_paths:
             raw_prompt = [
                 {"role": "system", "content": self.system_prompt},
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": p},
+                        {"type": "text", "text": self.user_prompt},
                     ],
                 },
             ]
             for path in paths:
                 raw_prompt[1]["content"].append({"type": type_media, type_media: path})
-
+                
+            # Get multimodal inputs
             media_path, _ = process_vision_info(raw_prompt)
             prompt = self.serving.processor.apply_chat_template(
                 raw_prompt, tokenize=False, add_generation_prompt=True
@@ -58,7 +60,6 @@ class PromptedVQAGenerator(OperatorABC):
 
     def run(self, 
             storage: DataFlowStorage,
-            input_prompt_key: str = "prompt",
             input_image_key: str = "image", 
             input_video_key: str = "video",
             output_answer_key: str = "answer",
@@ -66,7 +67,7 @@ class PromptedVQAGenerator(OperatorABC):
         if output_answer_key is None:
             raise ValueError("At least one of output_answer_key must be provided.")
 
-        self.logger.info("Running PromptedVQA...")
+        self.logger.info("Running FixPromptedVQA...")
         self.input_image_key = input_image_key
         self.input_video_key = input_video_key
         self.output_answer_key = output_answer_key
@@ -89,15 +90,15 @@ class PromptedVQAGenerator(OperatorABC):
             raise ValueError("At least one of input_image_key or input_video_key must be provided.")
         if image_column is not None and video_column is not None:
             raise ValueError("Only one of input_image_key or input_video_key must be provided.")
-        
-        prompt_column = dataframe.get(input_prompt_key, pd.Series([])).tolist()
 
         if image_column is not None:
-            prompt_list, image_inputs_list = self._prepare_batch_inputs(prompt_column, image_column)
+            prompt_list, image_inputs_list = self._prepare_batch_inputs(image_column)
             video_inputs_list = None
         elif video_column is not None:
-            prompt_list, video_inputs_list = self._prepare_batch_inputs(prompt_column, video_column, is_image=False)
+            prompt_list, video_inputs_list = self._prepare_batch_inputs(video_column, is_image=False)
             image_inputs_list = None
+        else:
+            raise ValueError("At least one of input_image_key or input_video_key must be provided.")
 
         outputs = self.serving.generate_from_input(
             system_prompt=self.system_prompt,
@@ -122,23 +123,23 @@ if __name__ == "__main__":
         vllm_max_tokens=512,
     )
 
-    generator = PromptedVQAGenerator(
+    generator = FixPromptedVQAGenerator(
         serving=model,
         system_prompt="You are a helpful assistant.",
+        user_prompt="Please caption the media in detail."
     )
 
     # Prepare input
     storage = FileStorage(
-        first_entry_file_name="./dataflow/example/image_to_text_pipeline/prompted_vqa.jsonl", 
+        first_entry_file_name="./dataflow/example/image_to_text_pipeline/fix_prompted_vqa.jsonl", 
         cache_path="./cache_prompted_vqa",
-        file_name_prefix="prompted_vqa",
+        file_name_prefix="fix_prompted_vqa",
         cache_type="jsonl",
     )
     storage.step()  # Load the data
 
     generator.run(
         storage=storage,
-        input_prompt_key="prompt",
         input_image_key="image",
         input_video_key="video",
         output_answer_key="answer",
