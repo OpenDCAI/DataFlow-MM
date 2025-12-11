@@ -191,7 +191,6 @@ class LocalModelVLMServing_vllm(VLMServingABC):
         audio_list: list[list[str]] = None,
         system_prompt: str = "You are a helpful assistant."
     ) -> list[str]:
-
         messages = self.IO._conversation_to_message(
             conversations,
             image_list,

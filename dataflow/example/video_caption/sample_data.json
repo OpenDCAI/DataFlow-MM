@@ -1,0 +1,11 @@
+[
+    {
+        "video": ["./DataFlow-MM/dataflow/example/video_caption/oceans.mp4"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "Please describe the video in detail."
+            }
+        ]
+    }
+]

@@ -12,8 +12,9 @@ if TYPE_CHECKING:
     from .generate.prompted_image_generator import PromptedImageGenerator
     from .generate.prompted_vqa_generator import PromptedVQAGenerator
     from .generate.video_clip_generator import VideoClipGenerator
-    from .generate.video_caption_to_qa_generator import VideoCaptionToQAGenerator
-    from .generate.video_video_to_caption_generator import VideoToCaptionGenerator
+    from .generate.video_qa_generator import VideoCaptionToQAGenerator
+    from .generate.video_caption_generator import VideoToCaptionGenerator
+    from .generate.video_cotqa_generator import VideoCOTQAGenerator
     from .generate.sk_vqa_generator import ImageSKVQAGenerate
     from .generate.image_caprl_mcq_generator import CapRLMCQGenerate, CapRLMCQConfig
 
