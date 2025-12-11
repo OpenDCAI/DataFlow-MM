@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from .filter.consistency_filter import ConsistencyFilter
     from .filter.text_image_diversity_filter import TextImageDiversityFilter
     from .filter.sensitive_filter import SensitiveFilter
+    from .filter.score_filter import ScoreFilter
     from .refine.vision_seg_cutout_refine import VisionSegCutoutRefine
     from .filter.rule_base_filter import RuleBaseFilter
     from .filter.deduplication_filter import DeduplicateFilter
@@ -47,6 +48,7 @@ if TYPE_CHECKING:
     from .eval.video_luminance_evaluator import VideoLuminanceEvaluator
     from .eval.video_ocr_evaluator import VideoOCREvaluator
     from .eval.emscore_evaluator import EMScoreEval
+    from .eval.general_text_answer_evaluator import GeneralTextAnswerEvaluator
     from .eval.image.image_evaluator import EvalImageGenerationGenerator
     from .eval.image_text.clip_image_text_evaluator import CLIPEvaluator
     from .eval.image_text.long_clip_image_text_evaluator import LongCLIPEvaluator
