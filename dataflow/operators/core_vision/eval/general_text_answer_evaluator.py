@@ -151,27 +151,27 @@ class GeneralTextAnswerEvaluator(OperatorABC):
     def run(
         self,
         storage: DataFlowStorage,
-        model_output_key: str = "model_output",
-        gt_solution_key: str = "solution",
-        question_type_key: str = "problem_type",
+        input_model_output_key: str = "model_output",
+        input_gt_solution_key: str = "solution",
+        input_question_type_key: str = "problem_type",
         output_reward_key: str = "reward",
     ) -> str:
         """Evaluate text answers and compute rewards.
         
         Args:
             storage: DataFlowStorage object
-            model_output_key: Column name for model outputs
-            gt_solution_key: Column name for ground truth solutions
-            question_type_key: Column name for question types
+            input_model_output_key: Column name for model outputs
+            input_gt_solution_key: Column name for ground truth solutions
+            input_question_type_key: Column name for question types
             output_reward_key: Column name for output rewards
             
         Returns:
             The output_reward_key
             
         Expected input columns:
-            - model_output_key: Model generated text with <answer> tags
-            - gt_solution_key: Ground truth with <answer> tags
-            - question_type_key: Question type (multiple choice, numerical, OCR, free-form, regression)
+            - input_model_output_key: Model generated text with <answer> tags
+            - input_gt_solution_key: Ground truth with <answer> tags
+            - input_question_type_key: Question type (multiple choice, numerical, OCR, free-form, regression)
         """
         self.logger.info("Running GeneralTextAnswerEvaluator...")
         
@@ -179,7 +179,7 @@ class GeneralTextAnswerEvaluator(OperatorABC):
         self.logger.info("Loaded dataframe with %d rows", len(df))
 
         # Validate required columns
-        required_cols = [model_output_key, gt_solution_key, question_type_key]
+        required_cols = [input_model_output_key, input_gt_solution_key, input_question_type_key]
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             raise KeyError(f"Missing required columns: {missing_cols}")
@@ -188,9 +188,9 @@ class GeneralTextAnswerEvaluator(OperatorABC):
         rewards = []
         
         for _, row in df.iterrows():
-            model_output = row.get(model_output_key, '')
-            gt_solution = row.get(gt_solution_key, '')
-            question_type = row.get(question_type_key, '')
+            model_output = row.get(input_model_output_key, '')
+            gt_solution = row.get(input_gt_solution_key, '')
+            question_type = row.get(input_question_type_key, '')
             
             reward = self.calculate_reward(gt_solution, model_output, question_type)
             rewards.append(reward)

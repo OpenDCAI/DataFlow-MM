@@ -41,9 +41,7 @@ class VideoCOTQATest:
         )
         
         self.score_filter = ScoreFilter(
-            score_key="reward",
             min_score=0.6,
-            output_select_key="select"
         )
 
     def run(self):
@@ -66,9 +64,9 @@ class VideoCOTQATest:
         print("\n[Step 2/3] Evaluating answers and calculating rewards...")
         reward_key = self.evaluator.run(
             storage=self.storage.step(),
-            model_output_key="full_response",
-            gt_solution_key="solution",
-            question_type_key="problem_type",
+            input_model_output_key="full_response",
+            input_gt_solution_key="solution",
+            input_question_type_key="problem_type",
             output_reward_key="reward",
         )
         print(f"Evaluation finished. Output key: {reward_key}")
@@ -77,6 +75,8 @@ class VideoCOTQATest:
         print("\n[Step 3/3] Filtering based on reward threshold...")
         select_key = self.score_filter.run(
             storage=self.storage.step(),
+            input_score_key="reward",
+            output_select_key="select",
         )
         print(f"Filtering finished. Output key: {select_key}")
         
