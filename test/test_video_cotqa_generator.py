@@ -1,7 +1,5 @@
 
-from dataflow.operators.core_vision import VideoCOTQAGenerator
-from dataflow.operators.core_vision.eval.general_text_answer_evaluator import GeneralTextAnswerEvaluator
-from dataflow.operators.core_vision.filter.score_filter import ScoreFilter
+from dataflow.operators.core_vision import VideoCOTQAGenerator, GeneralTextAnswerEvaluator, ScoreFilter
 from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.utils.storage import FileStorage
 import os
