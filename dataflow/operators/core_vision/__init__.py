@@ -13,8 +13,9 @@ if TYPE_CHECKING:
     from .generate.prompt_templated_vqa_generator import PromptTemplatedVQAGenerator
     from .generate.fix_prompted_vqa_generator import FixPromptedVQAGenerator
     from .generate.video_clip_generator import VideoClipGenerator
-    from .generate.video_caption_to_qa_generator import VideoCaptionToQAGenerator
-    from .generate.video_video_to_caption_generator import VideoToCaptionGenerator
+    from .generate.video_qa_generator import VideoCaptionToQAGenerator
+    from .generate.video_caption_generator import VideoToCaptionGenerator
+    from .generate.video_cotqa_generator import VideoCOTQAGenerator
     from .generate.image_caprl_mcq_generator import CapRLMCQGenerate, CapRLMCQConfig
     from .generate.multirole_videoqa_generator import MultiroleVideoQAInitialGeneration, MultiroleVideoQAMultiAgentGeneration, MultiroleVideoQAFinalGeneration
     from .generate.batch_vqa_generator import BatchVQAGenerator
@@ -34,7 +35,7 @@ if TYPE_CHECKING:
     from .filter.image_consistency_filter import ImageConsistencyFilter
     from .filter.image_diversity_filter import ImageDiversityFilter
     from .filter.image_sensitive_filter import ImageSensitiveFilter
-    from .refine.vision_seg_cutout_refine import VisionSegCutoutRefine
+    from .refine.vision_seg_cutout_refiner import VisionSegCutoutRefiner
     from .filter.rule_base_filter import RuleBaseFilter
     from .filter.image_deduplication_filter import ImageDeduplicateFilter
     from .filter.knn_similarity_filter import KNNSimilarityFilter
@@ -48,6 +49,7 @@ if TYPE_CHECKING:
     from .eval.video_luminance_evaluator import VideoLuminanceEvaluator
     from .eval.video_ocr_evaluator import VideoOCREvaluator
     from .eval.emscore_evaluator import EMScoreEval
+    from .eval.general_text_answer_evaluator import GeneralTextAnswerEvaluator
     from .eval.image.image_evaluator import EvalImageGenerationGenerator
     from .eval.image_clip_evaluator import ImageCLIPEvaluator
     from .eval.image_longclip_evaluator import ImageLongCLIPEvaluator
