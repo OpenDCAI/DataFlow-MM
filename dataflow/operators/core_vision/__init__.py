@@ -17,8 +17,9 @@ if TYPE_CHECKING:
     from .generate.video_caption_generator import VideoToCaptionGenerator
     from .generate.video_cotqa_generator import VideoCOTQAGenerator
     from .generate.image_caprl_mcq_generator import CapRLMCQGenerate, CapRLMCQConfig
-    from .generate.multirole_videoqa_generator import MultiroleVideoQAInitialGeneration, MultiroleVideoQAMultiAgentGeneration, MultiroleVideoQAFinalGeneration
+    from .generate.multirole_videoqa_generator import MultiroleVideoQAInitialGenerator, MultiroleVideoQAMultiAgentGenerator, MultiroleVideoQAFinalGenerator
     from .generate.batch_vqa_generator import BatchVQAGenerator
+    from .generate.vlm_bbox_generator import VLMBBoxGenerator
 
     # === Filter ===
     from .filter.video_clip_filter import VideoClipFilter

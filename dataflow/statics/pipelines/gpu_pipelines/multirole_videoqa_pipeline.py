@@ -2,7 +2,7 @@ import argparse
 import os 
 from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.utils.storage import FileStorage
-from dataflow.operators.core_vision import MultiroleVideoQAInitialGeneration, MultiroleVideoQAMultiAgentGeneration, MultiroleVideoQAFinalGeneration
+from dataflow.operators.core_vision import MultiroleVideoQAInitialGenerator, MultiroleVideoQAMultiAgentGenerator, MultiroleVideoQAFinalGenerator
 
 try:
     import torch
@@ -46,9 +46,9 @@ class MultiRoleVideoQAPipeline():
             vllm_max_tokens=6000,
         )
 
-        self.initial_QA_generation = MultiroleVideoQAInitialGeneration(llm_serving = self.llm_serving)
-        self.multiAgent_QA_generation = MultiroleVideoQAMultiAgentGeneration(llm_serving = self.llm_serving, max_iterations = 3)
-        self.final_QA_generation = MultiroleVideoQAFinalGeneration(llm_serving = self.llm_serving)
+        self.initial_QA_generation = MultiroleVideoQAInitialGenerator(llm_serving = self.llm_serving)
+        self.multiAgent_QA_generation = MultiroleVideoQAMultiAgentGenerator(llm_serving = self.llm_serving, max_iterations = 3)
+        self.final_QA_generation = MultiroleVideoQAFinalGenerator(llm_serving = self.llm_serving)
 
         self.input_meta_key = Meta_key
         self.input_clips_key = clips_key
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument("--download_dir", default="./ckpt",
                                  help="Local directory for downloading models.")
     
-    parser.add_argument("--card_id", type=str, default="7",
+    parser.add_argument("--card_id", type=str, default="0",
                                  help="The single CUDA device ID to use (e.g., '0' or '1').")
     
     parser.add_argument("--images_file", default="./dataflow/example/ads_QA/adsQA.jsonl",

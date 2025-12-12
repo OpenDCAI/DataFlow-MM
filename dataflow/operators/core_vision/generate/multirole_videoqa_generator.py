@@ -66,7 +66,7 @@ class Callvlm:
         return str(final_output).strip()
 # -----------------------------------------------------------------------------
 @OPERATOR_REGISTRY.register()
-class MultiroleVideoQAInitialGeneration(OperatorABC):
+class MultiroleVideoQAInitialGenerator(OperatorABC):
     def __init__(self, llm_serving: VLMServingABC):
         self.logger = get_logger()
         self.llm_serving = llm_serving
@@ -177,7 +177,7 @@ class MultiroleVideoQAInitialGeneration(OperatorABC):
 
 # -----------------------------------------------------------------------------
 @OPERATOR_REGISTRY.register()
-class MultiroleVideoQAMultiAgentGeneration(OperatorABC):
+class MultiroleVideoQAMultiAgentGenerator(OperatorABC):
     def __init__(self, llm_serving: VLMServingABC, max_iterations: int):
         self.logger = get_logger()
         self.llm_serving = llm_serving
@@ -347,7 +347,7 @@ class MultiroleVideoQAMultiAgentGeneration(OperatorABC):
 
 # -----------------------------------------------------------------------------
 @OPERATOR_REGISTRY.register()
-class MultiroleVideoQAFinalGeneration(OperatorABC):
+class MultiroleVideoQAFinalGenerator(OperatorABC):
     def __init__(self, llm_serving: VLMServingABC):
         self.logger = get_logger()
         self.llm_serving = llm_serving
