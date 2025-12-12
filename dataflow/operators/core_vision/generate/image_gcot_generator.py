@@ -14,6 +14,7 @@ from dataflow.utils.registry import OPERATOR_REGISTRY
 from dataflow import get_logger
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.core import LLMServingABC
+from dataflow.prompts.image import ImageGCoTPrompt
 
 
 @OPERATOR_REGISTRY.register()
@@ -47,6 +48,7 @@ class ImageGCoTGenerate(OperatorABC):
         
         # Qwen serving (for CoT generation)
         self.llm_serving = llm_serving
+        self.prompt_generator = ImageGCoTPrompt()
         
         # Ovis model config
         self.model_path = model_path
@@ -95,7 +97,7 @@ class ImageGCoTGenerate(OperatorABC):
     
     def _validate_dataframe(self, dataframe: pd.DataFrame):
         """Validate input dataframe"""
-        required_keys = [self.question_key, self.answer_key, self.image_key]
+        required_keys = [self.input_question_key, self.input_answer_key, self.input_image_key]
         forbidden_keys = [self.output_key, 'cot', 'bboxes']
         
         missing = [k for k in required_keys if k not in dataframe.columns]
@@ -201,30 +203,15 @@ class ImageGCoTGenerate(OperatorABC):
         image_inputs_list = []
         
         for idx, row in dataframe.iterrows():
-            image_path = row[self.image_key]
-            question = row[self.question_key]
-            answer = row[self.answer_key]
+            image_path = row[self.input_image_key]
+            question = row[self.input_question_key]
+            answer = row[self.input_answer_key]
             
-            cot_prompt = (
-                f"Question: {question}\n"
-                f"Answer: {answer}\n\n"
-                f"Task: Provide a detailed step-by-step reasoning (Chain-of-Thought) that explains "
-                f"how to arrive at this answer based on the image.\n\n"
-                f"Then, extract key nouns and objects mentioned in your reasoning that are "
-                f"visible in the image and can be spatially located.\n\n"
-                f"Requirements for keywords:\n"
-                f"1. Include concrete objects (e.g., cat, table, person, glasses)\n"
-                f"2. Include objects with attributes (e.g., red apple, wooden chair)\n"
-                f"3. Exclude pronouns (it, this, that) and abstract concepts (step, answer, image)\n"
-                f"4. Exclude pure spatial words (left, right) unless combined with objects\n"
-                f"5. Only include objects that can be visually located in the image\n\n"
-                f"Format:\n"
-                f"Step 1: ...\n"
-                f"Step 2: ...\n"
-                f"Answer: {answer}\n"
-                f"Keywords: object1, object2, object3\n"
-            )
-            
+            cot_prompt = self.prompt_generator.build_prompt(
+                "cot",
+                question=question,
+                answer=answer,
+            )                      
             raw_prompt = [{
                 "role": "user",
                 "content": [
@@ -340,14 +327,10 @@ class ImageGCoTGenerate(OperatorABC):
             return []
         
         prompts = [
-            f'Please locate all instances of <ref>"{sq["keyword"]}"</ref> in this image.\n\n'
-            f'Instructions:\n'
-            f'1. If you can see "{sq["keyword"]}", provide bounding boxes for all instances\n'
-            f'2. If "{sq["keyword"]}" is not visible, respond with: "not found"\n'
-            f'3. Only return boxes you are confident about\n\n'
-            f'Response format:\n'
-            f'- If found: <box>(x1,y1),(x2,y2)</box> <box>(x1,y1),(x2,y2)</box> ...\n'
-            f'- If not found: not found\n'
+            self.prompt_generator.build_prompt(
+                "bbox",
+                keyword=sq["keyword"],
+            )
             for sq in sub_questions
         ]
         
@@ -443,9 +426,9 @@ class ImageGCoTGenerate(OperatorABC):
     def run(
         self,
         storage: DataFlowStorage,
-        question_key: str = "question",
-        answer_key: str = "answer",
-        image_key: str = "image",
+        input_question_key: str = "question",
+        input_answer_key: str = "answer",
+        input_image_key: str = "image",
         output_key: str = "gcot",
         save_intermediate: bool = False,
         qwen_unload_callback = None
@@ -455,9 +438,9 @@ class ImageGCoTGenerate(OperatorABC):
         
         Args:
             storage: DataFlow storage
-            question_key: Field name for questions
-            answer_key: Field name for answers
-            image_key: Field name for image paths
+            input_question_key: Field name for questions
+            input_answer_key: Field name for answers
+            input_image_key: Field name for image paths
             output_key: Field name for GCoT output
             save_intermediate: Whether to save intermediate results
             qwen_unload_callback: Callback to unload Qwen model
@@ -465,9 +448,9 @@ class ImageGCoTGenerate(OperatorABC):
         Returns:
             List of output field names
         """
-        self.question_key = question_key
-        self.answer_key = answer_key
-        self.image_key = image_key
+        self.input_question_key = input_question_key
+        self.input_answer_key = input_answer_key
+        self.input_image_key = input_image_key
         self.output_key = output_key
         
         dataframe = storage.read("dataframe")
@@ -489,7 +472,7 @@ class ImageGCoTGenerate(OperatorABC):
                 for keyword in keywords:
                     all_sub_questions.append({
                         'id': row_id,
-                        'image': row[self.image_key],
+                        'image': row[self.input_image_key],
                         'keyword': keyword
                     })
                 row_id_map[row_id] = (start_idx, len(all_sub_questions))

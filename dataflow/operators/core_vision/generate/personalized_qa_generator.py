@@ -14,7 +14,7 @@ from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 from qwen_vl_utils import process_vision_info
 
 @OPERATOR_REGISTRY.register()
-class PersQAGenerate(OperatorABC):
+class PersQAGenerator(OperatorABC):
     '''
     Caption Generator is a class that generates captions for given images.
     '''
@@ -84,7 +84,7 @@ class PersQAGenerate(OperatorABC):
         """
         Construct batched prompts and image inputs from media paths.
         """
-        _, system_prompt = self.prompt_generator.pers_generator_prompt()
+        _, system_prompt = self.prompt_generator.build_prompt()
 
         prompt_list = []
         image_inputs_list = []
@@ -119,13 +119,13 @@ class PersQAGenerate(OperatorABC):
     def run(
         self,
         storage: DataFlowStorage,
-        multi_modal_key: str = "image", 
+        input_modal_key: str = "image", 
         output_key: str = "output"
     ):
         """
         Runs the caption generation process in batch mode, reading from the input file and saving results to output.
         """
-        self.multi_modal_key, self.output_key = multi_modal_key, output_key
+        self.multi_modal_key, self.output_key = input_modal_key, output_key
         # storage.step()
         dataframe = storage.read("dataframe")
         self._validate_dataframe(dataframe)
@@ -153,18 +153,16 @@ class PersQAGenerate(OperatorABC):
         return [output_key]
 
 if __name__ == "__main__":
-    model_path = "/data0/mt/.cache/huggingface/hub/Qwen2.5-VL-3B-Instruct"
-
     # Initialize model
     model = LocalModelVLMServing_vllm(
-        hf_model_name_or_path=model_path,
+        hf_model_name_or_path="Qwen/Qwen2.5-VL-3B-Instruct",
         vllm_tensor_parallel_size=1,
         vllm_temperature=0.7,
         vllm_top_p=0.9,
         vllm_max_tokens=512,
     )
 
-    caption_generator = PersQAGenerate(
+    caption_generator = PersQAGenerator(
         llm_serving=model
     )
 
@@ -179,6 +177,6 @@ if __name__ == "__main__":
 
     caption_generator.run(
         storage=storage,
-        multi_modal_key="image",
+        input_modal_key="image",
         output_key="pers_qa"
     )
