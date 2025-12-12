@@ -60,6 +60,7 @@ if TYPE_CHECKING:
     from .refine.wiki_qa_refiner import WikiQARefiner
     from .refine.visual_grounding_refiner import VisualGroundingRefiner
     from .refine.vision_seg_cutout_refiner import VisionSegCutoutRefiner
+    from .refine.visual_dependency_refiner import VisualDependencyRefiner
 
 else:
     import sys

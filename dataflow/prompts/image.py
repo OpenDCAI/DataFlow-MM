@@ -232,35 +232,32 @@ class ImageGCoTPrompt:
             )
             return prompt
 
+
 class ImageCaprlPrompt:
     """
-    Docstring for CapRLMCQGenerate
+    Prompt definitions for CapRL/VisualOnlyMCQ pipeline.
     """
-    def __init__(self):
-        pass
-    
     def build_prompt(self):
         prompt = {}
+        # 用于生成的 System Prompt
         prompt["SYS_PROMPT_MCQ"] = (
             "Your task is to generate five multiple-choice questions and their answers about the object "
             "based on the provided image. The questions should be challenging and focus on the image content.\n"
-            "You must strictly follow the format below and must not output irrelevant sentences:\n"
-            "#### 1. **Example question?**\n"
-            "   - A) Option A\n"
-            "   - B) Option B\n"
-            "   - C) Option C\n"
-            "   - D) Option D\n\n"
-            "**Answer:** D) Option D\n"
-            "------\n"
-            "#### 2. **Another example?**\n"
-            "   - A) ...\n"
-            "   - B) ...\n"
-            "   - C) ...\n"
-            "   - D) ...\n\n"
-            "**Answer:** B) ...\n"
+            "Format:\n"
+            "#### 1. **Question?**\n"
+            "   - A) Option\n"
+            "   - B) Option\n"
+            "   - C) Option\n"
+            "   - D) Option\n\n"
+            "**Answer:** A) Option\n"
             "------\n"
             "All questions must be answerable from the image alone."
         )
-        prompt["USER_PROMPT_MCQ"] = "Here is the image"
-        prompt["ANSWER_LETTER_INSTRUCTION"] = "{}. Answer the question with only the correct letter"
+        # 用于生成的 User Prompt (FixPromptedVQAGenerator)
+        prompt["USER_PROMPT_MCQ"] = "Generate 5 MCQs based on the image."
+        
+        # 用于验证的 Instruction (VisualDependencyRefiner)
+        # 包含一个 {} 用于填入具体的问题文本
+        prompt["ANSWER_INSTRUCTION"] = "{}\nAnswer the question with only the correct letter."
+        
         return prompt

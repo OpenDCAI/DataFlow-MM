@@ -47,8 +47,18 @@ class FunctionalRefiner(OperatorABC):
     def run(self, storage: DataFlowStorage, output_key: str, **input_keys):
         df = storage.read("dataframe")
         
+        # 缓存当前的列名集合，用于判断传入的 value 是列名还是常量
+        valid_columns = set(df.columns)
         def apply_wrapper(row):
-            kwargs = {k: row[v] for k, v in input_keys.items()}
+            kwargs = {}
+            for param_name, mapping_val in input_keys.items():
+                # 核心修正逻辑：
+                # 只有当 mapping_val 是字符串，并且确实存在于 DataFrame 的列中时，才去取行数据
+                # 否则（如 expected=5），直接作为常量传递给函数
+                if isinstance(mapping_val, str) and mapping_val in valid_columns:
+                    kwargs[param_name] = row[mapping_val]
+                else:
+                    kwargs[param_name] = mapping_val
             return self.func(**kwargs)
 
         df[output_key] = df.apply(apply_wrapper, axis=1)
