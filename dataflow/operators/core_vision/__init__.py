@@ -43,6 +43,7 @@ if TYPE_CHECKING:
     from .filter.datatailor_filter import DataTailorFilter
     from .filter.vision_dependent_filter import VisionDependentFilter
     from .filter.failrate_filter import FailRateFilter
+    from .filter.score_filter import ScoreFilter
 
     # === Eval ===
     from .eval.video_aesthetic_evaluator import VideoAestheticEvaluator
