@@ -92,14 +92,8 @@ class SKVQAGeneratorPrompt:
         return prompt
     
 class MCTReasoningPrompt:
-    '''
-    The prompt for the VisionMCTSReasoningSFTGenerate.
-    '''
-    def __init__(self):
-        pass
-    
     def build_prompt(self):
-        prompt = {
+        return {
             "web_grounding": (
                 "A conversation between User and Assistant. The User asks a question, and the Assistant solves it. "
                 "The Assistant systematically reasons through the problem step by step, verifying each step and grounding every step to a specific point in the image.\n\n"
@@ -131,7 +125,6 @@ class MCTReasoningPrompt:
                 "All reasoning in one <think>...</think>; final answer in <answer>...</answer>."
             ),
         }
-        return prompt
     
 
 class ImageScaleCaptionPrompt:

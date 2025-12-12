@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from .generate.image_qa_generator import ImageQAGenerator
     from .generate.multimodal_math_generator import MultimodalMathGenerator
     from .generate.personalized_qa_generator import PersQAGenerator
-    from .generate.vision_mct_reasoning_sft_generator import VisionMCTSReasoningSFTGenerate
+    from .generate.visual_reasoning_generator import VisualReasoningGenerator
     from .generate.prompted_image_generator import PromptedImageGenerator
     from .generate.prompted_vqa_generator import PromptedVQAGenerator
     from .generate.prompt_templated_vqa_generator import PromptTemplatedVQAGenerator
