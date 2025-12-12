@@ -11,7 +11,7 @@ from dataflow.utils.storage import DataFlowStorage
 from dataflow.utils.registry import OPERATOR_REGISTRY
 
 @OPERATOR_REGISTRY.register()
-class VisionSegCutoutRefine(OperatorABC):
+class VisionSegCutoutRefiner(OperatorABC):
     def __init__(
         self,
         seg_model_path: str = "/data0/mt/.cache/ckpt/yolo/yolo11l-seg.pt",

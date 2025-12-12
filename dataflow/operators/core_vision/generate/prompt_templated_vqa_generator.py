@@ -67,12 +67,12 @@ class PromptTemplatedVQAGenerator(OperatorABC):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": p},
                     ],
                 },
             ]
             for path in paths:
                 raw_prompt[1]["content"].append({"type": type_media, type_media: path})
+            raw_prompt[1]["content"].append({"type": "text", "text": p})
 
             media_path, _ = process_vision_info(raw_prompt)
             prompt = self.serving.processor.apply_chat_template(

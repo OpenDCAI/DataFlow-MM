@@ -8,7 +8,6 @@ if TYPE_CHECKING:
     from .generate.multimodal_math_generator import MultimodalMathGenerator
     from .generate.personalized_qa_generator import PersQAGenerator
     from .generate.vision_mct_reasoning_sft_generator import VisionMCTSReasoningSFTGenerate
-    from .generate.image_scale_caption_generator import ImageScaleCaptionGenerate, ImageScaleCaptionGenerateConfig
     from .generate.prompted_image_generator import PromptedImageGenerator
     from .generate.prompted_vqa_generator import PromptedVQAGenerator
     from .generate.prompt_templated_vqa_generator import PromptTemplatedVQAGenerator
@@ -18,6 +17,7 @@ if TYPE_CHECKING:
     from .generate.video_video_to_caption_generator import VideoToCaptionGenerator
     from .generate.image_caprl_mcq_generator import CapRLMCQGenerate, CapRLMCQConfig
     from .generate.multirole_videoqa_generator import MultiroleVideoQAInitialGeneration, MultiroleVideoQAMultiAgentGeneration, MultiroleVideoQAFinalGeneration
+    from .generate.batch_vqa_generator import BatchVQAGenerator
 
     # === Filter ===
     from .filter.video_clip_filter import VideoClipFilter
@@ -55,6 +55,8 @@ if TYPE_CHECKING:
 
     # === Refine ===
     from .refine.wiki_qa_refiner import WikiQARefiner
+    from .refine.visual_grounding_refiner import VisualGroundingRefiner
+    from .refine.vision_seg_cutout_refiner import VisionSegCutoutRefiner
 
 else:
     import sys

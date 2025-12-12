@@ -40,13 +40,12 @@ class FixPromptedVQAGenerator(OperatorABC):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": self.user_prompt},
                     ],
                 },
             ]
             for path in paths:
                 raw_prompt[1]["content"].append({"type": type_media, type_media: path})
-                
+            raw_prompt[1]["content"].append({"type": "text", "text": self.user_prompt})
             # Get multimodal inputs
             media_path, _ = process_vision_info(raw_prompt)
             prompt = self.serving.processor.apply_chat_template(
