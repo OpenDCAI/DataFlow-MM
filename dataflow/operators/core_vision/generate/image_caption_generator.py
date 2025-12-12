@@ -150,7 +150,7 @@ if __name__ == "__main__":
     storage = FileStorage(
         first_entry_file_name="dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl", 
         cache_path="./cache_local",
-        file_name_prefix="dataflow_cache_step",
+        file_name_prefix="caption",
         cache_type="jsonl",
     )
     storage.step()  # Load the data

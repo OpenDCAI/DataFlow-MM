@@ -83,9 +83,6 @@ def paint_text_box(image_path, bbox, vis_path = None, rgb=(0, 255, 0), rect_thic
     signal=cv2.imwrite(save_path, image)
 
     return save_path
-def conv():
-    conv = "A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions."
-    return conv
 
 def non_max_suppression(boxes, overlap_thresh=0.3):
     """
@@ -190,110 +187,105 @@ class ExistingBBoxDataGenConfig:
     max_boxes: int = 10  # 单图最大框数量（与模型输入对齐）
     input_jsonl_path: Optional[str] = None  # 输入含框数据路径（每行含image和bbox字段）
     output_jsonl_path: Optional[str] = None  # 输出处理后数据路径
-    draw_visualization: bool = True  # 是否生成带框可视化图
 
 
 @OPERATOR_REGISTRY.register()
-class ImageRegionCaptionGenerate(OperatorABC):
+class ImageBboxGenerator(OperatorABC):
     '''
     Caption Generator is a class that generates captions for given images.
     '''
-    def __init__(self, llm_serving: LLMServingABC, config: Optional[ExistingBBoxDataGenConfig] = None):
+    def __init__(self, config: Optional[ExistingBBoxDataGenConfig] = None):
         self.logger = get_logger()
         self.prompt_generator = CaptionGeneratorPrompt()
-        self.llm_serving = llm_serving
         self.cfg = config or ExistingBBoxDataGenConfig()
 
     @staticmethod
     def get_desc(lang: str = "zh"):
         if str(lang).lower().startswith("zh"):
             return (
-                "  从包含 {\"image\": \"/path/to/img\"}（可选含 {\"bbox\": [[x,y,w,h],...]}）的 JSONL 数据中，批量生成图像各标记区域的描述。\n"
-                "  支持两种框来源：输入自带bbox / 自动从图像提取bbox（使用边缘检测+轮廓拟合技术）；核心流程为：bbox处理（提取/标准化）→ 带框可视化生成 → VLM提示构造 → 区域描述生成 → 结果整合。\n"
+                "功能说明：\n"
+                "  从包含 {\"image\": \"/path/to/img\"}（可选携带 {\"bbox\": [[x,y,w,h],...]}）的 JSONL 格式数据中，批量生成图像内各标记区域的文本描述。\n"
+                "  支持两种边界框来源：输入数据自带 bbox / 自动从图像提取 bbox（基于边缘检测+轮廓拟合技术）；核心流程为：bbox 处理（提取/标准化）→ 带框可视化图生成 → VLM 提示词构造 → 区域描述生成 → 结果整合输出。\n"
                 "\n"
-                "依赖工具与服务：\n"
+                "依赖组件：\n"
                 "  • 框提取：extract_boxes_from_image（边缘检测+轮廓拟合，过滤小面积/异常宽高比框）\n"
-                "  • 框标准化：vp_normalize（坐标归一化，适配模型输入）\n"
-                "  • 可视化：paint_text_box（绘制带数字标记的彩色框）\n"
-                "  • VLM服务：LocalModelVLMServing_vllm（基于qwen_vl_utils处理视觉输入）\n"
+                "  • 框标准化：vp_normalize（坐标归一化，适配 VLM 模型输入格式）\n"
+                "  • 可视化：paint_text_box（绘制带数字编号的彩色边界框）\n"
+                "  • VLM 服务：LocalModelVLMServing_vllm（基于 qwen_vl_utils 处理视觉输入）\n"
                 "\n"
-                "输入参数（使用方式与说明）：\n"
-                "  • Config（ExistingBBoxDataGenConfig）：\n"
-                "    - max_boxes: int = 10\n"
-                "        单图最大处理框数量（超出截断，不足补零，与模型输入对齐）。\n"
-                "    - input_jsonl_path: Optional[str]\n"
-                "        输入JSONL路径（每行需含\"image\"字段，可选含\"bbox\"字段）。\n"
-                "    - output_jsonl_path: Optional[str]\n"
-                "        输出JSONL路径（存储含区域描述的完整记录）。\n"
-                "    - draw_visualization: bool = True\n"
-                "        是否生成带数字标记框的可视化图像（默认生成，路径存于storage.cache_path）。\n"
-                "  • run(storage, image_key=\"image\", bbox_key=\"bbox\", output_key=\"mdvp_record\")：\n"
-                "    - storage: DataFlowStorage\n"
-                "        数据存储实例，用于获取可视化图像保存路径（cache_path）。\n"
-                "    - image_key：输入数据中「图像路径」的字段名（默认\"image\"）。\n"
-                "    - bbox_key：输入数据中「原始bbox」的字段名（默认\"bbox\"，无则自动从图像提取框）。\n"
-                "    - output_key：输出数据中「区域描述记录」的字段名（默认\"mdvp_record\"）。\n"
+                "输入参数说明：\n"
+                "  1. 配置类（ExistingBBoxDataGenConfig）：\n"
+                "     - max_boxes (int, 默认10)：单张图像最大处理框数量（超出截断，不足补零，与模型输入维度对齐）\n"
+                "     - input_jsonl_path (Optional[str])：输入 JSONL 文件路径（每行必须含\"image\"字段，可选含\"bbox\"字段）\n"
+                "     - output_jsonl_path (Optional[str])：输出 JSONL 文件路径（存储包含区域描述的完整记录）\n"
+                "     - draw_visualization (bool, 默认True)：是否生成带数字标记框的可视化图像（默认保存至 storage.cache_path）\n"
+                "  2. run 方法参数：\n"
+                "     - storage (DataFlowStorage)：数据存储实例，用于获取可视化图像缓存路径\n"
+                "     - input_image_key (str, 默认\"image\")：输入数据中「图像路径」的字段名\n"
+                "     - input_bbox_key (str, 默认\"bbox\")：输入数据中「原始边界框」的字段名（无此字段则自动从图像提取）\n"
+                "     - output_key (str, 默认\"mdvp_record\")：输出数据中「区域描述记录」的字段名\n"
                 "\n"
                 "处理流程：\n"
-                "  1. 读取输入数据，检查是否包含bbox字段\n"
-                "  2. 若无bbox字段，自动从图像中提取边界框（使用边缘检测技术）\n"
-                "  3. 对bbox坐标进行标准化处理，适配模型输入格式\n"
-                "  4. 生成带数字标记的可视化图像（可选）\n"
-                "  5. 构造VLM提示词，请求生成区域描述\n"
-                "  6. 整合结果并输出完整记录\n"
+                "  1. 读取输入 JSONL 数据，检查是否包含 bbox 字段\n"
+                "  2. 若无 bbox 字段，调用 extract_boxes_from_image 从图像自动提取边界框\n"
+                "  3. 对原始 bbox 坐标执行标准化处理，适配 VLM 模型输入格式\n"
+                "  4. 生成带数字编号的边界框可视化图像（可选）\n"
+                "  5. 构造 VLM 提示词，调用模型生成各区域文本描述\n"
+                "  6. 整合原始信息、标准化框、可视化路径、区域描述等结果并输出\n"
                 "\n"
-                "输出结构（写入 output_key 对应记录）：\n"
+                "输出数据结构（output_key 对应字段）：\n"
                 "  {\n"
-                "    \"image\": \"/path/to/img.jpg\",                     # 原始图像路径\n"
-                "    \"mdvp_record\": \"<region1>: 描述1; <region2>: 描述2\", # VLM生成的各区域描述\n"
+                "    \"image\": \"/path/to/img.jpg\",                     // 原始图像路径\n"
+                "    \"mdvp_record\": \"<region1>: 描述1; <region2>: 描述2\", // VLM 生成的各区域文本描述\n"
                 "    \"meta_info\": {\n"
-                "        \"type\": \"with_bbox/without_bbox\",          # 框来源类型（输入自带/图像自动提取）\n"
-                "        \"bbox\": [[x0,y0,w0,h0], [x1,y1,w1,h1], ...], # 原始bbox坐标（未标准化）\n"
-                "        \"normalized_bbox\": [[0.1,0.2,0.3,0.4], ...], # 标准化后bbox（适配模型，补零至max_boxes）\n"
-                "        \"image_with_bbox\": \"/path/to/cache/1_bbox_vis.jpg\" # 带框可视化图像路径\n"
+                "        \"type\": \"with_bbox/without_bbox\",          // 框来源类型（输入自带/图像提取）\n"
+                "        \"bbox\": [[x0,y0,w0,h0], [x1,y1,w1,h1], ...], // 原始未标准化的 bbox 坐标\n"
+                "        \"normalized_bbox\": [[0.1,0.2,0.3,0.4], ...], // 标准化后 bbox（补零至 max_boxes 数量）\n"
+                "        \"image_with_bbox\": \"/path/to/cache/1_bbox_vis.jpg\" // 带框可视化图像路径\n"
                 "    }\n"
                 "  }\n"
             )
         else:
             return (
-                "  Generate region-specific captions for images from JSONL data containing {\"image\": \"/path/to/img\"} (optionally {\"bbox\": [[x,y,w,h],...]}).\n"
-                "  Supports two bbox sources: input-provided bboxes / auto-extracted bboxes from images using edge detection. Pipeline: bbox processing (extraction/normalization) → boxed visualization → VLM prompt construction → region caption generation → result integration.\n"
+                "Function Description:\n"
+                "  Batch generate text descriptions for each marked region in images from JSONL format data containing {\"image\": \"/path/to/img\"} (optionally with {\"bbox\": [[x,y,w,h],...]}).\n"
+                "  Supports two bounding box sources: input-provided bboxes / auto-extracted bboxes from images (based on edge detection + contour fitting); core pipeline: bbox processing (extraction/normalization) → boxed visualization generation → VLM prompt construction → region description generation → result integration and output.\n"
                 "\n"
-                "Dependent Tools & Services:\n"
-                "  • Bbox Extraction: extract_boxes_from_image (edge detection + contour fitting, filters small/abnormal-aspect-ratio boxes)\n"
-                "  • Bbox Normalization: vp_normalize (coordinate normalization for model input)\n"
-                "  • Visualization: paint_text_box (draws colored boxes with numeric labels)\n"
-                "  • VLM Service: LocalModelVLMServing_vllm (visual input processed via qwen_vl_utils)\n"
+                "Dependent Components:\n"
+                "  • Bbox Extraction: extract_boxes_from_image (edge detection + contour fitting, filters small-area/abnormal aspect ratio boxes)\n"
+                "  • Bbox Normalization: vp_normalize (coordinate normalization to adapt to VLM model input format)\n"
+                "  • Visualization: paint_text_box (draw colored bounding boxes with numeric labels)\n"
+                "  • VLM Service: LocalModelVLMServing_vllm (process visual input via qwen_vl_utils)\n"
                 "\n"
-                "Inputs & Usage:\n"
-                "  • Config (ExistingBBoxDataGenConfig):\n"
-                "    - max_boxes (int, 10): Max number of bboxes processed per image (truncates excess, pads zeros to match model input).\n"
-                "    - input_jsonl_path (Optional[str]): Path to input JSONL (each line requires \"image\" field, optional \"bbox\" field).\n"
-                "    - output_jsonl_path (Optional[str]): Path to output JSONL (stores complete records with region captions).\n"
-                "    - draw_visualization (bool, True): Whether to generate boxed visualization images (saved to storage.cache_path by default).\n"
-                "  • run(storage, image_key=\"image\", bbox_key=\"bbox\", output_key=\"mdvp_record\"):\n"
-                "    - storage (DataFlowStorage): Storage instance for retrieving visualization save path (cache_path).\n"
-                "    - image_key: Field name of \"image path\" in input data (default: \"image\").\n"
-                "    - bbox_key: Field name of \"raw bboxes\" in input data (default: \"bbox\"; auto-extracts from image if missing).\n"
-                "    - output_key: Field name of \"region caption record\" in output data (default: \"mdvp_record\").\n"
+                "Input Parameter Description:\n"
+                "  1. Configuration Class (ExistingBBoxDataGenConfig):\n"
+                "     - max_boxes (int, default 10): Maximum number of boxes processed per image (truncate excess, pad zeros to align with model input dimensions)\n"
+                "     - input_jsonl_path (Optional[str]): Path to input JSONL file (each line must contain \"image\" field, optionally \"bbox\" field)\n"
+                "     - output_jsonl_path (Optional[str]): Path to output JSONL file (store complete records with region descriptions)\n"
+                "     - draw_visualization (bool, default True): Whether to generate visualization images with numbered boxes (saved to storage.cache_path by default)\n"
+                "  2. run Method Parameters:\n"
+                "     - storage (DataFlowStorage): Data storage instance for getting visualization cache path\n"
+                "     - input_image_key (str, default \"image\"): Field name of \"image path\" in input data\n"
+                "     - input_bbox_key (str, default \"bbox\"): Field name of \"raw bounding boxes\" in input data (auto-extract from image if missing)\n"
+                "     - output_key (str, default \"mdvp_record\"): Field name of \"region description record\" in output data\n"
                 "\n"
                 "Processing Pipeline:\n"
-                "  1. Read input data and check for bbox field\n"
-                "  2. If no bbox field, automatically extract bounding boxes from image using edge detection\n"
-                "  3. Normalize bbox coordinates for model input\n"
-                "  4. Generate visualization with numbered boxes (optional)\n"
-                "  5. Construct VLM prompts and generate region captions\n"
-                "  6. Integrate results and output complete records\n"
+                "  1. Read input JSONL data and check for the presence of bbox field\n"
+                "  2. If no bbox field, call extract_boxes_from_image to auto-extract bounding boxes from images\n"
+                "  3. Normalize raw bbox coordinates to adapt to VLM model input format\n"
+                "  4. Generate visualization images with numbered bounding boxes (optional)\n"
+                "  5. Construct VLM prompts and call model to generate text descriptions for each region\n"
+                "  6. Integrate raw info, normalized boxes, visualization paths, region descriptions and output\n"
                 "\n"
-                "Produced Record (written to output_key-related structure):\n"
+                "Output Data Structure (corresponding to output_key):\n"
                 "  {\n"
-                "    \"image\": \"/path/to/img.jpg\",\n"
-                "    \"mdvp_record\": \"<region1>: description1; <region2>: description2\",\n"
+                "    \"image\": \"/path/to/img.jpg\",                     // Original image path\n"
+                "    \"mdvp_record\": \"<region1>: description1; <region2>: description2\", // VLM-generated region descriptions\n"
                 "    \"meta_info\": {\n"
-                "        \"type\": \"with_bbox/without_bbox\",\n"
-                "        \"bbox\": [[x0,y0,w0,h0], [x1,y1,w1,h1], ...],\n"
-                "        \"normalized_bbox\": [[0.1,0.2,0.3,0.4], ...],\n"
-                "        \"image_with_bbox\": \"/path/to/cache/1_bbox_vis.jpg\"\n"
+                "        \"type\": \"with_bbox/without_bbox\",          // Box source type (input-provided/extracted from image)\n"
+                "        \"bbox\": [[x0,y0,w0,h0], [x1,y1,w1,h1], ...], // Raw unnormalized bbox coordinates\n"
+                "        \"normalized_bbox\": [[0.1,0.2,0.3,0.4], ...], // Normalized bboxes (padded to max_boxes count)\n"
+                "        \"image_with_bbox\": \"/path/to/cache/1_bbox_vis.jpg\" // Path to boxed visualization image\n"
                 "    }\n"
                 "  }\n"
             )
@@ -312,8 +304,6 @@ class ImageRegionCaptionGenerate(OperatorABC):
 
     # 生成带框可视化图片
     def _generate_visualization(self, image_path: str, bboxes: List[List[float]],vispath,counter) -> str:
-        if not self.cfg.draw_visualization:
-            return ""
         # 调用代码库中绘制框标记的工具
         vis_path = os.path.join(vispath , f"{counter}_bbox_vis.jpg")
         paint_text_box(image_path, bboxes,vis_path)  # 绘制带数字标签的框
@@ -324,7 +314,7 @@ class ImageRegionCaptionGenerate(OperatorABC):
         return (f"Describe the content of each marked region in the image. "
                 f"There are {bbox_count} regions: <region1> to <region{bbox_count}>.")
 
-    def run(self, storage: DataFlowStorage, image_key: str = "image", bbox_key: str = "bbox", output_key: str = "mdvp_record"):
+    def run(self, storage: DataFlowStorage, input_image_key: str = "image", input_bbox_key: str = "bbox", output_key: str = "mdvp_record"):
         rows = []
         if self.cfg.input_jsonl_path:
             with open(self.cfg.input_jsonl_path, "r", encoding="utf-8") as f:
@@ -334,15 +324,15 @@ class ImageRegionCaptionGenerate(OperatorABC):
         counter=0
         for row in rows:
             counter+=1
-            image_path = row[image_key]
-            if bbox_key in row:
-                raw_bboxes = row[bbox_key]
+            image_path = row[input_image_key]
+            if input_bbox_key in row:
+                raw_bboxes = row[input_bbox_key]
                 typ='with_bbox'
             else:
                 raw_bboxes=extract_boxes_from_image(image_path)
                 typ='without_bbox'
             if not image_path or not raw_bboxes:
-                print(f'Error! {row} has no {image_key} or {bbox_key}!')
+                print(f'Error! {row} has no {input_image_key} or {input_bbox_key}!')
                 continue
 
             img = cv2.imread(image_path)
@@ -354,38 +344,19 @@ class ImageRegionCaptionGenerate(OperatorABC):
             .cache_path,counter)
 
             valid_bbox_count = sum(1 for b in normalized_bboxes if sum(b) != 0)
-            prompt = self._gen_prompt(valid_bbox_count)
-            system_prompt=conv()
-            raw_prompt = [
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image", "image": vis_path},
-                        {"type": "text", "text": prompt},
-                    ],
-                },
-            ]
-            image_inputs, _ = process_vision_info(raw_prompt)
-            final_prompt = self.llm_serving.processor.apply_chat_template(
-                    raw_prompt, tokenize=False, add_generation_prompt=True
-                )
-            output = self.llm_serving.generate_from_input(
-                user_inputs=[final_prompt],
-                image_inputs=[image_inputs]
-                )
-            record = {
-                "image": image_path,
-                "mdvp_record": output,
-                "meta_info":{
-                    "type":typ,
-                    "bbox": raw_bboxes,
-                    "normalized_bbox": normalized_bboxes,
-                    "image_with_bbox": vis_path
-                }
-                
+            
+            record={
+                'image':image_path,
+                'type':typ,
+                'bbox':raw_bboxes,
+                'normalized_bbox':normalized_bboxes,
+                'result_file':storage.cache_path,
+                'image_with_bbox':vis_path,
+                'valid_bboxes_num':valid_bbox_count,
+                'prompt':self._gen_prompt(valid_bbox_count)
             }
             out_records.append(record)
+            print(record)
 
         if self.cfg.output_jsonl_path:
             os.makedirs(os.path.dirname(self.cfg.output_jsonl_path), exist_ok=True)
@@ -393,34 +364,3 @@ class ImageRegionCaptionGenerate(OperatorABC):
                 for r in out_records:
                     f.write(json.dumps(r, ensure_ascii=False) + "\n")
         return [output_key]
-
-# if __name__ == "__main__":
-#     model_path = "/data0/mt/.cache/huggingface/hub/Qwen2.5-VL-3B-Instruct"
-
-#     # Initialize model
-#     model = LocalModelVLMServing_vllm(
-#         hf_model_name_or_path=model_path,
-#         vllm_tensor_parallel_size=1,
-#         vllm_temperature=0.7,
-#         vllm_top_p=0.9,
-#         vllm_max_tokens=512,
-#     )
-
-#     caption_generator = ImageCaptionGenerate(
-#         llm_serving=model
-#     )
-
-#     # Prepare input
-#     storage = FileStorage(
-#         first_entry_file_name="dataflow/example/Image2TextPipeline/test_image2caption.jsonl", 
-#         cache_type="jsonl", 
-#         media_key="image", 
-#         media_type="image"
-#     )
-#     storage.step()  # Load the data
-
-#     caption_generator.run(
-#         storage=storage,
-#         multi_modal_key="image",
-#         output_key="caption"
-#     )

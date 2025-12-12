@@ -16,8 +16,8 @@ if TYPE_CHECKING:
     from .generate.video_clip_generator import VideoClipGenerator
     from .generate.video_caption_to_qa_generator import VideoCaptionToQAGenerator
     from .generate.video_video_to_caption_generator import VideoToCaptionGenerator
-    from .generate.sk_vqa_generator import ImageSKVQAGenerate
     from .generate.image_caprl_mcq_generator import CapRLMCQGenerate, CapRLMCQConfig
+    from .generate.multirole_videoqa_generator import MultiroleVideoQAInitialGeneration, MultiroleVideoQAMultiAgentGeneration, MultiroleVideoQAFinalGeneration
 
     # === Filter ===
     from .filter.video_clip_filter import VideoClipFilter
@@ -52,6 +52,9 @@ if TYPE_CHECKING:
     from .eval.image_clip_evaluator import ImageCLIPEvaluator
     from .eval.image_longclip_evaluator import ImageLongCLIPEvaluator
     from .eval.image_vqascore_evaluator import ImageVQAScoreEvaluator
+
+    # === Refine ===
+    from .refine.wiki_qa_refiner import WikiQARefine
 
 else:
     import sys

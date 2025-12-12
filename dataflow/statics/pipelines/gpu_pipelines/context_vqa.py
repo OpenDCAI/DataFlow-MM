@@ -1,12 +1,13 @@
 import argparse
 from dataflow.utils.storage import FileStorage
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
-from dataflow.operators.core_vision import ImageSKVQAGenerate
+from dataflow.operators.core_vision import FixPromptedVQAGenerator
+from dataflow.operators.core_vision import WikiQARefine
 
 
-class ImageSKVQAPipeline:
+class ContextVQAPipeline:
     """
-    一行命令即可完成图片批量 SKVQA Caption 生成。
+    一行命令即可完成图片批量 ContextVQA Caption 生成。
     """
 
     def __init__(
@@ -20,8 +21,6 @@ class ImageSKVQAPipeline:
         cache_path: str = "./cache_local_skvqa",
         file_name_prefix: str = "skvqa_cache_step",
         cache_type: str = "jsonl",
-        media_key: str = "image",
-        output_key: str = "skvqa",
     ):
         # ---------- 1. Storage ----------
         self.storage = FileStorage(
@@ -43,25 +42,40 @@ class ImageSKVQAPipeline:
         )
 
         # ---------- 3. Operator ----------
-        self.skvqa_generator = ImageSKVQAGenerate(
-            llm_serving=self.serving
+        self.vqa_generator = FixPromptedVQAGenerator(
+            serving=self.serving,
+            system_prompt="You are a helpful assistant.",
+            user_prompt= """
+            Write a Wikipedia article related to this image without directly referring to the image. Then write question answer pairs. The question answer pairs should satisfy the following criteria.
+            1: The question should refer to the image.
+            2: The question should avoid mentioning the name of the object in the image.
+            3: The question should be answered by reasoning over the Wikipedia article.
+            4: The question should sound natural and concise.
+            5: The answer should be extracted from the Wikipedia article.
+            6: The answer should not be any objects in the image.
+            7: The answer should be a single word or phrase and list all correct answers separated by commas.
+            8: The answer should not contain 'and', 'or', rather you can split them into multiple answers.
+            """
         )
 
-        self.media_key = media_key
-        self.output_key = output_key
-
+        self.refiner = WikiQARefine()
     # ------------------------------------------------------------------ #
     def forward(self):
-        """
-        一键跑完当前 pipeline 一个 step：
-            图片 → SKVQA Caption
-        """
-        self.skvqa_generator.run(
+        input_image_key = "image"
+        output_answer_key = "vqa"
+        output_wiki_key = "context_vqa"
+
+        self.vqa_generator.run(
             storage=self.storage.step(),
-            input_modal_key=self.media_key,
-            output_key=self.output_key,
+            input_image_key=input_image_key,
+            output_answer_key=output_answer_key
         )
 
+        self.refiner.run(
+            storage=self.storage.step(),
+            input_key=output_answer_key,
+            output_key=output_wiki_key
+        )
 
 # ---------------------------- CLI 入口 -------------------------------- #
 if __name__ == "__main__":
@@ -73,15 +87,13 @@ if __name__ == "__main__":
     parser.add_argument("--device", choices=["cuda", "cpu", "mps"], default="cuda")
 
     parser.add_argument("--images_file", default="dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl")
-    parser.add_argument("--cache_path", default="./cache")
-    parser.add_argument("--file_name_prefix", default="skvqa_caption")
+    parser.add_argument("--cache_path", default="./cache_local")
+    parser.add_argument("--file_name_prefix", default="context_vqa")
     parser.add_argument("--cache_type", default="jsonl")
-    parser.add_argument("--media_key", default="image")
-    parser.add_argument("--output_key", default="skvqa")
 
     args = parser.parse_args()
 
-    pipe = ImageSKVQAPipeline(
+    pipe = ContextVQAPipeline(
         model_path=args.model_path,
         hf_cache_dir=args.hf_cache_dir,
         download_dir=args.download_dir,
@@ -90,7 +102,5 @@ if __name__ == "__main__":
         cache_path=args.cache_path,
         file_name_prefix=args.file_name_prefix,
         cache_type=args.cache_type,
-        media_key=args.media_key,
-        output_key=args.output_key,
     )
     pipe.forward()
