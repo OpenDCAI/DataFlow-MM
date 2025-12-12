@@ -2,7 +2,7 @@ import argparse
 from dataflow.utils.storage import FileStorage
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 from dataflow.prompts.image import QAGeneratorPrompt          
-from dataflow.operators.core_vision import PersQAGenerate
+from dataflow.operators.core_vision import PersQAGenerator
 
 class PersQAPipeline:
     """批量图片 → 定制化QA 对 (自动出题 + 作答)"""
@@ -41,7 +41,7 @@ class PersQAPipeline:
         )
 
         # 3. Operator
-        self.qa_generator = PersQAGenerate(
+        self.qa_generator = PersQAGenerator(
             llm_serving=self.serving,
         )
 

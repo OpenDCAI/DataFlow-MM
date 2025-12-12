@@ -2,7 +2,7 @@ import argparse
 from dataflow.utils.storage import FileStorage
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 from dataflow.operators.core_vision import FixPromptedVQAGenerator
-from dataflow.operators.core_vision import WikiQARefine
+from dataflow.operators.core_vision import WikiQARefiner
 
 
 class ContextVQAPipeline:
@@ -58,7 +58,7 @@ class ContextVQAPipeline:
             """
         )
 
-        self.refiner = WikiQARefine()
+        self.refiner = WikiQARefiner()
     # ------------------------------------------------------------------ #
     def forward(self):
         input_image_key = "image"

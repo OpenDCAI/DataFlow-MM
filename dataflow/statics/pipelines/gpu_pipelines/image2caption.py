@@ -4,7 +4,7 @@ from typing import Any, List
 from dataflow.utils.storage import FileStorage
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 from dataflow.prompts.image import CaptionGeneratorPrompt
-from dataflow.operators.core_vision import ImageCaptionGenerate
+from dataflow.operators.core_vision import ImageCaptionGenerator
 
 
 class ImageCaptioningPipeline:
@@ -46,7 +46,7 @@ class ImageCaptioningPipeline:
         )
 
         # ---------- 3. Operator ----------
-        self.caption_generator = ImageCaptionGenerate(
+        self.caption_generator = ImageCaptionGenerator(
             llm_serving=self.serving
         )
         

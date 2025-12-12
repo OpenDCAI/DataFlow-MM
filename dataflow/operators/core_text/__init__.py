@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .generate.prompted_qa_generator import PromptedQAGenerator
     from .generate.prompt_templated_qa_generator import PromptTemplatedQAGenerator
+    from .refine.functional_refiner import FunctionalRefiner
 
 else:
     import sys

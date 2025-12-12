@@ -13,7 +13,7 @@ from dataflow.utils.registry import OPERATOR_REGISTRY
 
 
 @OPERATOR_REGISTRY.register()
-class MultimodalMathGenerate(OperatorABC):
+class MultimodalMathGenerator(OperatorABC):
     def __init__(self, image_dir: str = "~/cache", seed: int | None = None):
         self.logger = get_logger()
         self.image_dir = image_dir
@@ -166,7 +166,7 @@ class MultimodalMathGenerate(OperatorABC):
                 return "decreasing"
             return "not monotonic"
 
-    def generate_derivative_question(self, fn: "MultimodalMathGenerate.MathFunction"):
+    def generate_derivative_question(self, fn: "MultimodalMathGenerator.MathFunction"):
         x = round(random.uniform(*fn.domain), 1)
         sign = fn.derivative_sign(x)
         direction = "positive" if sign > 0 else "negative" if sign < 0 else "zero"
@@ -176,7 +176,7 @@ class MultimodalMathGenerate(OperatorABC):
             "solution": f"By observing the slope of the plot near x={x}, the rate of change is {direction}.",
         }
 
-    def generate_extremum_question(self, fn: "MultimodalMathGenerate.MathFunction"):
+    def generate_extremum_question(self, fn: "MultimodalMathGenerator.MathFunction"):
         x_min, y_min = fn.min_arg()
         x_min = round(x_min, 2)
         return {
@@ -185,7 +185,7 @@ class MultimodalMathGenerate(OperatorABC):
             "solution": f"From the plot, the minimum occurs at x={x_min}, with y={round(y_min, 2)}",
         }
 
-    def generate_monotonicity_question(self, fn: "MultimodalMathGenerate.MathFunction"):
+    def generate_monotonicity_question(self, fn: "MultimodalMathGenerator.MathFunction"):
         a, b = sorted([round(random.uniform(*fn.domain), 1) for _ in range(2)])
         mono = fn.monotonicity(a, b)
         return {

@@ -13,7 +13,7 @@ from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 from qwen_vl_utils import process_vision_info
 
 @OPERATOR_REGISTRY.register()
-class ImageCaptionGenerate(OperatorABC):
+class ImageCaptionGenerator(OperatorABC):
     '''
     Caption Generator is a class that generates captions for given images.
     '''
@@ -142,7 +142,7 @@ if __name__ == "__main__":
         vllm_max_tokens=512,
     )
 
-    caption_generator = ImageCaptionGenerate(
+    caption_generator = ImageCaptionGenerator(
         llm_serving=model
     )
 

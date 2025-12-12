@@ -9,7 +9,7 @@ class CaptionGeneratorPrompt:
         pass
 
     def build_prompt(self) -> str:
-        prompt = "Please provide a comprehensive description of the image." # 这里开头加不加<image>都可以
+        prompt = "Please provide a comprehensive description of the image."
 
         system_prompt = f'''You are a image caption generator. Your task is to generate a concise and informative caption for the given image content.'''
 

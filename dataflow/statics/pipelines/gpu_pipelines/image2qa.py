@@ -2,7 +2,7 @@ import argparse
 from dataflow.utils.storage import FileStorage
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 from dataflow.prompts.image import QAGeneratorPrompt          
-from dataflow.operators.core_vision import ImageQAGenerate
+from dataflow.operators.core_vision import ImageQAGenerator
 
 class ImageQAPipeline:
     """批量图片 → QA 对 (自动出题 + 作答)"""
@@ -43,7 +43,7 @@ class ImageQAPipeline:
         )
 
         # 3. Operator
-        self.qa_generator = ImageQAGenerate(
+        self.qa_generator = ImageQAGenerator(
             llm_serving=self.serving,
         )
 

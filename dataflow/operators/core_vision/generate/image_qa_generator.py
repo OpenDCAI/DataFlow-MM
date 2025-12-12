@@ -13,7 +13,7 @@ from qwen_vl_utils import process_vision_info
 
 
 @OPERATOR_REGISTRY.register()
-class ImageQAGenerate(OperatorABC):
+class ImageQAGenerator(OperatorABC):
     '''
     QA Generator is a class that generates QA pairs for given images.
     '''
@@ -132,7 +132,7 @@ class ImageQAGenerate(OperatorABC):
 
 
 # if __name__ == "__main__":
-#     model_path = "/data0/mt/.cache/huggingface/hub/Qwen2.5-VL-3B-Instruct"
+#     model_path = ".Qwen/Qwen2.5-VL-3B-Instruct"
 
 #     model = LocalModelVLMServing_vllm(
 #         hf_model_name_or_path=model_path,
@@ -142,7 +142,7 @@ class ImageQAGenerate(OperatorABC):
 #         vllm_max_tokens=512,
 #     )
 
-#     qa_generator = ImageQAGenerate(
+#     qa_generator = ImageQAGenerator(
 #         llm_serving=model
 #     )
 

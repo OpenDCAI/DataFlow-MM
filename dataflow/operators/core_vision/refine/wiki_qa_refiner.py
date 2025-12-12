@@ -91,7 +91,7 @@ def parse_wiki_qa(text: str) -> dict:
 
 
 @OPERATOR_REGISTRY.register()
-class WikiQARefine(OperatorABC):
+class WikiQARefiner(OperatorABC):
     """
     文本格式规范化 + WikiQA 格式解析算子。
     """
@@ -171,5 +171,5 @@ if __name__ == "__main__":
     )
     storage.step()
 
-    op = WikiQARefine()
+    op = WikiQARefiner()
     op.run(storage=storage, input_key="vqa", output_key="parsed")

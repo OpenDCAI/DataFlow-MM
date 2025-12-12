@@ -3,7 +3,7 @@ import os
 from typing import List
 
 from dataflow.utils.storage import FileStorage
-from dataflow.operators.core_vision import MultimodalMathGenerate
+from dataflow.operators.core_vision import MultimodalMathGenerator
 
 
 class MultimodalMathPipeline:
@@ -31,7 +31,7 @@ class MultimodalMathPipeline:
         )
 
         # ---------- 2. Operator ----------
-        self.math_generator = MultimodalMathGenerate(
+        self.math_generator = MultimodalMathGenerator(
             image_dir=image_dir,
             seed=seed
         )

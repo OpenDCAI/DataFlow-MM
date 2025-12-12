@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     # === Generate ===
     from .generate.prompted_image_edit_generator import PromptedImageEditGenerator
-    from .generate.image_caption_generator import ImageCaptionGenerate
-    from .generate.image_qa_generator import ImageQAGenerate
-    from .generate.multimodal_math_generator import MultimodalMathGenerate
-    from .generate.personalized_qa_generator import PersQAGenerate
+    from .generate.image_caption_generator import ImageCaptionGenerator
+    from .generate.image_qa_generator import ImageQAGenerator
+    from .generate.multimodal_math_generator import MultimodalMathGenerator
+    from .generate.personalized_qa_generator import PersQAGenerator
     from .generate.vision_mct_reasoning_sft_generator import VisionMCTSReasoningSFTGenerate
     from .generate.image_scale_caption_generator import ImageScaleCaptionGenerate, ImageScaleCaptionGenerateConfig
     from .generate.prompted_image_generator import PromptedImageGenerator
@@ -54,7 +54,7 @@ if TYPE_CHECKING:
     from .eval.image_vqascore_evaluator import ImageVQAScoreEvaluator
 
     # === Refine ===
-    from .refine.wiki_qa_refiner import WikiQARefine
+    from .refine.wiki_qa_refiner import WikiQARefiner
 
 else:
     import sys
