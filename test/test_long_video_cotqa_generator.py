@@ -24,7 +24,7 @@ from dataflow.operators.core_vision import VideoSceneFilter
 from dataflow.operators.core_vision import VideoClipFilter
 from dataflow.operators.core_vision import VideoClipGenerator
 from dataflow.operators.core_vision import VideoToCaptionGenerator
-from dataflow.operators.core_vision.generate.video_merged_caption_generator import VideoMergedCaptionGenerator
+from dataflow.operators.core_vision import VideoMergedCaptionGenerator
 from dataflow.operators.core_vision import VideoCaptionToQAGenerator
 from dataflow.operators.core_vision import PromptedVQAGenerator
 

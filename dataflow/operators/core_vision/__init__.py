@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from .generate.video_clip_generator import VideoClipGenerator
     from .generate.video_qa_generator import VideoCaptionToQAGenerator
     from .generate.video_caption_generator import VideoToCaptionGenerator
+    from .generate.video_merged_caption_generator import VideoMergedCaptionGenerator
     from .generate.video_cotqa_generator import VideoCOTQAGenerator
     from .generate.sk_vqa_generator import ImageSKVQAGenerate
     from .generate.image_caprl_mcq_generator import CapRLMCQGenerate, CapRLMCQConfig
