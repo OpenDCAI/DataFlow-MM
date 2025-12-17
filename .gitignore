@@ -30,6 +30,7 @@ build
 
 .DS_store
 CLIP
+api_test
 
 ljs
 dataflow/example/video_caption/*.mp4
