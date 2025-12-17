@@ -1,7 +1,7 @@
 import os
 
 # 设置 API Key 环境变量
-os.environ["DF_API_KEY"] = "sk-ba117c8c8dbd465c8aac8e3bba7fdec2"
+os.environ["DF_API_KEY"] = "your api key"
 
 from dataflow.operators.core_vision import VideoToCaptionGenerator
 from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
