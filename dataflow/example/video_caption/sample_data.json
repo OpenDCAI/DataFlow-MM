@@ -1,6 +1,6 @@
 [
     {
-        "video": ["/mnt/shared-storage-user/mineru2-shared/zqt/zqt2/DataFlow-MM/api_test/test.mp4"],
+        "video": ["./DataFlow-MM/api_test/test.mp4"],
         "conversation": [
             {
                 "from": "human",

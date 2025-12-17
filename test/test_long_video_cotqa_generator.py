@@ -13,7 +13,7 @@ import os
 import re
 
 # 设置 API Key 环境变量
-os.environ["DF_API_KEY"] = "sk-ba117c8c8dbd465c8aac8e3bba7fdec2"
+os.environ["DF_API_KEY"] = "your api key"
 
 from dataflow.core.Operator import OperatorABC
 from dataflow import get_logger
