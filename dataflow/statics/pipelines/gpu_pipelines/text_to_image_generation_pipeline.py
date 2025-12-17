@@ -8,8 +8,8 @@ from dataflow.io import ImageIO
 class ImageGenerationPipeline():
     def __init__(self):
         self.storage = FileStorage(
-            first_entry_file_name="./cache_local/multi2single_image_gen/dataflow_cache_step_step1.jsonl",
-            cache_path="./cache_local/multi2single_image_gen",
+            first_entry_file_name="../example_data/image_gen/text2image/prompts.jsonl",
+            cache_path="./cache_local/text_to_image_generation",
             file_name_prefix="dataflow_cache_step",
             cache_type="jsonl"
         )
@@ -30,8 +30,8 @@ class ImageGenerationPipeline():
     def forward(self):
         self.text_to_image_generator.run(
             storage=self.storage.step(),
-            input_conversation_key="input_text",
-            output_image_key="input_image",
+            input_conversation_key="conversations",
+            output_image_key="images",
         )
 
 if __name__ == "__main__":

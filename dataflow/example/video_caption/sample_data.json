@@ -1,6 +1,6 @@
 [
     {
-        "video": ["./DataFlow-MM/api_test/test.mp4"],
+        "video": ["./DataFlow-MM/dataflow/example/video_caption/oceans.mp4"],
         "conversation": [
             {
                 "from": "human",

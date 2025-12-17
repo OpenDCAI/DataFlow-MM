@@ -1,6 +1,4 @@
-from dataflow.operators.core_audio import CTCForcedAlignSampleEvaluator
-from dataflow.operators.conversations import Conversation2Message
-from dataflow.serving import LocalModelVLMServing_vllm
+from dataflow.operators.core_audio import CTCForcedAlignmentSampleEvaluator
 from dataflow.utils.storage import FileStorage
 
 class ForcedAlignEval():
@@ -12,9 +10,13 @@ class ForcedAlignEval():
             cache_type="jsonl",
         )
 
-        self.aligner = CTCForcedAlignSampleEvaluator(
-            model_path="/mnt/public/data/guotianyu/Models/mms-300m-1130-forced-aligner",
-            device="cpu"
+        self.aligner = CTCForcedAlignmentSampleEvaluator(
+            model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
+            device="cpu",
+            language="en",      
+            micro_batch_size=16,
+            chinese_to_pinyin=False,
+            retain_word_level_alignment=True,
         )
     
     def forward(self):
@@ -23,10 +25,6 @@ class ForcedAlignEval():
             input_audio_key='audio',
             input_conversation_key='conversation',
             output_answer_key="forced_alignment_results",
-            language="en",      
-            micro_batch_size=16,
-            chinese_to_pinyin=False,
-            retain_word_level_alignment=True,
         )
 
 if __name__ == "__main__":

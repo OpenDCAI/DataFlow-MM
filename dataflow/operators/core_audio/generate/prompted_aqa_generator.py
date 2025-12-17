@@ -6,24 +6,64 @@ from dataflow.utils.storage import DataFlowStorage
 from dataflow.core import OperatorABC
 from dataflow.core import VLMServingABC
 
-from dataflow.operators.core_vision import PromptedVQAGenerator
-
 @OPERATOR_REGISTRY.register()
-class PromptedAQAGenerator(PromptedVQAGenerator):
+class PromptedAQAGenerator(OperatorABC):
     '''
     PromptedVQA is a class that generates answers for questions based on provided context.
     '''
     def __init__(self, vlm_serving: VLMServingABC, system_prompt: str = "You are a helpful assistant."):
-        super().__init__(vlm_serving, system_prompt)
+        self.logger = get_logger()
+        self.vlm_serving = vlm_serving
+        self.system_prompt = system_prompt
     
     @staticmethod
     def get_desc(lang: str = "zh"):
-        return "基于prompt生成数据" if lang == "zh" else "Generate data from prompt."
+        if lang == "zh":
+            desc = (
+                "该算子用于基于大模型（VLM）和给定的 system_prompt，"
+                "对输入的语音与文本对话进行推理并生成回答。\n\n"
+
+                "输入参数（run）：\n"
+                "- input_audio_key: 音频路径所在列名，默认 'audio'\n"
+                "- input_conversation_key: 文本/对话所在列名，默认 'conversation'\n"
+                "- output_answer_key: 输出答案所在列名，默认 'answer'\n\n"
+
+                "运行行为：\n"
+                "1. 从 storage 中读取输入 dataframe\n"
+                "2. 获取音频列与对话列，传入 VLMServing 的 generate_from_input_messages 接口\n"
+                "3. 使用 system_prompt 作为基础提示生成回答\n"
+                "4. 将生成的回答写入 dataframe 的 output_answer_key 列\n"
+                "5. 覆盖写回 storage\n\n"
+
+                "输出：\n"
+                "- 覆盖写回到 storage 的 'dataframe'，新增包含模型回答的 output_answer_key 列。\n"
+            )
+        else:
+            desc = (
+                "This operator uses a VLM (Vision-Language/Audio-Language Model) together with a "
+                "given system_prompt to generate answers based on input audio and text.\n\n"
+
+                "Input parameters (run):\n"
+                "- input_audio_key: Column name containing audio paths, default 'audio'\n"
+                "- input_conversation_key: Column name containing conversation text, default 'conversation'\n"
+                "- output_answer_key: Column name to store generated answers, default 'answer'\n\n"
+
+                "Runtime behavior:\n"
+                "1. Read the input dataframe from storage\n"
+                "2. Extract audio paths and conversations, then pass them to the VLMServing's "
+                "   generate_from_input_messages method\n"
+                "3. Use the configured system_prompt to guide generation\n"
+                "4. Store generated answers in the output_answer_key column\n"
+                "5. Write the updated dataframe back to storage\n\n"
+
+                "Output:\n"
+                "- The 'dataframe' in storage is overwritten with a new column (output_answer_key) "
+                "containing model-generated answers.\n"
+            )
+        return desc
 
     def run(self, 
             storage: DataFlowStorage,
-            # input_image_key: str = "image", 
-            # input_video_key: str = "video",
             input_audio_key: str = "audio",
             input_conversation_key: str = "conversation",
             # 输出的conversation可能是none也可能是conversation，请类型检查
@@ -33,8 +73,6 @@ class PromptedAQAGenerator(PromptedVQAGenerator):
             raise ValueError("At least one of output_answer_key must be provided.")
 
         self.logger.info("Running PromptedAQAGenerator...")
-        # self.input_image_key = input_image_key
-        # self.input_video_key = input_video_key
         self.input_audio_key = input_audio_key
         self.input_conversation_key = input_conversation_key
         self.output_answer_key = output_answer_key
@@ -44,23 +82,12 @@ class PromptedAQAGenerator(PromptedVQAGenerator):
         dataframe = storage.read('dataframe')
         self.logger.info(f"Loading, number of rows: {len(dataframe)}")
 
-
-        # print(dataframe)
-        # # print each line of the dataframe
-        # for index, row in dataframe.iterrows():
-        #     print(f"Row {index}: {row.to_dict()}")
-        # # get each column with a list
-
-        # image_column = dataframe.get(self.input_image_key, pd.Series([])).tolist()
-        # video_column = dataframe.get(self.input_video_key, pd.Series([])).tolist()
         audio_column = dataframe.get(self.input_audio_key, pd.Series([])).tolist()
 
         conversations = dataframe.get(self.input_conversation_key, pd.Series([])).tolist()
 
         response = self.vlm_serving.generate_from_input_messages(
             conversations=conversations,
-            # image_list=image_column,
-            # video_list=video_column,
             audio_list=audio_column,
             system_prompt=self.system_prompt,
         )
