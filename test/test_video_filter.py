@@ -123,6 +123,7 @@ class VideoFilteredClipGenerator(OperatorABC):
             end_remove_sec=end_remove_sec,
             min_seconds=min_seconds,
             max_seconds=max_seconds,
+            disable_parallel=True,
         )
         self.video_clip_filter = VideoClipFilter()
         self.video_frame_filter = VideoFrameFilter(
@@ -321,7 +322,7 @@ if __name__ == "__main__":
     from dataflow.utils.storage import FileStorage
     
     storage = FileStorage(
-        first_entry_file_name="./dataflow/example/video/sample_data.json",
+        first_entry_file_name="./dataflow/example/video_split/sample_data.json",
         cache_path="./cache",
         file_name_prefix="video_filter",
         cache_type="json",

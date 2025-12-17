@@ -1,6 +1,6 @@
 [
     {
-        "video": ["./DataFlow-MM/dataflow/example/video_split/oceans.mp4"],
+        "video": ["/mnt/shared-storage-user/mineru2-shared/zqt/zqt2/DataFlow-MM/dataflow/example/video_split/trailer.mp4"],
         "conversation": [
             {
                 "from": "human",

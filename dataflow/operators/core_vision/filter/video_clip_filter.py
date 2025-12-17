@@ -46,7 +46,7 @@ def _resolution_str(width: Optional[int], height: Optional[int]) -> Optional[str
     return f"{int(width)}x{int(height)}"
 
 def _to_secs(tc: str) -> Optional[float]:
-    """Parse 'HH:MM:SS.mmm' -> seconds; return None if invalid."""
+    """Parse 'HH:MM:SS.mmm' -> seconds as float; return None if invalid."""
     try:
         h, m, s = tc.split(":")
         return float(h) * 3600.0 + float(m) * 60.0 + float(s)
@@ -99,10 +99,12 @@ def _make_clips_for_job(job: _ClipJob) -> Dict[str, Any]:
             sf = sc.get("start_frame")
             ef = sc.get("end_frame")
 
+            # Convert timecodes to integer seconds
+            s_sec = _to_secs(start_tc) if isinstance(start_tc, str) else None
+            e_sec = _to_secs(end_tc) if isinstance(end_tc, str) else None
+
             if sf is None or ef is None:
                 # Compute from tc if possible
-                s_sec = _to_secs(start_tc) if isinstance(start_tc, str) else None
-                e_sec = _to_secs(end_tc) if isinstance(end_tc, str) else None
                 sf = _to_frame_idx(s_sec, fps)
                 ef = _to_frame_idx(e_sec, fps)
 
@@ -124,8 +126,8 @@ def _make_clips_for_job(job: _ClipJob) -> Dict[str, Any]:
                 "aspect_ratio": ar,
                 "fps": fps,
                 "resolution": res,
-                "timestamp_start": start_tc,
-                "timestamp_end": end_tc,
+                "timestamp_start": s_sec,  # Save as integer seconds
+                "timestamp_end": e_sec,    # Save as integer seconds
                 "frame_start": sf,
                 "frame_end": ef,
                 "duration_sec": sc.get("duration_sec"),

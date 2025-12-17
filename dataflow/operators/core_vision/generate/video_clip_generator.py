@@ -9,7 +9,6 @@ import queue
 import concurrent.futures
 import pandas as pd
 import subprocess
-from scenedetect import FrameTimecode
 from tqdm import tqdm
 from multiprocessing import Manager
 from dataflow.utils.registry import OPERATOR_REGISTRY
@@ -18,7 +17,7 @@ from dataflow import get_logger
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.core import OperatorABC
 
-FFMPEG_PATH = "/usr/bin/ffmpeg"
+FFMPEG_PATH = "/mnt/shared-storage-user/mineru2-shared/zhengyuanhong/miniconda3/envs/df-mm/bin/ffmpeg"
 
 
 def get_ffmpeg_acceleration():
@@ -45,8 +44,10 @@ def _process_single_clip_row(row_dict: dict, task_params: dict, process_id: int)
     """
     对单条 clip 元信息执行切割。
     仅当 row_dict['filtered'] == False 时执行；否则直接跳过。
+    如果 'filtered' 字段不存在，默认为 False（不过滤）。
     返回 (row_list, valid)；valid=True 表示已成功落盘且 row 被更新为新路径。
     """
+    # 如果 filtered 字段不存在，默认为 False（不过滤）
     if bool(row_dict.get("filtered", False)) is True:
         return None, False  # 跳过被过滤的片段
 
@@ -60,12 +61,17 @@ def _process_single_clip_row(row_dict: dict, task_params: dict, process_id: int)
         if min(row_dict["height"], row_dict["width"]) <= shorter_size:
             shorter_size = None
 
-    seg_start = FrameTimecode(timecode=row_dict["timestamp_start"], fps=row_dict["fps"])
-    seg_end = FrameTimecode(timecode=row_dict["timestamp_end"], fps=row_dict["fps"])
+    # timestamp_start and timestamp_end are now integer seconds
+    seg_start_sec = row_dict["timestamp_start"]
+    seg_end_sec = row_dict["timestamp_end"]
 
     clip_id = row_dict["id"]
     save_path = os.path.join(save_dir, f"{clip_id}.mp4")
 
+    # 保存原视频路径（在覆盖之前）
+    if "original_video_path" not in row_dict:
+        row_dict["original_video_path"] = video_path
+    
     # 复用已存在文件
     if os.path.exists(save_path):
         row_dict["video_path"] = save_path
@@ -77,8 +83,8 @@ def _process_single_clip_row(row_dict: dict, task_params: dict, process_id: int)
         # 输入与精准裁剪（把 -ss 放到 -i 后面）
         cmd += [
             "-i", video_path,
-            "-ss", str(seg_start.get_seconds()),
-            "-to", str(seg_end.get_seconds()),
+            "-ss", str(seg_start_sec),
+            "-to", str(seg_end_sec),
         ]
 
         # 编码器（稳妥：libx264；若你要 NVENC，解开注释）
@@ -141,9 +147,13 @@ def _flatten_video_clips(video_clips: list) -> pd.DataFrame:
     all_keys = set().union(*[r.keys() for r in rows])
     df = pd.DataFrame(rows, columns=list(all_keys))
     # 保证这些列存在（有利于后续 drop）
-    for need in ["timestamp_start", "timestamp_end", "frame_start", "frame_end", "filtered"]:
+    # 如果 filtered 列不存在，默认设为 False（不过滤任何 clips）
+    for need in ["timestamp_start", "timestamp_end", "frame_start", "frame_end", "filtered", "original_video_path"]:
         if need not in df.columns:
-            df[need] = None if need != "filtered" else False
+            if need == "filtered":
+                df[need] = False
+            else:
+                df[need] = None
     return df
 
 
@@ -158,12 +168,12 @@ def process_video_cutting_from_list(
 ) -> pd.DataFrame:
     """
     消费 video_clips 列表；仅切割 filtered == False 的片段；返回成功 DataFrame 并写 CSV。
+    如果 filtered 列不存在，会自动添加并设为 False（不过滤）。
     """
     df_in = _flatten_video_clips(video_clips)
 
-    if "filtered" not in df_in.columns:
-        raise ValueError("`video_clips` flattened result must contain a 'filtered' column.")
-
+    # _flatten_video_clips 已经保证 filtered 列存在（不存在时默认为 False）
+    # 所以这里可以安全地使用
     df_todo = df_in[df_in["filtered"] == False].copy()
 
     task_params = {
@@ -217,9 +227,15 @@ def process_video_cutting_from_list(
     out_rows = [x[1] for x in results]
     new_df = pd.DataFrame(out_rows, columns=columns)
 
-    # 去掉时间戳/帧区间列
-    keep_cols = [c for c in new_df.columns if c not in ["timestamp_start", "timestamp_end", "frame_start", "frame_end"]]
-    new_df = new_df[keep_cols]
+    # 保留原视频路径和时间戳信息（修改：不再删除这些字段）
+    # 添加 original_video_path 字段来明确区分原视频和切割后的视频
+    if "video_path" in new_df.columns:
+        new_df["original_video_path"] = new_df["video_path"]
+    
+    # 注释掉原来删除时间戳的代码，保留追溯信息
+    # keep_cols = [c for c in new_df.columns if c not in ["timestamp_start", "timestamp_end", "frame_start", "frame_end"]]
+    # new_df = new_df[keep_cols]
+    
     return new_df
 
 
