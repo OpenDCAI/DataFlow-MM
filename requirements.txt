@@ -47,7 +47,7 @@ paddleocr
 
 # audio
 torchaudio
-# librosa
+librosa
 soundfile
 
 
