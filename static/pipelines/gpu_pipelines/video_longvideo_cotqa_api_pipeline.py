@@ -610,7 +610,7 @@ if __name__ == "__main__":
     # Test the complete pipeline with API models
     
     storage = FileStorage(
-        first_entry_file_name="./dataflow/example/dataflow-demo-video/video_split/sample_data.json",
+        first_entry_file_name="./dataflow/example/video_split/sample_data.json",
         cache_path="./cache",
         file_name_prefix="video_longrl_api",
         cache_type="json",

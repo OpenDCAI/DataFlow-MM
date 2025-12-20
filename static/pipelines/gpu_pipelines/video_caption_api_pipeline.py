@@ -10,7 +10,7 @@ from dataflow.utils.storage import FileStorage
 class VideoCaptionGenerator():
     def __init__(self):
         self.storage = FileStorage(
-            first_entry_file_name="./dataflow/example/dataflow-demo-video/video_caption/sample_data.json",
+            first_entry_file_name="./dataflow/example/video_caption/sample_data.json",
             cache_path="./cache",
             file_name_prefix="video_caption_api",
             cache_type="json",

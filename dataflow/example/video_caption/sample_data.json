@@ -1,7 +1,7 @@
 [
     {
         "source":["http://vjs.zencdn.net/v/oceans.mp4"],
-        "video": ["./dataflow/example/dataflow-demo-video/video_caption/oceans.mp4"],
+        "video": ["./dataflow/example/video_caption/oceans.mp4"],
         "conversation": [
             {
                 "from": "human",

@@ -1,6 +1,6 @@
 [
   {
-      "video": ["./dataflow/example/dataflow-demo-video/video_cot_qa/ytb_7nRmsEw7nsE.mp4"],
+      "video": ["./dataflow/example/video_cot_qa/ytb_7nRmsEw7nsE.mp4"],
       "problem_type": "multiple choice",
       "problem": "What appears on the screen in Russian during the missile's ascent?",
       "options": [
@@ -13,7 +13,7 @@
       "solution": "<answer>A</answer>"
   },
   {
-      "video": ["./dataflow/example/dataflow-demo-video/video_cot_qa/split_8.mp4"],
+      "video": ["./dataflow/example/video_cot_qa/split_8.mp4"],
       "problem_type": "free-form",
       "problem": "What cooking action does the person perform with the black frying pan on the right burner?",
       "options": [],
@@ -21,7 +21,7 @@
       "solution": "<answer>The person cracks an egg into the black frying pan on the right burner.</answer>"
   },
   {
-      "video": ["./dataflow/example/dataflow-demo-video/video_cot_qa/video_05282.mp4"],
+      "video": ["./dataflow/example/video_cot_qa/video_05282.mp4"],
       "problem_type": "numerical",
       "problem": "How many moving rubber objects are there when the video ends?",
       "options": [],
@@ -29,7 +29,7 @@
       "solution": "<answer>1</answer>"
   },
   {
-      "image": ["./dataflow/example/dataflow-demo-video/video_cot_qa/identity_71274.png"],
+      "image": ["./dataflow/example/video_cot_qa/identity_71274.png"],
       "problem_type": "OCR",
       "problem": "Please write out the expression of the formula in the image using LaTeX format.",
       "options": [],
@@ -37,7 +37,7 @@
       "solution": "<answer>1 4 = 4 + 2 + 8</answer>"
   },
   {
-      "image": ["./dataflow/example/dataflow-demo-video/video_cot_qa/image_21088.png"],
+      "image": ["./dataflow/example/video_cot_qa/image_21088.png"],
       "problem_type": "regression",
       "problem": "Estimate the vertical distance between the yellow forklift with black handle and the metal shelving with white shelves. Please measure it in inches.",
       "options": [],

@@ -8,7 +8,7 @@ class VideoCOTQATest:
     def __init__(self):
         # Initialize storage
         self.storage = FileStorage(
-            first_entry_file_name="./dataflow/example/dataflow-demo-video/video_cot_qa/sample_data.json",
+            first_entry_file_name="./dataflow/example/video_cot_qa/sample_data.json",
             cache_path="./cache",
             file_name_prefix="video_cotqa_test",
             cache_type="json",

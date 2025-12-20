@@ -12,7 +12,7 @@ class VideoVQAGenerator():
                             False: 仅使用 caption 生成问题（不输入视频）
         """
         self.storage = FileStorage(
-            first_entry_file_name="./dataflow/example/dataflow-demo-video/video_caption/sample_data.json",
+            first_entry_file_name="./dataflow/example/video_caption/sample_data.json",
             cache_path="./cache",
             file_name_prefix="video_vqa",
             cache_type="json",
