@@ -73,7 +73,6 @@ class VideoToCaptionGenerator(OperatorABC):
         storage: DataFlowStorage,
         input_image_key: str = "image",
         input_video_key: str = "video",
-        input_audio_key: str = "audio",
         input_conversation_key: str = "conversation",
         # 输出的 conversation 可能是 None 也可能是 conversation，请类型检查
         output_key: str = "caption",

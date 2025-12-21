@@ -30,12 +30,19 @@ build
 
 .DS_store
 CLIP
+api_test
 
 ljs
 dataflow/example/video_caption/*.mp4
 dataflow/example/video_cot_qa/*.mp4
 dataflow/example/video_cot_qa/*.png
 dataflow/example/video_split/*.mp4
+dataflow/example/upload.py
 
 requirements_zyh.txt
 selected_samples_output
+
+test/test_video_longvt.py
+test/test_video_longrl.py
+test/test_video_longrl_reformat_reasoning.py
+test/test_video_longrl_reasoning.py
