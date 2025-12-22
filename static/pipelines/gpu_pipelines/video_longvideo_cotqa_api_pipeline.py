@@ -314,7 +314,7 @@ class LongVideoPipelineAPI(OperatorABC):
     def get_desc(lang: str = "zh"):
         if lang == "zh":
             return (
-                "完整的长视频QA处理流水线（API 版本），集成了字幕生成、推理问答生成和格式化。\n\n"
+                "完整的长视频CoTQA处理流水线（API 版本），集成了字幕生成、推理问答生成和格式化。\n\n"
                 "功能特点：\n"
                 "  - 自动提取视频信息并进行场景检测\n"
                 "  - 使用 API 模型生成视频字幕\n"
