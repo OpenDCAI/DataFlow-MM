@@ -1,10 +1,10 @@
 """
-Long-RL Video Processing Pipeline (API Version)
+Long Video CoTQA Pipeline (API Version)
 
 This script integrates three pipelines using API models:
-1. Video caption generation (test_video_longrl.py)
-2. Reasoning QA generation (test_video_longrl_reasoning.py)
-3. Reasoning data reformatting (test_video_longrl_reformat_reasoning.py)
+1. Video caption generation 
+2. Reasoning QA generation 
+3. Reasoning data reformatting 
 
 All operations use API models instead of local models.
 """
@@ -32,12 +32,11 @@ from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
 from dataflow.prompts.video import DiyVideoPrompt
 
 
-# LongVT prompt template
 VIDEO_CAPTION_PROMPT = (
     "Elaborate on the visual and narrative elements of the video in detail. "
 )
 
-# Long-RL reasoning QA generation prompt template
+# long-video reasoning QA generation prompt template
 REASONING_QA_PROMPT = (
     "Based on the following captions for a video, generate a challenging multiple-choice question that requires **multiple reasoning steps** and deep understanding to answer. "
     "The question should involve as many logical steps as possible, ensuring that the answer cannot be deduced without careful analysis of the captions. "
@@ -86,7 +85,6 @@ Please return only the optimized reasoning without any additional text or format
 def parse_reasoning(reasoning_text):
     """
     Parse reasoning text into structured format.
-    Based on step5_parse_reasoning_data.py from Long-RL.
     """
     parsed_data = {}
 
@@ -151,7 +149,7 @@ def _remove_captions(text):
 
 class LongVideoPipelineAPI(OperatorABC):
     """
-    Complete Long-RL video processing pipeline using API models.
+    Complete long video cotqa processing pipeline using API models.
     Integrates caption generation, reasoning QA generation, and reformatting.
     """
     
@@ -196,7 +194,7 @@ class LongVideoPipelineAPI(OperatorABC):
         video_save_dir: str = "./cache/video_clips",
     ):
         """
-        Initialize the Long-RL video pipeline with API models.
+        Initialize the long video cotqa pipeline with API models.
         
         Args:
             backend: Video backend for info extraction (opencv, torchvision, av)
@@ -263,7 +261,7 @@ class LongVideoPipelineAPI(OperatorABC):
             timeout=vlm_timeout
         )
         
-        # Initialize caption generator with LongVT prompt template
+        # Initialize caption generator with prompt template
         self.video_to_caption_generator = VideoToCaptionGenerator(
             vlm_serving=self.vlm_serving,
             prompt_template=VIDEO_CAPTION_PROMPT,
@@ -316,7 +314,7 @@ class LongVideoPipelineAPI(OperatorABC):
     def get_desc(lang: str = "zh"):
         if lang == "zh":
             return (
-                "完整的 Long-RL 视频处理流水线（API 版本），集成了字幕生成、推理问答生成和格式化。\n\n"
+                "完整的长视频QA处理流水线（API 版本），集成了字幕生成、推理问答生成和格式化。\n\n"
                 "功能特点：\n"
                 "  - 自动提取视频信息并进行场景检测\n"
                 "  - 使用 API 模型生成视频字幕\n"
@@ -325,7 +323,7 @@ class LongVideoPipelineAPI(OperatorABC):
             )
         elif lang == "en":
             return (
-                "Complete Long-RL video processing pipeline (API version) with caption generation, "
+                "Complete long video cotqa pipeline (API version) with caption generation, "
                 "reasoning QA generation, and reformatting.\n\n"
                 "Features:\n"
                 "  - Automatic video info extraction and scene detection\n"
@@ -334,7 +332,7 @@ class LongVideoPipelineAPI(OperatorABC):
                 "  - Reasoning data optimization and reformatting\n"
             )
         else:
-            return "Long-RL video processing pipeline using API models."
+            return "long video cotqa pipeline using API models."
 
     def run(
         self,
@@ -344,7 +342,7 @@ class LongVideoPipelineAPI(OperatorABC):
         output_key: str = "caption",
     ):
         """
-        Execute the complete Long-RL video processing pipeline.
+        Execute the complete long video cotqa pipeline.
         
         Args:
             storage: DataFlow storage object
@@ -356,7 +354,7 @@ class LongVideoPipelineAPI(OperatorABC):
             str: Output key name
         """
         self.logger.info("="*80)
-        self.logger.info("Running Complete Long-RL Video Processing Pipeline (API Version)...")
+        self.logger.info("Running Complete Long Video CoTQA Pipeline (API Version)...")
         self.logger.info("="*80)
         
         # ============================================================
@@ -612,7 +610,7 @@ if __name__ == "__main__":
     storage = FileStorage(
         first_entry_file_name="./dataflow/example/video_split/sample_data.json",
         cache_path="./cache",
-        file_name_prefix="video_longrl_api",
+        file_name_prefix="video_longvideo_cotqa_api",
         cache_type="json",
     )
     

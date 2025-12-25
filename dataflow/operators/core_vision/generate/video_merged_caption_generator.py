@@ -1,16 +1,3 @@
-"""
-Video Merged Caption Generator
-
-This operator merges captions from multiple clips into LLM-ready text format.
-Similar to generate_captions() in step4_gen_reasoning_data_qwen.py from Long-RL.
-
-Features:
-- Groups clips by original video name
-- Requires timestamp_start and timestamp_end from upstream
-- Outputs text format: "From X to Y, caption...\nFrom Y to Z, caption..."
-- Ready for direct LLM input
-"""
-
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -60,7 +47,6 @@ def merge_video_captions(
 ) -> List[Dict[str, Any]]:
     """
     Merge captions from multiple clips into text format for LLM input.
-    Similar to generate_captions() in step4_gen_reasoning_data_qwen.py
     
     Args:
         dataframe: DataFrame containing clip information and captions
