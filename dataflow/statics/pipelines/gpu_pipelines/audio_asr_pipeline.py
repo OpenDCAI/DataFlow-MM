@@ -57,7 +57,7 @@ class Pipeline:
 
         self.prompted_generator = PromptedAQAGenerator(
             vlm_serving=self.serving,
-            system_prompt=WhisperTranscriptionPrompt().generate_prompt(language="german", task="transcribe", with_timestamps=False)
+            system_prompt=WhisperTranscriptionPrompt().generate_prompt(language="english", task="transcribe", with_timestamps=False)
         )
 
         # self.filter = CTCForcedAlignmentFilter(
