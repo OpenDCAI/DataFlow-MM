@@ -1,2 +1,2 @@
-{"audio": ["./dataflow/example/audio_asr_pipeline/test.wav"], "conversation": [{"from": "human", "value": "<audio>" }]}
-{"audio": ["./dataflow/example/audio_asr_pipeline/test.wav"], "conversation": [{"from": "human", "value": "<audio>" }]}
+{"audio": ["../example_data/audio_asr_pipeline/test.wav"], "conversation": [{"from": "human", "value": "<audio>" }]}
+{"audio": ["../example_data/audio_asr_pipeline/test.wav"], "conversation": [{"from": "human", "value": "<audio>" }]}
