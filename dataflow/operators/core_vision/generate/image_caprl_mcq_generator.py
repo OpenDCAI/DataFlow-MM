@@ -13,33 +13,7 @@ from dataflow.core import OperatorABC, VLMServingABC
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.utils.registry import OPERATOR_REGISTRY
 
-# -----------------------------
-# Prompts
-# -----------------------------
-SYS_PROMPT_MCQ = (
-    "Your task is to generate five multiple-choice questions and their answers about the object "
-    "based on the provided image. The questions should be challenging and focus on the image content.\n"
-    "You must strictly follow the format below and must not output irrelevant sentences:\n"
-    "#### 1. **Example question?**\n"
-    "   - A) Option A\n"
-    "   - B) Option B\n"
-    "   - C) Option C\n"
-    "   - D) Option D\n\n"
-    "**Answer:** D) Option D\n"
-    "------\n"
-    "#### 2. **Another example?**\n"
-    "   - A) ...\n"
-    "   - B) ...\n"
-    "   - C) ...\n"
-    "   - D) ...\n\n"
-    "**Answer:** B) ...\n"
-    "------\n"
-    "All questions must be answerable from the image alone."
-)
-USER_PROMPT_MCQ = "Here is the image"
-
-# 过滤阶段：只返回字母
-ANSWER_LETTER_INSTRUCTION = "{}. Answer the question with only the correct letter"
+from dataflow.prompts.image import ImageCaprlPrompt
 
 # -----------------------------
 # Config
@@ -220,6 +194,7 @@ class CapRLMCQGenerate(OperatorABC):
     def __init__(self, vlm_serving: VLMServingABC, config: Optional[CapRLMCQConfig] = None):
         self.serving = vlm_serving
         self.cfg = config or CapRLMCQConfig()
+        self.prompt_generator = ImageCaprlPrompt()
 
     @staticmethod
     def get_desc(lang: str = "zh") -> str:
@@ -236,11 +211,11 @@ class CapRLMCQGenerate(OperatorABC):
     # ---------- 调用 VLM ----------
     def _gen_mcq_raw(self, image_path: str) -> str:
         """用系统提示 + <image> 让 VLM 生成 5 道 MCQ 的原始文本。"""
-        conversations = [[{"from": "human", "value": f"<image>\n{USER_PROMPT_MCQ}"}]]
+        conversations = [[{"from": "human", "value": f"<image>\n{self.prompt_generator.build_prompt()['USER_PROMPT_MCQ']}"}]]
         outs = self.serving.generate_from_input_messages(
             conversations=conversations,
             image_list=[[image_path]],
-            system_prompt=SYS_PROMPT_MCQ
+            system_prompt=self.prompt_generator.build_prompt()["SYS_PROMPT_MCQ"]
         )
         return outs[0] if outs else ""
 
@@ -274,8 +249,8 @@ class CapRLMCQGenerate(OperatorABC):
             if self.cfg.add_none_above_for_visual and not re.search(r"^\s*-\s*E\)", q_rot, re.M):
                 q_vis = q_vis + "\n   - E) None of the above"
 
-            vis_prompt = ANSWER_LETTER_INSTRUCTION.format(q_vis)
-            txt_prompt = ANSWER_LETTER_INSTRUCTION.format(q_rot)
+            vis_prompt = self.prompt_generator.build_prompt()["ANSWER_LETTER_INSTRUCTION"].format(q_vis)
+            txt_prompt = self.prompt_generator.build_prompt()["ANSWER_LETTER_INSTRUCTION"].format(q_rot)
 
             v_out = self._ask_letter_with_image(vis_prompt, image_path)
             l_out = self._ask_letter_text_only(txt_prompt)
@@ -327,7 +302,7 @@ class CapRLMCQGenerate(OperatorABC):
     def run(
         self,
         storage: DataFlowStorage,
-        image_key: str = "image",
+        input_image_key: str = "image",
         output_key: str = "cap_rl_qa",
     ):
         """
@@ -343,12 +318,13 @@ class CapRLMCQGenerate(OperatorABC):
         df = None
         try:
             df = storage.read("dataframe")
-            use_df = image_key in df.columns
+            use_df = input_image_key in df.columns
         except Exception:
             use_df = False
 
         if use_df:
-            rows = [{image_key: v} for v in df[image_key].tolist()]
+            rows = [{input_image_key: v} for v in df[input_image_key].tolist()]
+            df[output_key] = None
         else:
             if not self.cfg.input_jsonl_path:
                 raise ValueError("No input found. Provide DataFrame[image] or config.input_jsonl_path.")
@@ -358,7 +334,7 @@ class CapRLMCQGenerate(OperatorABC):
         outputs: List[Dict[str, Any]] = []
 
         for i, row in enumerate(rows):
-            image_path = row.get(image_key, "")
+            image_path = row.get(input_image_key, "")
             if not image_path:
                 continue
 

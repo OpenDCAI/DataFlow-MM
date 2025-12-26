@@ -13,7 +13,7 @@ from qwen_vl_utils import process_vision_info
 
 
 @OPERATOR_REGISTRY.register()
-class ImageQAGenerate(OperatorABC):
+class ImageQAGenerator(OperatorABC):
     '''
     QA Generator is a class that generates QA pairs for given images.
     '''
@@ -71,7 +71,7 @@ class ImageQAGenerate(OperatorABC):
         """
         Construct batched prompts and multimodal inputs from media paths.
         """
-        prompts, system_prompt = self.prompt_generator.qa_generator_prompt()
+        prompts, system_prompt = self.prompt_generator.build_prompt()
 
         prompt_list = []
         image_inputs_list = []
@@ -102,13 +102,13 @@ class ImageQAGenerate(OperatorABC):
     def run(
         self,
         storage: DataFlowStorage,
-        multi_modal_key: str = "image",
+        input_modal_key: str = "image",
         output_key: str = "output"
     ):
         """
         Runs the QA generation process in batch mode.
         """
-        self.multi_modal_key, self.output_key = multi_modal_key, output_key
+        self.multi_modal_key, self.output_key = input_modal_key, output_key
         # storage.step()
         dataframe = storage.read("dataframe")
         self._validate_dataframe(dataframe)
@@ -132,7 +132,7 @@ class ImageQAGenerate(OperatorABC):
 
 
 # if __name__ == "__main__":
-#     model_path = "/data0/mt/.cache/huggingface/hub/Qwen2.5-VL-3B-Instruct"
+#     model_path = ".Qwen/Qwen2.5-VL-3B-Instruct"
 
 #     model = LocalModelVLMServing_vllm(
 #         hf_model_name_or_path=model_path,
@@ -142,7 +142,7 @@ class ImageQAGenerate(OperatorABC):
 #         vllm_max_tokens=512,
 #     )
 
-#     qa_generator = ImageQAGenerate(
+#     qa_generator = ImageQAGenerator(
 #         llm_serving=model
 #     )
 
