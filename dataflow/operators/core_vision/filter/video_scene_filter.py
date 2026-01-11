@@ -39,6 +39,9 @@ class _SceneJobConfig:
     end_remove_sec: float
     min_seconds: float
     max_seconds: float
+    use_adaptive_detector: bool
+    overlap: bool
+    use_fixed_interval: bool
 
 def _process_job(
     job: Tuple[Optional[str], Optional[float]],
@@ -56,6 +59,9 @@ def _process_job(
         min_seconds=cfg.min_seconds,
         max_seconds=cfg.max_seconds,
         fps_hint=fps_hint,
+        use_adaptive_detector=cfg.use_adaptive_detector,
+        overlap=cfg.overlap,
+        use_fixed_interval=cfg.use_fixed_interval,
     )
 
 # ----------------------------
@@ -113,9 +119,10 @@ class SceneSegment:
 def _detect_raw_scenes(
     video_path: str,
     frame_skip: int = 0,
-    content_threshold: float = 21.0,
+    content_threshold: float = 27.0,
     adaptive_threshold: float = 3.0,
     min_scene_len_frames: int = 15,
+    use_adaptive_detector: bool = True,
 ) -> Tuple[List[Tuple[float, float]], Optional[float]]:
     """
     Run PySceneDetect to get raw scene boundaries (in seconds).
@@ -123,7 +130,7 @@ def _detect_raw_scenes(
     Returns:
         (scene_pairs_in_seconds, fps)
     Notes:
-        - Uses two detectors (Content + Adaptive) via a SceneManager.
+        - Uses ContentDetector, optionally with AdaptiveDetector via a SceneManager.
         - If fps cannot be read from PySceneDetect, returns None and caller may override.
     """
     video = open_video(video_path)
@@ -131,9 +138,10 @@ def _detect_raw_scenes(
 
     sm = SceneManager()
     sm.add_detector(ContentDetector(threshold=content_threshold, min_scene_len=min_scene_len_frames))
-    sm.add_detector(AdaptiveDetector(adaptive_threshold=adaptive_threshold,
-                                     min_scene_len=min_scene_len_frames,
-                                     luma_only=True))
+    if use_adaptive_detector:
+        sm.add_detector(AdaptiveDetector(adaptive_threshold=adaptive_threshold,
+                                         min_scene_len=min_scene_len_frames,
+                                         luma_only=True))
     sm.detect_scenes(video=video, frame_skip=frame_skip)
     scene_list = sm.get_scene_list()
 
@@ -195,6 +203,96 @@ def _trim_and_split_scenes(
     return out
 
 
+def _trim_and_split_scenes_overlap(
+    pairs_sec: List[Tuple[float, float]],
+    start_remove_sec: float,
+    end_remove_sec: float,
+    min_seconds: float,
+    max_seconds: float,
+) -> List[Tuple[float, float]]:
+    """
+    Apply head/tail trimming and split long scenes with overlap strategy.
+    Similar to clip_caption.py logic:
+    - If scene duration > max_seconds, split into max_seconds chunks starting from original start_time
+    - If scene duration <= max_seconds, keep as is
+    
+    Returns a list of (start_sec, end_sec).
+    """
+    out: List[Tuple[float, float]] = []
+    total_remove = max(0.0, start_remove_sec) + max(0.0, end_remove_sec)
+    min_seconds = max(0.0, float(min_seconds))
+    max_seconds = max(min_seconds, float(max_seconds))
+
+    for s, e in pairs_sec:
+        if e <= s:
+            continue
+        duration = e - s
+        if duration <= 0:
+            continue
+
+        # If original duration too short to keep after trimming, skip.
+        if duration < total_remove:
+            continue
+
+        ns = s + start_remove_sec
+        ne = e - end_remove_sec
+        if ne <= ns:
+            continue
+
+        nd = ne - ns
+        
+        # Overlap mode: similar to clip_caption.py
+        if nd > max_seconds:
+            # Split into max_seconds segments, preserving original start_time
+            for i in range(0, int(nd), int(max_seconds)):
+                segment_start = ns + i
+                segment_end = ns + i + max_seconds
+                out.append((segment_start, segment_end))
+        else:
+            # Keep short clips as is
+            if nd >= min_seconds:
+                out.append((ns, ne))
+
+    return out
+
+
+def _split_video_by_fixed_interval(
+    video_duration: float,
+    clip_duration: float,
+    start_remove_sec: float = 0.0,
+    end_remove_sec: float = 0.0,
+) -> List[Tuple[float, float]]:
+    """
+    Split video by fixed interval, similar to step1_split_videos.py logic.
+    
+    Args:
+        video_duration: Total video duration in seconds
+        clip_duration: Duration of each clip in seconds
+        start_remove_sec: Seconds to skip from the beginning
+        end_remove_sec: Seconds to skip from the end
+    
+    Returns:
+        List of (start_sec, end_sec) tuples
+    """
+    out: List[Tuple[float, float]] = []
+    
+    # Apply head/tail trimming
+    effective_start = max(0.0, start_remove_sec)
+    effective_end = max(0.0, video_duration - end_remove_sec)
+    
+    if effective_end <= effective_start:
+        return out
+    
+    # Split by fixed interval
+    start = effective_start
+    while start < effective_end:
+        end = min(start + clip_duration, effective_end)
+        out.append((start, end))
+        start += clip_duration
+    
+    return out
+
+
 def _process_single_video(
     video_path: str,
     frame_skip: int,
@@ -203,37 +301,79 @@ def _process_single_video(
     min_seconds: float,
     max_seconds: float,
     fps_hint: Optional[float] = None,
+    use_adaptive_detector: bool = True,
+    overlap: bool = False,
+    use_fixed_interval: bool = False,
 ) -> Dict[str, Any]:
     """
     Process one video path:
-      - detect scenes
+      - detect scenes OR split by fixed interval
       - trim/split
       - build output dict with fps & scene entries
+    
+    Args:
+        overlap: If True, use overlap splitting strategy similar to clip_caption.py
+        use_fixed_interval: If True, use fixed interval splitting instead of scene detection
     """
     if not os.path.exists(video_path):
         return {"success": False, "error": "not_found", "fps": fps_hint, "scenes": []}
 
-    try:
-        raw_pairs, fps_detected = _detect_raw_scenes(
-            video_path=video_path,
-            frame_skip=frame_skip,
-            content_threshold=21.0,
-            adaptive_threshold=3.0,
-            min_scene_len_frames=15,
+    # If using fixed interval, we need to get video duration and fps
+    if use_fixed_interval:
+        try:
+            from moviepy import VideoFileClip
+            clip = VideoFileClip(video_path)
+            video_duration = float(clip.duration)
+            fps_detected = float(clip.fps) if hasattr(clip, 'fps') and clip.fps else None
+            clip.reader.close()
+            if clip.audio is not None:
+                clip.audio.reader.close()
+        except Exception as e:
+            return {"success": False, "error": f"duration_failed: {e}", "fps": fps_hint, "scenes": []}
+        
+        fps = fps_hint if (fps_hint is not None and fps_hint > 0) else (fps_detected if fps_detected and fps_detected > 0 else None)
+        
+        # Split by fixed interval
+        processed_pairs = _split_video_by_fixed_interval(
+            video_duration=video_duration,
+            clip_duration=max_seconds,
+            start_remove_sec=start_remove_sec,
+            end_remove_sec=end_remove_sec,
         )
-    except Exception as e:
-        return {"success": False, "error": f"detect_failed: {e}", "fps": fps_hint, "scenes": []}
+    else:
+        # Original scene detection logic
+        try:
+            raw_pairs, fps_detected = _detect_raw_scenes(
+                video_path=video_path,
+                frame_skip=frame_skip,
+                content_threshold=27.0,
+                adaptive_threshold=3.0,
+                min_scene_len_frames=15,
+                use_adaptive_detector=use_adaptive_detector,
+            )
+        except Exception as e:
+            return {"success": False, "error": f"detect_failed: {e}", "fps": fps_hint, "scenes": []}
 
-    fps = fps_hint if (fps_hint is not None and fps_hint > 0) else (fps_detected if fps_detected and fps_detected > 0 else None)
+        fps = fps_hint if (fps_hint is not None and fps_hint > 0) else (fps_detected if fps_detected and fps_detected > 0 else None)
 
-    processed_pairs = _trim_and_split_scenes(
-        pairs_sec=raw_pairs,
-        start_remove_sec=start_remove_sec,
-        end_remove_sec=end_remove_sec,
-        min_seconds=min_seconds,
-        max_seconds=max_seconds,
-    )
-
+        # Choose splitting strategy based on overlap parameter
+        if overlap:
+            processed_pairs = _trim_and_split_scenes_overlap(
+                pairs_sec=raw_pairs,
+                start_remove_sec=start_remove_sec,
+                end_remove_sec=end_remove_sec,
+                min_seconds=min_seconds,
+                max_seconds=max_seconds,
+            )
+        else:
+            processed_pairs = _trim_and_split_scenes(
+                pairs_sec=raw_pairs,
+                start_remove_sec=start_remove_sec,
+                end_remove_sec=end_remove_sec,
+                min_seconds=min_seconds,
+                max_seconds=max_seconds,
+            )
+    
     scenes: List[Dict[str, Any]] = []
     if fps is None or fps <= 0:
         # Without fps, we can still return timecodes & durations; frame indices will be 0.
@@ -265,6 +405,9 @@ def extract_video_scenes_dataframe(
     max_seconds: float = 15.0,
     disable_parallel: bool = False,
     num_workers: Optional[int] = None,
+    use_adaptive_detector: bool = True,
+    overlap: bool = False,
+    use_fixed_interval: bool = False,
 ) -> pd.DataFrame:
     """
     Compute scene segments for each row.
@@ -279,6 +422,9 @@ def extract_video_scenes_dataframe(
         *_remove_sec/min/max: trimming/splitting config (seconds).
         disable_parallel: run in serial if True.
         num_workers: process pool size when parallel.
+        use_adaptive_detector: whether to use AdaptiveDetector in addition to ContentDetector.
+        overlap: If True, use overlap splitting strategy similar to clip_caption.py
+        use_fixed_interval: If True, use fixed interval splitting instead of scene detection
 
     Returns:
         New dataframe with an added/updated `output_key` column.
@@ -314,6 +460,7 @@ def extract_video_scenes_dataframe(
     jobs = list(zip(paths, fps_hints))
 
     if disable_parallel:
+        # import ipdb;ipdb.set_trace()
         results: List[Dict[str, Any]] = []
         for (p, f) in tqdm(jobs, total=len(jobs), desc="Scene detect (serial)"):
             res = _process_single_video(
@@ -324,6 +471,9 @@ def extract_video_scenes_dataframe(
                 min_seconds=min_seconds,
                 max_seconds=max_seconds,
                 fps_hint=f,
+                use_adaptive_detector=use_adaptive_detector,
+                overlap=overlap,
+                use_fixed_interval=use_fixed_interval,
             )
             results.append(res)
     else:
@@ -336,6 +486,9 @@ def extract_video_scenes_dataframe(
             end_remove_sec=end_remove_sec,
             min_seconds=min_seconds,
             max_seconds=max_seconds,
+            use_adaptive_detector=use_adaptive_detector,
+            overlap=overlap,
+            use_fixed_interval=use_fixed_interval,
         )
 
         results = []
@@ -377,6 +530,9 @@ class VideoSceneFilter(OperatorABC):
         input_video_key: str = "video",
         video_info_key: str = "video_info",
         output_key: str = "video_scene",
+        use_adaptive_detector: bool = True,
+        overlap: bool = False,
+        use_fixed_interval: bool = False,
     ):
         self.logger = get_logger()
         self.frame_skip = frame_skip
@@ -389,6 +545,9 @@ class VideoSceneFilter(OperatorABC):
         self.input_video_key = input_video_key
         self.video_info_key = video_info_key
         self.output_key = output_key
+        self.use_adaptive_detector = use_adaptive_detector
+        self.overlap = overlap
+        self.use_fixed_interval = use_fixed_interval
 
     @staticmethod
     def get_desc(lang: str = "zh") -> str:
@@ -400,14 +559,24 @@ class VideoSceneFilter(OperatorABC):
         input_video_key: Optional[str] = None,
         video_info_key: Optional[str] = None,
         output_key: Optional[str] = None,
+        overlap: Optional[bool] = None,
+        use_fixed_interval: Optional[bool] = None,
     ):
         """
         Read dataframe from storage, compute scenes, write dataframe back.
         Column names can be overridden via run() params.
+        
+        Args:
+            overlap: If True, use overlap splitting strategy similar to clip_caption.py.
+                     If None, use the value from __init__.
+            use_fixed_interval: If True, use fixed interval splitting instead of scene detection.
+                               If None, use the value from __init__.
         """
         input_video_key = input_video_key or self.input_video_key
         video_info_key = video_info_key or self.video_info_key
         output_key = output_key or self.output_key
+        overlap = overlap if overlap is not None else self.overlap
+        use_fixed_interval = use_fixed_interval if use_fixed_interval is not None else self.use_fixed_interval
 
         if output_key is None:
             raise ValueError("Parameter 'output_key' must not be None.")
@@ -415,7 +584,7 @@ class VideoSceneFilter(OperatorABC):
         self.logger.info("Running SceneDetectorOperator...")
         df = storage.read("dataframe")
         self.logger.info(f"Loaded dataframe: {len(df)} rows")
-
+        
         processed = extract_video_scenes_dataframe(
             dataframe=df,
             input_video_key=input_video_key,
@@ -428,6 +597,9 @@ class VideoSceneFilter(OperatorABC):
             max_seconds=self.max_seconds,
             disable_parallel=self.disable_parallel,
             num_workers=self.num_workers if not self.disable_parallel else 1,
+            use_adaptive_detector=self.use_adaptive_detector,
+            overlap=overlap,
+            use_fixed_interval=use_fixed_interval,
         )
 
         storage.write(processed)

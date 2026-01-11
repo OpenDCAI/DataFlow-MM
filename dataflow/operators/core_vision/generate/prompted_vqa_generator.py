@@ -8,10 +8,17 @@ from dataflow.core import LLMServingABC
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 from qwen_vl_utils import process_vision_info
 
+# 判断是否为 API serving
+def is_api_serving(serving):
+    """判断 serving 是否为 API 类型"""
+    from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
+    return isinstance(serving, APIVLMServing_openai)
+
 @OPERATOR_REGISTRY.register()
 class PromptedVQAGenerator(OperatorABC):
     '''
     PromptedVQAGenerator read prompt and image/video to generate answers.
+    Supports both multimodal mode (with images/videos) and pure text mode (without any visual inputs).
     '''
     def __init__(self, 
                  serving: LLMServingABC, 
@@ -22,51 +29,75 @@ class PromptedVQAGenerator(OperatorABC):
             
     @staticmethod
     def get_desc(lang: str = "zh"):
-        return "读取 prompt 和 image/video 生成答案" if lang == "zh" else "Read prompt and image/video to generate answers."
+        if lang == "zh":
+            return "读取 prompt 和 image/video（可选）生成答案，支持纯文本模式"
+        else:
+            return "Read prompt and optionally image/video to generate answers. Supports pure text mode."
     
     def _prepare_batch_inputs(self, prompts, input_image_paths, input_video_paths):
         """
         Construct batched prompts and multimodal inputs from media paths.
-        Supports mixed image and video inputs in the same batch.
+        Supports mixed image and video inputs in the same batch, as well as pure text mode.
         """
         prompt_list = []
         image_paths = []
         video_paths = []
+        
+        # Check if this is pure text mode (no images or videos at all)
+        is_pure_text = (input_image_paths is None or all(p is None or (isinstance(p, list) and all(x is None for x in p)) for p in input_image_paths)) and \
+                       (input_video_paths is None or all(p is None or (isinstance(p, list) and all(x is None for x in p)) for p in input_video_paths))
+        
         for idx, p in enumerate(prompts):
-            raw_prompt = [
-                {"role": "system", "content": self.system_prompt},
-                {
-                    "role": "user",
-                    "content": [],
-                },
-            ]
-            
-            # Determine if this sample has image or video
-            has_image = input_image_paths is not None and idx < len(input_image_paths) and input_image_paths[idx] and input_image_paths[idx][0] is not None
-            has_video = input_video_paths is not None and idx < len(input_video_paths) and input_video_paths[idx] and input_video_paths[idx][0] is not None
-            
-            # Add image content if present
-            if has_image:
-                paths = input_image_paths[idx]
-                for path in paths:
-                    raw_prompt[1]["content"].append({"type": "image", "image": path})
-            
-            # Add video content if present
-            if has_video:
-                paths = input_video_paths[idx]
-                for path in paths:
-                    raw_prompt[1]["content"].append({"type": "video", "video": path})
-            
-            # Then add text content
-            raw_prompt[1]["content"].append({"type": "text", "text": p})
+            if is_pure_text:
+                # Pure text mode: use simple chat template without multimodal processing
+                raw_prompt = [
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": p}
+                ]
+                
+                prompt = self.serving.processor.apply_chat_template(
+                    raw_prompt, tokenize=False, add_generation_prompt=True
+                )
 
-            media_path_image, media_path_video = process_vision_info(raw_prompt)
-            prompt = self.serving.processor.apply_chat_template(
-                raw_prompt, tokenize=False, add_generation_prompt=True
-            )
-            image_paths.append(media_path_image)
-            video_paths.append(media_path_video)
-            prompt_list.append(prompt)
+                image_paths.append(None)
+                video_paths.append(None)
+                prompt_list.append(prompt)
+            else:
+                # Multimodal mode: use standard processing
+                raw_prompt = [
+                    {"role": "system", "content": self.system_prompt},
+                    {
+                        "role": "user",
+                        "content": [],
+                    },
+                ]
+                
+                # Determine if this sample has image or video
+                has_image = input_image_paths is not None and idx < len(input_image_paths) and input_image_paths[idx] and input_image_paths[idx][0] is not None
+                has_video = input_video_paths is not None and idx < len(input_video_paths) and input_video_paths[idx] and input_video_paths[idx][0] is not None
+                
+                # Add image content if present
+                if has_image:
+                    paths = input_image_paths[idx]
+                    for path in paths:
+                        raw_prompt[1]["content"].append({"type": "image", "image": path})
+                
+                # Add video content if present
+                if has_video:
+                    paths = input_video_paths[idx]
+                    for path in paths:
+                        raw_prompt[1]["content"].append({"type": "video", "video": path})
+                
+                # Then add text content
+                raw_prompt[1]["content"].append({"type": "text", "text": p})
+
+                media_path_image, media_path_video = process_vision_info(raw_prompt)
+                prompt = self.serving.processor.apply_chat_template(
+                    raw_prompt, tokenize=False, add_generation_prompt=True
+                )
+                image_paths.append(media_path_image)
+                video_paths.append(media_path_video)
+                prompt_list.append(prompt)
 
         return prompt_list, image_paths, video_paths
 
@@ -74,8 +105,8 @@ class PromptedVQAGenerator(OperatorABC):
             storage: DataFlowStorage,
             input_prompt_key: str = None,
             input_conversation_key: str = None,
-            input_image_key: str = "image", 
-            input_video_key: str = "video",
+            input_image_key: str = None,  # Can be None for pure text mode
+            input_video_key: str = None,  # Can be None for pure text mode
             output_answer_key: str = "answer",
             ):
         if output_answer_key is None:
@@ -96,18 +127,27 @@ class PromptedVQAGenerator(OperatorABC):
         dataframe = storage.read('dataframe')
         self.logger.info(f"Loading, number of rows: {len(dataframe)}")
 
-        image_column = dataframe.get(self.input_image_key, pd.Series([])).tolist()
-        video_column = dataframe.get(self.input_video_key, pd.Series([])).tolist()
-
-        image_column = [path if isinstance(path, list) else [path] for path in image_column]
-        video_column = [path if isinstance(path, list) else [path] for path in video_column]
-        
-        if len(image_column) == 0:
+        # Handle image column: if input_image_key is None or key not in dataframe, treat as no images
+        if self.input_image_key is None or self.input_image_key not in dataframe.columns:
             image_column = None
-        if len(video_column) == 0:
+        else:
+            image_column = dataframe.get(self.input_image_key, pd.Series([])).tolist()
+            image_column = [path if isinstance(path, list) else [path] for path in image_column]
+            if len(image_column) == 0 or all(p is None for p in image_column):
+                image_column = None
+
+        # Handle video column: if input_video_key is None or key not in dataframe, treat as no videos
+        if self.input_video_key is None or self.input_video_key not in dataframe.columns:
             video_column = None
-        if image_column is None and video_column is None:
-            raise ValueError("At least one of input_image_key or input_video_key must be provided.")
+        else:
+            video_column = dataframe.get(self.input_video_key, pd.Series([])).tolist()
+            video_column = [path if isinstance(path, list) else [path] for path in video_column]
+            if len(video_column) == 0 or all(p is None for p in video_column):
+                video_column = None
+        
+        # Support pure text mode (no image or video required)
+        # if image_column is None and video_column is None:
+        #     raise ValueError("At least one of input_image_key or input_video_key must be provided.")
         
         # Handle input_prompt_key or input_conversation_key
         if input_conversation_key is not None:
@@ -127,10 +167,35 @@ class PromptedVQAGenerator(OperatorABC):
         else:
             # Use prompt mode
             prompt_column = dataframe.get(input_prompt_key, pd.Series([])).tolist()
-
-        prompt_list, image_inputs_list, video_inputs_list = self._prepare_batch_inputs(
-            prompt_column, image_column, video_column
-        )
+        # import ipdb;ipdb.set_trace()
+        # 判断 serving 类型并相应地准备输入
+        use_api_mode = is_api_serving(self.serving)
+        
+        if use_api_mode:
+            # API 模式：直接使用原始 prompt 和路径
+            self.logger.info("Using API serving mode")
+            prompt_list = prompt_column
+            image_inputs_list = image_column
+            video_inputs_list = video_column
+            
+            # If all image/video inputs are None, pass None to enable pure text mode
+            if image_inputs_list is not None and all(img is None for img in image_inputs_list):
+                image_inputs_list = None
+            if video_inputs_list is not None and all(vid is None for vid in video_inputs_list):
+                video_inputs_list = None
+        else:
+            # Local 模式：使用原有的处理逻辑
+            self.logger.info("Using local serving mode")
+            prompt_list, image_inputs_list, video_inputs_list = self._prepare_batch_inputs(
+                prompt_column, image_column, video_column
+            )
+            
+            # If all image/video inputs are None, pass None to enable pure text mode
+            if all(img is None for img in image_inputs_list):
+                image_inputs_list = None
+            if all(vid is None for vid in video_inputs_list):
+                video_inputs_list = None
+        
         outputs = self.serving.generate_from_input(
             system_prompt=self.system_prompt,
             user_inputs=prompt_list,

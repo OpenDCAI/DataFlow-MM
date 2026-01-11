@@ -125,7 +125,8 @@ class LocalModelVLMServing_vllm(VLMServingABC):
         # 检查是否为纯文本模式
         if image_inputs is None and video_inputs is None and audio_inputs is None:
             # 纯文本 prompt
-            full_prompts = [system_prompt + '\n' + question for question in user_inputs]
+            # full_prompts = [system_prompt + '\n' + question for question in user_inputs]
+            full_prompts = [question for question in user_inputs]
         else:
             # 多模态 prompt
             full_prompts = []   # 2个pair，每个pair是一个instruction-image pair. 同一条数据对应2个图.

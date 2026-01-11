@@ -499,43 +499,240 @@ class APIVLMServing_openai(LLMServingABC):
         """
         self.client.close()
     
-    def generate_from_input(self, user_inputs: List[str], system_prompt: str = "Describe the image in detail."):
+    def _encode_image_to_base64_from_path(self, image_path: str) -> str:
         """
-        user_inputs: List[str], list of picture paths
-        system_prompt: str, system prompt
-        return: List[str], list of generated contents
+        将图像文件编码为 base64 字符串
+        
+        :param image_path: 图像文件路径
+        :return: base64 编码的字符串
         """
-        futures = []
-        # result_text_list = [None] * len(user_inputs)
-        result_text_list = {}
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            for idx,user_input in enumerate(user_inputs):
-                if isinstance(user_input, tuple) and len(user_input) == 2:
-                    image_path, prompt = user_input
-                    futures.append(executor.submit(self.chat_with_one_image_with_id,
-                                                idx,
-                                                image_path,
-                                                prompt,
-                                                self.model_name,
-                                                self.timeout))
-                    
-                elif isinstance(user_input, dict):
-                    idx, image_path, prompt = user_input["idx"], user_input["image_path"], user_input["prompt"]
-                    futures.append(executor.submit(self.chat_with_one_image_with_id,
-                                                idx,
-                                                image_path,
-                                                prompt,
-                                                self.model_name,
-                                                self.timeout))
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode("utf-8")
+    
+    def _encode_video_to_base64_from_path(self, video_path: str) -> str:
+        """
+        将视频文件编码为 base64 字符串
+        
+        :param video_path: 视频文件路径
+        :return: base64 编码的字符串
+        """
+        with open(video_path, "rb") as video_file:
+            return base64.b64encode(video_file.read()).decode("utf-8")
 
-                else:
-                    futures.append(executor.submit(self.chat_with_one_image_with_id,
-                                                idx,
-                                                user_input,
-                                                system_prompt,
-                                                self.model_name,
-                                                self.timeout))
-        for future in as_completed(futures):
-            idx,res = future.result()
-            result_text_list[f"sample_{idx}"] = res
-        return result_text_list
+    def _build_message_content(self, prompt: str, image_paths: List[str] = None, video_paths: List[str] = None) -> List[Dict[str, Any]]:
+        """
+        构建 OpenAI API 格式的消息内容
+        
+        :param prompt: 文本提示
+        :param image_paths: 图像路径列表
+        :param video_paths: 视频路径列表
+        :return: OpenAI API 格式的内容列表
+        """
+        content = []
+        
+        # 添加图像内容
+        if image_paths:
+            for image_path in image_paths:
+                if image_path:
+                    base64_image = self._encode_image_to_base64_from_path(image_path)
+                    # 检测图像格式
+                    ext = image_path.rsplit('.', 1)[-1].lower()
+                    if ext == 'jpg':
+                        fmt = 'jpeg'
+                    elif ext == 'jpeg':
+                        fmt = 'jpeg'
+                    elif ext == 'png':
+                        fmt = 'png'
+                    elif ext == 'webp':
+                        fmt = 'webp'
+                    else:
+                        fmt = 'jpeg'  # 默认使用 jpeg
+                    
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/{fmt};base64,{base64_image}"}
+                    })
+        
+        # 添加视频内容
+        if video_paths:
+            for video_path in video_paths:
+                if video_path:
+                    base64_video = self._encode_video_to_base64_from_path(video_path)
+                    content.append({
+                        "type": "video_url",
+                        "video_url": {"url": f"data:video/mp4;base64,{base64_video}"}
+                    })
+        
+        # 添加文本内容
+        content.append({"type": "text", "text": prompt})
+        
+        return content
+
+    def _send_single_request_with_id(
+        self,
+        idx: int,
+        prompt: str,
+        image_paths: List[str] = None,
+        video_paths: List[str] = None,
+        system_prompt: str = "You are a helpful assistant."
+    ) -> Tuple[int, str]:
+        """
+        发送单个请求并返回结果
+        
+        :param idx: 请求索引
+        :param prompt: 文本提示
+        :param image_paths: 图像路径列表
+        :param video_paths: 视频路径列表
+        :param system_prompt: 系统提示
+        :return: (索引, 响应文本)
+        """
+        content = self._build_message_content(prompt, image_paths, video_paths)
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": content}
+        ]
+        
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                timeout=self.timeout,
+                stream=self.send_request_stream
+            )
+            
+            # if self.model_name == "gemini-2.5-flash-image-preview":
+            #     if self.send_request_stream:
+            #         full_content = ""
+            #         for chunk in resp:
+            #             if chunk.choices[0].delta.content is not None and chunk.choices[0].delta.content != "":
+            #                 full_content = chunk.choices[0].delta.content
+            #     else:
+            #         full_content = resp.choices[0].message.content
+            #     return idx, full_content
+            
+            return idx, resp.choices[0].message.content
+        except Exception as e:
+            self.logger.error(f"Request {idx} failed: {str(e)}")
+            return idx, f"Error: {str(e)}"
+
+    def generate_from_input(
+        self,
+        user_inputs: List[str],
+        system_prompt: str = "You are a helpful assistant.",
+        image_inputs: List[List[str]] = None,
+        video_inputs: List[List[str]] = None,
+        audio_inputs: List[List[str]] = None
+    ) -> List[str]:
+        """
+        批量生成文本，与 local_model_vlm_serving 接口对齐
+        
+        :param user_inputs: 文本提示列表
+        :param system_prompt: 系统提示
+        :param image_inputs: 图像路径列表的列表，每个元素是一个样本的图像路径列表
+        :param video_inputs: 视频路径列表的列表，每个元素是一个样本的视频路径列表
+        :param audio_inputs: 音频路径列表的列表（当前未使用）
+        :return: 生成的文本列表
+        """
+        self.logger.info(f"API VLM Serving: Processing {len(user_inputs)} requests")
+        
+        if image_inputs is not None:
+            self.logger.info(f"Image inputs: {len(image_inputs)}")
+        if video_inputs is not None:
+            self.logger.info(f"Video inputs: {len(video_inputs)}")
+        
+        # 检查是否为纯文本模式
+        is_pure_text = (image_inputs is None or all(img is None for img in image_inputs)) and \
+                       (video_inputs is None or all(vid is None for vid in video_inputs))
+        
+        if is_pure_text:
+            self.logger.info("Pure text mode detected")
+        
+        results = [None] * len(user_inputs)
+        futures = []
+        
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            for idx, prompt in enumerate(user_inputs):
+                # 获取当前样本的图像和视频路径
+                current_image_paths = None
+                if image_inputs is not None and idx < len(image_inputs) and image_inputs[idx] is not None:
+                    current_image_paths = image_inputs[idx] if isinstance(image_inputs[idx], list) else [image_inputs[idx]]
+                
+                current_video_paths = None
+                if video_inputs is not None and idx < len(video_inputs) and video_inputs[idx] is not None:
+                    current_video_paths = video_inputs[idx] if isinstance(video_inputs[idx], list) else [video_inputs[idx]]
+                
+                future = executor.submit(
+                    self._send_single_request_with_id,
+                    idx,
+                    prompt,
+                    current_image_paths,
+                    current_video_paths,
+                    system_prompt
+                )
+                futures.append(future)
+            
+            # 收集结果
+            for future in tqdm(as_completed(futures), total=len(futures), desc="API Generating..."):
+                idx, response = future.result()
+                results[idx] = response
+        
+        return results
+    
+    def generate_from_input_sequential(
+        self,
+        user_inputs: List[str],
+        system_prompt: str = "You are a helpful assistant.",
+        image_inputs: List[List[str]] = None,
+        video_inputs: List[List[str]] = None,
+        audio_inputs: List[List[str]] = None
+    ) -> List[str]:
+        """
+        批量生成文本（单线程顺序版本），与 local_model_vlm_serving 接口对齐
+        适用于调试或需要顺序处理的场景
+        
+        :param user_inputs: 文本提示列表
+        :param system_prompt: 系统提示
+        :param image_inputs: 图像路径列表的列表，每个元素是一个样本的图像路径列表
+        :param video_inputs: 视频路径列表的列表，每个元素是一个样本的视频路径列表
+        :param audio_inputs: 音频路径列表的列表（当前未使用）
+        :return: 生成的文本列表
+        """
+        self.logger.info(f"API VLM Serving (Sequential): Processing {len(user_inputs)} requests")
+        import ipdb;ipdb.set_trace()
+        if image_inputs is not None:
+            self.logger.info(f"Image inputs: {len(image_inputs)}")
+        if video_inputs is not None:
+            self.logger.info(f"Video inputs: {len(video_inputs)}")
+        
+        # 检查是否为纯文本模式
+        is_pure_text = (image_inputs is None or all(img is None for img in image_inputs)) and \
+                       (video_inputs is None or all(vid is None for vid in video_inputs))
+        
+        if is_pure_text:
+            self.logger.info("Pure text mode detected")
+        
+        results = []
+        
+        # 使用 tqdm 显示进度
+        for idx, prompt in enumerate(tqdm(user_inputs, desc="API Generating (Sequential)...")):
+            # 获取当前样本的图像和视频路径
+            current_image_paths = None
+            if image_inputs is not None and idx < len(image_inputs) and image_inputs[idx] is not None:
+                current_image_paths = image_inputs[idx] if isinstance(image_inputs[idx], list) else [image_inputs[idx]]
+            
+            current_video_paths = None
+            if video_inputs is not None and idx < len(video_inputs) and video_inputs[idx] is not None:
+                current_video_paths = video_inputs[idx] if isinstance(video_inputs[idx], list) else [video_inputs[idx]]
+            
+            # 直接调用发送请求函数（顺序执行）
+            _, response = self._send_single_request_with_id(
+                idx,
+                prompt,
+                current_image_paths,
+                current_video_paths,
+                system_prompt
+            )
+            results.append(response)
+        
+        return results
