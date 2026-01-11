@@ -1,3 +1,3 @@
-{"image": "./dataflow/example/image_to_text_pipeline/capsbench_images/0.png", "prompt": "What is the color tone of this image?"}
-{"image": "./dataflow/example/image_to_text_pipeline/capsbench_images/1.png", "prompt": "Is the boy in the picture on the left or the right?"}
-{"image": "./dataflow/example/image_to_text_pipeline/capsbench_images/2.png", "prompt": "Please caption the image in detail."}
+{"image": "https://huggingface.co/datasets/OpenDCAI/dataflow-demo-image/resolve/main/capsbench_images/0.png", "prompt": "What is the color tone of this image?"}
+{"image": "https://huggingface.co/datasets/OpenDCAI/dataflow-demo-image/resolve/main/capsbench_images/1.png", "prompt": "Is the boy in the picture on the left or the right?"}
+{"image": "https://huggingface.co/datasets/OpenDCAI/dataflow-demo-image/resolve/main/capsbench_images/2.png", "prompt": "Please caption the image in detail."}
