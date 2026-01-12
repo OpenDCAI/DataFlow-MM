@@ -7,7 +7,6 @@ if TYPE_CHECKING:
     from .generate.image_qa_generator import ImageQAGenerator
     from .generate.multimodal_math_generator import MultimodalMathGenerator
     from .generate.personalized_qa_generator import PersQAGenerator
-    from .generate.visual_reasoning_generator import VisualReasoningGenerator
     from .generate.prompted_image_generator import PromptedImageGenerator
     from .generate.prompted_vqa_generator import PromptedVQAGenerator
     from .generate.prompt_templated_vqa_generator import PromptTemplatedVQAGenerator
@@ -17,7 +16,6 @@ if TYPE_CHECKING:
     from .generate.video_caption_generator import VideoToCaptionGenerator
     from .generate.video_merged_caption_generator import VideoMergedCaptionGenerator
     from .generate.video_cotqa_generator import VideoCOTQAGenerator
-    from .generate.image_caprl_mcq_generator import CapRLMCQGenerate, CapRLMCQConfig
     from .generate.multirole_videoqa_generator import MultiroleVideoQAInitialGenerator, MultiroleVideoQAMultiAgentGenerator, MultiroleVideoQAFinalGenerator
     from .generate.batch_vqa_generator import BatchVQAGenerator
     from .generate.vlm_bbox_generator import VLMBBoxGenerator
