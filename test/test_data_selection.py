@@ -1,6 +1,6 @@
 import os
 import ray
-from dataflow.operators.core_vision import RuleBaseFilter,DeduplicateFilter,KNNSimilarityFilter,CLIPScoreFilter,DataTailorFilter,VisionDependentFilter,FailRateFilter
+from dataflow.operators.core_vision import RuleBaseFilter,ImageDeduplicateFilter,KNNSimilarityFilter,CLIPScoreFilter,DataTailorFilter,VisionDependentFilter,FailRateFilter
 from dataflow.serving import LocalModelVLMServing_vllm, LocalModelLLMServing_vllm
 from dataflow.utils.storage import FileStorage
 
@@ -60,7 +60,7 @@ class DataSelectionPipeline():
             keep_ratio=0.9,
         )
         
-        self.deduplication_filter = DeduplicateFilter(
+        self.deduplication_filter = ImageDeduplicateFilter(
             model_name = 'openai/clip-vit-large-patch14-336',
             threshold=0.95,
         )

@@ -1,3 +1,3 @@
-{"image":".\/dataflow\/example\/image_to_text_pipeline\/capsbench_images\/0.png","qa":"Question: Who is the lead actor in the movie \"Nightmare Alley\"?  \nAnswer: Bradley Cooper."}
-{"image":".\/dataflow\/example\/image_to_text_pipeline\/capsbench_images\/1.png","qa":"Question: Who is the man in the image wearing a white bow tie?  \nAnswer: The man in the image is wearing a white bow tie."}
-{"image":".\/dataflow\/example\/image_to_text_pipeline\/capsbench_images\/2.png","qa":"Question: What is the theme of the image?\nAnswer: Motivation Music"}
+{"image":"https://huggingface.co/datasets/OpenDCAI/dataflow-demo-image/resolve/main/capsbench_images/0.png","qa":"Question: Who is the lead actor in the movie \"Nightmare Alley\"?  \nAnswer: Bradley Cooper."}
+{"image":"https://huggingface.co/datasets/OpenDCAI/dataflow-demo-image/resolve/main/capsbench_images/1.png","qa":"Question: Who is the man in the image wearing a white bow tie?  \nAnswer: The man in the image is wearing a white bow tie."}
+{"image":"https://huggingface.co/datasets/OpenDCAI/dataflow-demo-image/resolve/main/capsbench_images/2.png","qa":"Question: What is the theme of the image?\nAnswer: Motivation Music"}
