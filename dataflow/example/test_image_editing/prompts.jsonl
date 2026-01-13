@@ -1,3 +1,0 @@
-{"conversations": [{"content": "Change the woman's clothes to a white dress.", "role": "user"}], "images": ["./dataflow/example/test_image_editing/images/image1.png"], "edited_images": [""]}
-{"conversations": [{"content": "Change the vase to red.", "role": "user"}], "images": ["./dataflow/example/test_image_editing/images/image2.png"], "edited_images": [""]}
-{"conversations": [{"content": "The woman is dancing with the prince in a sacred ballroom.", "role": "user"}], "images": ["./dataflow/example/test_image_editing/images/image3.png"], "edited_images": [""]}

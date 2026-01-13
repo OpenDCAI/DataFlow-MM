@@ -3,21 +3,22 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     # === Generate ===
     from .generate.prompted_image_edit_generator import PromptedImageEditGenerator
-    from .generate.image_caption_generator import ImageCaptionGenerate
-    from .generate.image_qa_generator import ImageQAGenerate
-    from .generate.multimodal_math_generator import MultimodalMathGenerate
-    from .generate.personalized_qa_generator import PersQAGenerate
-    from .generate.vision_mct_reasoning_sft_generator import VisionMCTSReasoningSFTGenerate
-    from .generate.image_scale_caption_generator import ImageScaleCaptionGenerate, ImageScaleCaptionGenerateConfig
+    from .generate.image_caption_generator import ImageCaptionGenerator
+    from .generate.image_qa_generator import ImageQAGenerator
+    from .generate.multimodal_math_generator import MultimodalMathGenerator
+    from .generate.personalized_qa_generator import PersQAGenerator
     from .generate.prompted_image_generator import PromptedImageGenerator
     from .generate.prompted_vqa_generator import PromptedVQAGenerator
+    from .generate.prompt_templated_vqa_generator import PromptTemplatedVQAGenerator
+    from .generate.fix_prompted_vqa_generator import FixPromptedVQAGenerator
     from .generate.video_clip_generator import VideoClipGenerator
     from .generate.video_qa_generator import VideoCaptionToQAGenerator
     from .generate.video_caption_generator import VideoToCaptionGenerator
     from .generate.video_merged_caption_generator import VideoMergedCaptionGenerator
     from .generate.video_cotqa_generator import VideoCOTQAGenerator
-    from .generate.sk_vqa_generator import ImageSKVQAGenerate
-    from .generate.image_caprl_mcq_generator import CapRLMCQGenerate, CapRLMCQConfig
+    from .generate.multirole_videoqa_generator import MultiroleVideoQAInitialGenerator, MultiroleVideoQAMultiAgentGenerator, MultiroleVideoQAFinalGenerator
+    from .generate.batch_vqa_generator import BatchVQAGenerator
+    from .generate.vlm_bbox_generator import VLMBBoxGenerator
 
     # === Filter ===
     from .filter.video_clip_filter import VideoClipFilter
@@ -28,21 +29,21 @@ if TYPE_CHECKING:
     from .filter.video_motion_score_filter import VideoMotionScoreFilter
     from .filter.video_resolution_filter import VideoResolutionFilter
     from .filter.image_aesthetic_filter import ImageAestheticFilter
-    from .filter.cat_filter import CatFilter
-    from .filter.clip_filter import ClipFilter
-    from .filter.complexity_filter import ComplexityFilter
-    from .filter.consistency_filter import ConsistencyFilter
-    from .filter.text_image_diversity_filter import TextImageDiversityFilter
-    from .filter.sensitive_filter import SensitiveFilter
-    from .filter.score_filter import ScoreFilter
-    from .refine.vision_seg_cutout_refine import VisionSegCutoutRefine
+    from .filter.image_cat_filter import ImageCatFilter
+    from .filter.image_clip_filter import ImageClipFilter
+    from .filter.image_complexity_filter import ImageComplexityFilter
+    from .filter.image_consistency_filter import ImageConsistencyFilter
+    from .filter.image_diversity_filter import ImageDiversityFilter
+    from .filter.image_sensitive_filter import ImageSensitiveFilter
+    from .refine.vision_seg_cutout_refiner import VisionSegCutoutRefiner
     from .filter.rule_base_filter import RuleBaseFilter
-    from .filter.deduplication_filter import DeduplicateFilter
+    from .filter.image_deduplication_filter import ImageDeduplicateFilter
     from .filter.knn_similarity_filter import KNNSimilarityFilter
     from .filter.clipscore_filter import CLIPScoreFilter
     from .filter.datatailor_filter import DataTailorFilter
     from .filter.vision_dependent_filter import VisionDependentFilter
     from .filter.failrate_filter import FailRateFilter
+    from .filter.score_filter import ScoreFilter
 
     # === Eval ===
     from .eval.video_aesthetic_evaluator import VideoAestheticEvaluator
@@ -51,9 +52,15 @@ if TYPE_CHECKING:
     from .eval.emscore_evaluator import EMScoreEval
     from .eval.general_text_answer_evaluator import GeneralTextAnswerEvaluator
     from .eval.image.image_evaluator import EvalImageGenerationGenerator
-    from .eval.image_text.clip_image_text_evaluator import CLIPEvaluator
-    from .eval.image_text.long_clip_image_text_evaluator import LongCLIPEvaluator
-    from .eval.image_text.vqa_score_image_text_evaluator import VQAScoreEvaluator
+    from .eval.image_clip_evaluator import ImageCLIPEvaluator
+    from .eval.image_longclip_evaluator import ImageLongCLIPEvaluator
+    from .eval.image_vqascore_evaluator import ImageVQAScoreEvaluator
+
+    # === Refine ===
+    from .refine.wiki_qa_refiner import WikiQARefiner
+    from .refine.visual_grounding_refiner import VisualGroundingRefiner
+    from .refine.vision_seg_cutout_refiner import VisionSegCutoutRefiner
+    from .refine.visual_dependency_refiner import VisualDependencyRefiner
 
 else:
     import sys
