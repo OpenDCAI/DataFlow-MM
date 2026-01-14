@@ -4,12 +4,11 @@ Video Filtered Clip Generator Operator
 This operator integrates the complete video processing pipeline:
 - Video info extraction (VideoInfoFilter)
 - Scene detection (VideoSceneFilter)
-- Clip metadata generation (VideoClipFilter)
+- Clip metadata generation and basic filtering (VideoClipFilter)
 - Frame extraction (VideoFrameFilter)
-- Aesthetic scoring (VideoAestheticEvaluator)
-- Luminance evaluation (VideoLuminanceEvaluator)
-- OCR analysis (VideoOCREvaluator)
-- Score-based filtering (VideoScoreFilter)
+- Aesthetic scoring and filtering (VideoAestheticFilter)
+- Luminance analysis and filtering (VideoLuminanceFilter)
+- OCR analysis and filtering (VideoOCRFilter)
 - Video cutting and saving (VideoClipGenerator)
 """
 
@@ -22,10 +21,9 @@ from dataflow.operators.core_vision import VideoInfoFilter
 from dataflow.operators.core_vision import VideoSceneFilter
 from dataflow.operators.core_vision import VideoClipFilter
 from dataflow.operators.core_vision import VideoFrameFilter
-from dataflow.operators.core_vision import VideoAestheticEvaluator
-from dataflow.operators.core_vision import VideoLuminanceEvaluator
-from dataflow.operators.core_vision import VideoOCREvaluator
-from dataflow.operators.core_vision import VideoScoreFilter
+from dataflow.operators.core_vision import VideoAestheticFilter
+from dataflow.operators.core_vision import VideoLuminanceFilter
+from dataflow.operators.core_vision import VideoOCRFilter
 from dataflow.operators.core_vision import VideoClipGenerator
 
 
@@ -52,10 +50,14 @@ class VideoFilteredClipGenerator(OperatorABC):
         frame_output_dir: str = "./cache/extract_frames",
         
         # VideoAestheticEvaluator parameters
-        clip_model: str = "/path/to/ViT-L-14.pt",
-        mlp_checkpoint: str = "/path/to/sac+logos+ava1-l14-linearMSE.pth",
+        clip_model: str = "/path/to/ViT-L-14.pt",#from https://openaipublic.azureedge.net/clip/models/b8cca3fd41ae0c99ba7e8951adf17d267cdb84cd88be6f7c2e0eca1737a03836/ViT-L-14.pt
+        mlp_checkpoint: str = "/path/to/sac+logos+ava1-l14-linearMSE.pth",#from https://github.com/christophschuhmann/improved-aesthetic-predictor
         
-        # VideoScoreFilter parameters
+        # VideoOCREvaluator parameters
+        det_model_dir: str = None,
+        rec_model_dir: str = None,
+        
+        # Filter parameters
         frames_min: int = None,
         frames_max: int = None,
         fps_min: float = None,
@@ -66,13 +68,6 @@ class VideoFilteredClipGenerator(OperatorABC):
         ocr_max: float = 0.3,
         lum_min: float = 20,
         lum_max: float = 140,
-        motion_min: float = 2,
-        motion_max: float = 14,
-        flow_min: float = None,
-        flow_max: float = None,
-        blur_max: float = None,
-        strict_mode: bool = False,
-        seed: int = 42,
         
         # VideoClipGenerator parameters
         video_save_dir: str = "./cache/video_clips",
@@ -91,23 +86,18 @@ class VideoFilteredClipGenerator(OperatorABC):
             frame_output_dir: Directory to save extracted frames
             clip_model: Path to CLIP model for aesthetic scoring
             mlp_checkpoint: Path to MLP checkpoint for aesthetic scoring
-            frames_min: Minimum number of frames filter
-            frames_max: Maximum number of frames filter
-            fps_min: Minimum FPS filter
-            fps_max: Maximum FPS filter
-            resolution_max: Maximum resolution filter
-            aes_min: Minimum aesthetic score filter
-            ocr_min: Minimum OCR score filter
-            ocr_max: Maximum OCR score filter
-            lum_min: Minimum luminance filter
-            lum_max: Maximum luminance filter
-            motion_min: Minimum motion score filter
-            motion_max: Maximum motion score filter
-            flow_min: Minimum flow score filter
-            flow_max: Maximum flow score filter
-            blur_max: Maximum blur score filter
-            strict_mode: Strict mode for filtering
-            seed: Random seed
+            det_model_dir: Path to PaddleOCR detection model directory
+            rec_model_dir: Path to PaddleOCR recognition model directory
+            frames_min: Minimum number of frames filter (applied in VideoClipFilter)
+            frames_max: Maximum number of frames filter (applied in VideoClipFilter)
+            fps_min: Minimum FPS filter (applied in VideoClipFilter)
+            fps_max: Maximum FPS filter (applied in VideoClipFilter)
+            resolution_max: Maximum resolution in pixels (width*height) filter (applied in VideoClipFilter)
+            aes_min: Minimum aesthetic score filter (applied in VideoAestheticFilter)
+            ocr_min: Minimum OCR score filter (applied in VideoOCRFilter)
+            ocr_max: Maximum OCR score filter (applied in VideoOCRFilter)
+            lum_min: Minimum luminance filter (applied in VideoLuminanceFilter)
+            lum_max: Maximum luminance filter (applied in VideoLuminanceFilter)
             video_save_dir: Directory to save cut video clips
         """
         self.logger = get_logger()
@@ -125,39 +115,33 @@ class VideoFilteredClipGenerator(OperatorABC):
             max_seconds=max_seconds,
             disable_parallel=True,
         )
-        self.video_clip_filter = VideoClipFilter()
-        self.video_frame_filter = VideoFrameFilter(
-            output_dir=frame_output_dir,
-        )
-        self.video_aesthetic_evaluator = VideoAestheticEvaluator(
-            figure_root=frame_output_dir,
-            clip_model=clip_model,
-            mlp_checkpoint=mlp_checkpoint,
-        )
-        self.video_luminance_evaluator = VideoLuminanceEvaluator(
-            figure_root=frame_output_dir,
-        )
-        self.video_ocr_evaluator = VideoOCREvaluator(
-            figure_root=frame_output_dir,
-        )
-        self.video_score_filter = VideoScoreFilter(
+        self.video_clip_filter = VideoClipFilter(
             frames_min=frames_min,
             frames_max=frames_max,
             fps_min=fps_min,
             fps_max=fps_max,
             resolution_max=resolution_max,
+        )
+        self.video_frame_filter = VideoFrameFilter(
+            output_dir=frame_output_dir,
+        )
+        self.video_aesthetic_filter = VideoAestheticFilter(
+            figure_root=frame_output_dir,
+            clip_model=clip_model,
+            mlp_checkpoint=mlp_checkpoint,
             aes_min=aes_min,
-            ocr_min=ocr_min,
-            ocr_max=ocr_max,
+        )
+        self.video_luminance_filter = VideoLuminanceFilter(
+            figure_root=frame_output_dir,
             lum_min=lum_min,
             lum_max=lum_max,
-            motion_min=motion_min,
-            motion_max=motion_max,
-            flow_min=flow_min,
-            flow_max=flow_max,
-            blur_max=blur_max,
-            strict_mode=strict_mode,
-            seed=seed,
+        )
+        self.video_ocr_filter = VideoOCRFilter(
+            figure_root=frame_output_dir,
+            det_model_dir=det_model_dir,
+            rec_model_dir=rec_model_dir,
+            ocr_min=ocr_min,
+            ocr_max=ocr_max,
         )
         self.video_clip_generator = VideoClipGenerator(
             video_save_dir=video_save_dir,
@@ -168,7 +152,7 @@ class VideoFilteredClipGenerator(OperatorABC):
         if lang == "zh":
             return (
                 "该算子整合了完整的视频处理流水线，包括信息提取、场景检测、片段生成、"
-                "关键帧抽取、美学评分、亮度评估、OCR分析、评分过滤和视频切割保存。\n\n"
+                "关键帧抽取、美学评分和过滤、亮度评估和过滤、OCR分析和过滤和视频切割保存。\n\n"
                 "输入参数：\n"
                 "  - input_video_key: 输入视频路径字段名 (默认: 'video')\n"
                 "  - output_key: 输出视频路径字段名 (默认: 'video')\n"
@@ -177,7 +161,8 @@ class VideoFilteredClipGenerator(OperatorABC):
                 "功能特点：\n"
                 "  - 自动提取视频信息（帧率、分辨率等）\n"
                 "  - 基于场景检测智能分割视频\n"
-                "  - 多维度质量评估（美学、亮度、OCR）\n"
+                "  - 基础属性提前过滤（帧数、FPS、分辨率）\n"
+                "  - 多维度质量评估和过滤（美学、亮度、OCR）\n"
                 "  - 可配置的质量过滤条件\n"
                 "  - 自动切割并保存高质量片段\n"
             )
@@ -223,7 +208,7 @@ class VideoFilteredClipGenerator(OperatorABC):
         self.logger.info("="*60)
         
         # Step 1: Extract video info
-        self.logger.info("\n[Step 1/9] Extracting video info...")
+        self.logger.info("\n[Step 1/8] Extracting video info...")
         self.video_info_filter.run(
             storage=storage.step(),
             input_video_key=input_video_key,
@@ -232,7 +217,7 @@ class VideoFilteredClipGenerator(OperatorABC):
         self.logger.info("✓ Video info extracted")
 
         # Step 2: Detect video scenes
-        self.logger.info("\n[Step 2/9] Detecting video scenes...")
+        self.logger.info("\n[Step 2/8] Detecting video scenes...")
         self.video_scene_filter.run(
             storage=storage.step(),
             input_video_key=input_video_key,
@@ -242,7 +227,7 @@ class VideoFilteredClipGenerator(OperatorABC):
         self.logger.info("✓ Scene detection complete")
 
         # Step 3: Generate clip metadata
-        self.logger.info("\n[Step 3/9] Generating clip metadata...")
+        self.logger.info("\n[Step 3/8] Generating clip metadata...")
         self.video_clip_filter.run(
             storage=storage.step(),
             input_video_key=input_video_key,
@@ -253,7 +238,7 @@ class VideoFilteredClipGenerator(OperatorABC):
         self.logger.info("✓ Clip metadata generated")
 
         # Step 4: Extract frames from clips
-        self.logger.info("\n[Step 4/9] Extracting frames from clips...")
+        self.logger.info("\n[Step 4/8] Extracting frames from clips...")
         self.video_frame_filter.run(
             storage=storage.step(),
             input_video_key=input_video_key,
@@ -263,48 +248,38 @@ class VideoFilteredClipGenerator(OperatorABC):
         )
         self.logger.info("✓ Frame extraction complete")
 
-        # Step 5: Compute aesthetic scores
-        self.logger.info("\n[Step 5/9] Computing aesthetic scores...")
-        self.video_aesthetic_evaluator.run(
+        # Step 5: Compute aesthetic scores and filter
+        self.logger.info("\n[Step 5/8] Computing aesthetic scores and filtering...")
+        self.video_aesthetic_filter.run(
             storage=storage.step(),
             input_video_key=input_video_key,
             video_clips_key="video_clip",
             output_key="video_clip",
         )
-        self.logger.info("✓ Aesthetic scoring complete")
+        self.logger.info("✓ Aesthetic scoring and filtering complete")
 
-        # Step 6: Compute luminance statistics
-        self.logger.info("\n[Step 6/9] Computing luminance statistics...")
-        self.video_luminance_evaluator.run(
+        # Step 6: Compute luminance statistics and filter
+        self.logger.info("\n[Step 6/8] Computing luminance statistics and filtering...")
+        self.video_luminance_filter.run(
             storage=storage.step(),
             input_video_key=input_video_key,
             video_clips_key="video_clip",
             output_key="video_clip",
         )
-        self.logger.info("✓ Luminance evaluation complete")
+        self.logger.info("✓ Luminance evaluation and filtering complete")
 
-        # Step 7: Compute OCR scores
-        self.logger.info("\n[Step 7/9] Computing OCR scores...")
-        self.video_ocr_evaluator.run(
+        # Step 7: Compute OCR scores and filter
+        self.logger.info("\n[Step 7/8] Computing OCR scores and filtering...")
+        self.video_ocr_filter.run(
             storage=storage.step(),
             input_video_key=input_video_key,
             video_clips_key="video_clip",
             output_key="video_clip",
         )
-        self.logger.info("✓ OCR analysis complete")
+        self.logger.info("✓ OCR analysis and filtering complete")
 
-        # Step 8: Filter clips based on scores
-        self.logger.info("\n[Step 8/9] Filtering clips based on scores...")
-        self.video_score_filter.run(
-            storage=storage.step(),
-            input_video_key=input_video_key,
-            video_clips_key="video_clip",
-            output_key="video_clip",
-        )
-        self.logger.info("✓ Score-based filtering complete")
-
-        # Step 9: Cut and save video clips
-        self.logger.info("\n[Step 9/9] Cutting and saving video clips...")
+        # Step 8: Cut and save video clips
+        self.logger.info("\n[Step 8/8] Cutting and saving video clips...")
         self.video_clip_generator.run(
             storage=storage.step(),
             video_clips_key="video_clip",
@@ -329,16 +304,14 @@ if __name__ == "__main__":
     )
     
     generator = VideoFilteredClipGenerator(
-        clip_model="/path/to/ViT-L-14.pt",
-        mlp_checkpoint="/path/to/sac+logos+ava1-l14-linearMSE.pth",
+        clip_model="ViT-L-14.pt",
+        mlp_checkpoint="sac+logos+ava1-l14-linearMSE.pth",
+        det_model_dir="PP-OCRv5_server_det",
+        rec_model_dir="PP-OCRv5_server_rec",
         aes_min=4,
         ocr_max=0.3,
         lum_min=20,
         lum_max=140,
-        motion_min=2,
-        motion_max=14,
-        strict_mode=False,
-        seed=42,
         video_save_dir="./cache/video_clips",
     )
     
