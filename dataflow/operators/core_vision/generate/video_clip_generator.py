@@ -17,7 +17,7 @@ from dataflow import get_logger
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.core import OperatorABC
 
-FFMPEG_PATH = "/usr/bin/ffmpeg"
+FFMPEG_PATH = "usr/bin/ffmpeg"
 
 
 def get_ffmpeg_acceleration():

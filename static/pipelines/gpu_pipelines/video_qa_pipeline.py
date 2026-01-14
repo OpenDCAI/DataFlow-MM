@@ -1,7 +1,7 @@
-from dataflow.operators.core_vision import VideoToCaptionGenerator, VideoCaptionToQAGenerator
-from dataflow.operators.conversations import Conversation2Message
+from dataflow.operators.core_vision import PromptedVQAGenerator, VideoCaptionToQAGenerator
 from dataflow.serving import LocalModelVLMServing_vllm
 from dataflow.utils.storage import FileStorage
+from dataflow.prompts.video import VideoCaptionGeneratorPrompt
 
 class VideoVQAGenerator():
     def __init__(self, use_video_in_qa: bool = True):
@@ -30,9 +30,12 @@ class VideoVQAGenerator():
             vllm_gpu_memory_utilization=0.9
         )
 
-        self.video_to_caption_generator = VideoToCaptionGenerator(
-            vlm_serving = self.vlm_serving,
+        self.prompted_vqa_generator = PromptedVQAGenerator(
+            serving=self.vlm_serving,
+            system_prompt="You are a helpful assistant."
         )
+        self.prompt_template = VideoCaptionGeneratorPrompt()
+        
         self.videocaption_to_qa_generator = VideoCaptionToQAGenerator(
             vlm_serving = self.vlm_serving,
             use_video_input = use_video_in_qa,  # 控制是否使用视频输入
@@ -46,13 +49,36 @@ class VideoVQAGenerator():
         #     output_message_key="messages",
         # )
 
-        self.video_to_caption_generator.run(
-            storage = self.storage.step(),
+        # Step 1: Generate video captions using PromptedVQAGenerator
+        storage = self.storage.step()
+        df = storage.read("dataframe")
+        
+        # Build prompts using the template (same prompt for all rows)
+        prompts = [self.prompt_template.build_prompt() for _ in range(len(df))]
+        
+        # Modify conversation column to set first user message to the prompt
+        if "conversation" in df.columns:
+            conversations = df["conversation"].tolist()
+            for conv, prompt in zip(conversations, prompts):
+                if isinstance(conv, list) and conv:
+                    first = conv[0]
+                    if isinstance(first, dict) and "value" in first:
+                        first["value"] = prompt
+            df["conversation"] = conversations
+        
+        # Write modified dataframe back to storage
+        storage.write(df)
+        
+        # Call PromptedVQAGenerator to generate captions
+        self.prompted_vqa_generator.run(
+            storage=storage.step(),
             input_image_key="image",
             input_video_key="video",
             input_conversation_key="conversation",
-            output_key="caption",
+            output_answer_key="caption",
         )
+        
+        # Step 2: Generate QA from captions
         # self.storage.step()
         self.videocaption_to_qa_generator.run(
             storage = self.storage.step(),

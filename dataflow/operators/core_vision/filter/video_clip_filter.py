@@ -71,6 +71,11 @@ class _ClipJob:
     fps: Optional[float]
     id_ori: Optional[str]
     scenes: List[Dict[str, Any]]  # each: {"start","end","start_frame","end_frame","duration_sec"}
+    frames_min: Optional[int] = None
+    frames_max: Optional[int] = None
+    fps_min: Optional[float] = None
+    fps_max: Optional[float] = None
+    resolution_max: Optional[int] = None
 
 def _make_clips_for_job(job: _ClipJob) -> Dict[str, Any]:
     """
@@ -117,22 +122,50 @@ def _make_clips_for_job(job: _ClipJob) -> Dict[str, Any]:
                 num_frames = int(dur_sec * fps) if dur_sec and fps and fps > 0 else None
 
             clip_id = f"{stem}_{idx}"
-            clips.append({
-                "video_path": job.video_path,
-                "id": clip_id,
-                "num_frames": num_frames,
-                "height": H,
-                "width": W,
-                "aspect_ratio": ar,
-                "fps": fps,
-                "resolution": res,
-                "timestamp_start": s_sec,  # Save as integer seconds
-                "timestamp_end": e_sec,    # Save as integer seconds
-                "frame_start": sf,
-                "frame_end": ef,
-                "duration_sec": sc.get("duration_sec"),
-                "id_ori": job.id_ori,
-            })
+            
+            # Apply basic filtering
+            should_include = True
+            
+            # Filter by frames
+            if job.frames_min is not None and num_frames is not None:
+                if num_frames < job.frames_min:
+                    should_include = False
+            if job.frames_max is not None and num_frames is not None:
+                if num_frames > job.frames_max:
+                    should_include = False
+            
+            # Filter by FPS
+            if job.fps_min is not None and fps is not None:
+                if fps < job.fps_min:
+                    should_include = False
+            if job.fps_max is not None and fps is not None:
+                if fps > job.fps_max:
+                    should_include = False
+            
+            # Filter by resolution (total pixels)
+            if job.resolution_max is not None and H is not None and W is not None:
+                resolution_pixels = H * W
+                if resolution_pixels > job.resolution_max:
+                    should_include = False
+            
+            # Only add clip if it passes all filters
+            if should_include:
+                clips.append({
+                    "video_path": job.video_path,
+                    "id": clip_id,
+                    "num_frames": num_frames,
+                    "height": H,
+                    "width": W,
+                    "aspect_ratio": ar,
+                    "fps": fps,
+                    "resolution": res,
+                    "timestamp_start": s_sec,  # Save as integer seconds
+                    "timestamp_end": e_sec,    # Save as integer seconds
+                    "frame_start": sf,
+                    "frame_end": ef,
+                    "duration_sec": sc.get("duration_sec"),
+                    "id_ori": job.id_ori,
+                })
 
         return {"success": True, "error": None, "clips": clips}
 
@@ -153,6 +186,11 @@ def extract_video_clips_dataframe(
     drop_invalid_timestamps: bool = False,
     disable_parallel: bool = False,
     num_workers: Optional[int] = None,
+    frames_min: Optional[int] = None,
+    frames_max: Optional[int] = None,
+    fps_min: Optional[float] = None,
+    fps_max: Optional[float] = None,
+    resolution_max: Optional[int] = None,
 ) -> pd.DataFrame:
     """
     Build clip metadata per row from prior pipeline columns.
@@ -166,6 +204,11 @@ def extract_video_clips_dataframe(
     Args:
       drop_invalid_timestamps: if True, drop rows where scenes are missing or malformed.
       disable_parallel / num_workers: control parallel execution.
+      frames_min: Minimum number of frames to include clip (clips below this are filtered out)
+      frames_max: Maximum number of frames to include clip (clips above this are filtered out)
+      fps_min: Minimum FPS to include clip (clips below this are filtered out)
+      fps_max: Maximum FPS to include clip (clips above this are filtered out)
+      resolution_max: Maximum resolution in pixels (width*height) to include clip (clips above this are filtered out)
 
     Returns:
       A new DataFrame with an added/updated `output_key` column shaped like:
@@ -227,14 +270,16 @@ def extract_video_clips_dataframe(
     jobs: List[_ClipJob] = []
     for _, row in df.iterrows():
         path = _get_path(row[input_video_key])
-        H, W, fps = _get_hwf(row[video_info_key])
+        H, W, fps_val = _get_hwf(row[video_info_key])
         scenes = _get_scenes(row[video_scene_key])
 
         if drop_invalid_timestamps and not scenes:
             # mark as an empty job; downstream will produce success=False and can be filtered if needed
-            jobs.append(_ClipJob(path, H, W, fps, row.get("id"), []))
+            jobs.append(_ClipJob(path, H, W, fps_val, row.get("id"), [], 
+                                frames_min, frames_max, fps_min, fps_max, resolution_max))
         else:
-            jobs.append(_ClipJob(path, H, W, fps, row.get("id"), scenes))
+            jobs.append(_ClipJob(path, H, W, fps_val, row.get("id"), scenes,
+                                frames_min, frames_max, fps_min, fps_max, resolution_max))
 
     # Execute
     results: List[Dict[str, Any]] = []
@@ -281,6 +326,11 @@ class VideoClipFilter(OperatorABC):
         drop_invalid_timestamps: bool = False,
         disable_parallel: bool = False,
         num_workers: int = 16,
+        frames_min: Optional[int] = None,
+        frames_max: Optional[int] = None,
+        fps_min: Optional[float] = None,
+        fps_max: Optional[float] = None,
+        resolution_max: Optional[int] = None,
     ):
         self.logger = get_logger()
         self.input_video_key = input_video_key
@@ -290,6 +340,11 @@ class VideoClipFilter(OperatorABC):
         self.drop_invalid_timestamps = drop_invalid_timestamps
         self.disable_parallel = disable_parallel
         self.num_workers = num_workers
+        self.frames_min = frames_min
+        self.frames_max = frames_max
+        self.fps_min = fps_min
+        self.fps_max = fps_max
+        self.resolution_max = resolution_max
 
     @staticmethod
     def get_desc(lang: str = "zh") -> str:
@@ -302,11 +357,21 @@ class VideoClipFilter(OperatorABC):
         video_info_key: Optional[str] = None,
         video_scene_key: Optional[str] = None,
         output_key: Optional[str] = None,
+        frames_min: Optional[int] = None,
+        frames_max: Optional[int] = None,
+        fps_min: Optional[float] = None,
+        fps_max: Optional[float] = None,
+        resolution_max: Optional[int] = None,
     ):
         input_video_key = input_video_key or self.input_video_key
         video_info_key = video_info_key or self.video_info_key
         video_scene_key = video_scene_key or self.video_scene_key
         output_key = output_key or self.output_key
+        frames_min = self.frames_min if frames_min is None else frames_min
+        frames_max = self.frames_max if frames_max is None else frames_max
+        fps_min = self.fps_min if fps_min is None else fps_min
+        fps_max = self.fps_max if fps_max is None else fps_max
+        resolution_max = self.resolution_max if resolution_max is None else resolution_max
 
         if output_key is None:
             raise ValueError("Parameter 'output_key' must not be None.")
@@ -324,6 +389,11 @@ class VideoClipFilter(OperatorABC):
             drop_invalid_timestamps=self.drop_invalid_timestamps,
             disable_parallel=self.disable_parallel,
             num_workers=self.num_workers if not self.disable_parallel else 1,
+            frames_min=frames_min,
+            frames_max=frames_max,
+            fps_min=fps_min,
+            fps_max=fps_max,
+            resolution_max=resolution_max,
         )
 
         storage.write(processed)

@@ -275,6 +275,8 @@ def score_ocr_over_dataframe(
     num_workers: int = 4,
     gpu_num: int = 0,
     init_distributed: bool = False,
+    det_model_dir: str = None,
+    rec_model_dir: str = None,
 ) -> pd.DataFrame:
     """
     Compute OCR scores per clip and inject them into `video_clips`.
@@ -290,6 +292,8 @@ def score_ocr_over_dataframe(
         num_workers: number of worker processes for data loading.
         gpu_num: GPU ID to use (0+ for GPU, -1 for CPU).
         init_distributed: if True (or WORLD_SIZE>1), use DistributedSampler.
+        det_model_dir: Path to PaddleOCR detection model directory.
+        rec_model_dir: Path to PaddleOCR recognition model directory.
 
     Returns:
         A new DataFrame with OCR scores written into `video_clips["clips"][i]`.
@@ -320,12 +324,17 @@ def score_ocr_over_dataframe(
 
     # Initialize PaddleOCR model
     device = "gpu:0" if gpu_num >= 0 else "cpu"
-    model = paddleocr.PaddleOCR(
-        device=device,
-        use_doc_orientation_classify=False,
-        use_doc_unwarping=False,
-        use_textline_orientation=False,
-    )
+    ocr_kwargs = {
+        "device": device,
+        "use_doc_orientation_classify": False,
+        "use_doc_unwarping": False,
+        "use_textline_orientation": False,
+    }
+    if det_model_dir:
+        ocr_kwargs["det_model_dir"] = det_model_dir
+    if rec_model_dir:
+        ocr_kwargs["rec_model_dir"] = rec_model_dir
+    model = paddleocr.PaddleOCR(**ocr_kwargs)
 
     # Build dataset & dataloader
     dataset = ClipFrameDataset(samples, load_num=load_num)
@@ -401,6 +410,8 @@ class VideoOCREvaluator(OperatorABC):
         gpu_num: int = 0,
         init_distributed: bool = False,
         output_key: str = "video_clips",
+        det_model_dir: str = None,
+        rec_model_dir: str = None,
     ):
         """
         Initialize OCR analysis operator
@@ -415,6 +426,8 @@ class VideoOCREvaluator(OperatorABC):
             gpu_num: GPU ID (0+ for GPU, -1 for CPU)
             init_distributed: if True (or WORLD_SIZE>1), use DistributedSampler
             output_key: Output column name
+            det_model_dir: Path to PaddleOCR detection model directory
+            rec_model_dir: Path to PaddleOCR recognition model directory
         """
         self.logger = get_logger()
         self.figure_root = figure_root
@@ -426,6 +439,8 @@ class VideoOCREvaluator(OperatorABC):
         self.gpu_num = gpu_num
         self.init_distributed = init_distributed
         self.output_key = output_key
+        self.det_model_dir = det_model_dir
+        self.rec_model_dir = rec_model_dir
 
     @staticmethod
     def get_desc(lang: str = "zh") -> str:
@@ -443,6 +458,8 @@ class VideoOCREvaluator(OperatorABC):
         gpu_num: Optional[int] = None,
         init_distributed: Optional[bool] = None,
         output_key: Optional[str] = None,
+        det_model_dir: Optional[str] = None,
+        rec_model_dir: Optional[str] = None,
     ):
         """
         Execute OCR analysis (main interface for DataFlowStorage)
@@ -456,6 +473,8 @@ class VideoOCREvaluator(OperatorABC):
         gpu_num = self.gpu_num if gpu_num is None else gpu_num
         init_distributed = self.init_distributed if init_distributed is None else init_distributed
         output_key = output_key or self.output_key
+        det_model_dir = det_model_dir or self.det_model_dir
+        rec_model_dir = rec_model_dir or self.rec_model_dir
 
         self.logger.info("Running OCRAnalyzer...")
         df = storage.read("dataframe")
@@ -471,6 +490,8 @@ class VideoOCREvaluator(OperatorABC):
             num_workers=num_workers,
             gpu_num=gpu_num,
             init_distributed=init_distributed,
+            det_model_dir=det_model_dir,
+            rec_model_dir=rec_model_dir,
         )
 
         # If caller wants a different column name to hold updated clips, mirror it.

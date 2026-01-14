@@ -679,60 +679,172 @@ class APIVLMServing_openai(LLMServingABC):
         
         return results
     
-    def generate_from_input_sequential(
+    def _build_messages_from_conversation(
         self,
-        user_inputs: List[str],
-        system_prompt: str = "You are a helpful assistant.",
-        image_inputs: List[List[str]] = None,
-        video_inputs: List[List[str]] = None,
-        audio_inputs: List[List[str]] = None
+        conversation: List[Dict[str, str]],
+        image_paths: List[str] = None,
+        video_paths: List[str] = None,
+        system_prompt: str = "You are a helpful assistant."
+    ) -> List[Dict[str, Any]]:
+        """
+        从对话历史构建 OpenAI API 格式的消息列表
+        
+        :param conversation: 单个对话历史，格式为 [{"role": "user", "content": "..."}, ...]
+        :param image_paths: 图像路径列表
+        :param video_paths: 视频路径列表
+        :param system_prompt: 系统提示
+        :return: OpenAI API 格式的消息列表
+        """
+        messages = []
+        
+        # 添加系统提示
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        
+        # 处理对话历史
+        for turn in conversation:
+            role = turn.get("role", "user")
+            content = turn.get("content", "")
+            
+            # 只对最后一轮 user 消息添加多模态内容
+            if role == "user" and turn == conversation[-1]:
+                # 构建包含多模态内容的消息
+                message_content = []
+                
+                # 添加图像
+                if image_paths:
+                    for image_path in image_paths:
+                        if image_path:
+                            base64_image = self._encode_image_to_base64_from_path(image_path)
+                            ext = image_path.rsplit('.', 1)[-1].lower()
+                            if ext == 'jpg':
+                                fmt = 'jpeg'
+                            elif ext == 'jpeg':
+                                fmt = 'jpeg'
+                            elif ext == 'png':
+                                fmt = 'png'
+                            elif ext == 'webp':
+                                fmt = 'webp'
+                            else:
+                                fmt = 'jpeg'
+                            
+                            message_content.append({
+                                "type": "image_url",
+                                "image_url": {"url": f"data:image/{fmt};base64,{base64_image}"}
+                            })
+                
+                # 添加视频
+                if video_paths:
+                    for video_path in video_paths:
+                        if video_path:
+                            base64_video = self._encode_video_to_base64_from_path(video_path)
+                            message_content.append({
+                                "type": "video_url",
+                                "video_url": {"url": f"data:video/mp4;base64,{base64_video}"}
+                            })
+                
+                # 添加文本内容
+                message_content.append({"type": "text", "text": content})
+                
+                messages.append({"role": role, "content": message_content})
+            else:
+                # 其他消息直接添加文本
+                messages.append({"role": role, "content": content})
+        
+        return messages
+    
+    def _send_conversation_request_with_id(
+        self,
+        idx: int,
+        conversation: List[Dict[str, str]],
+        image_paths: List[str] = None,
+        video_paths: List[str] = None,
+        system_prompt: str = "You are a helpful assistant."
+    ) -> Tuple[int, str]:
+        """
+        发送带有对话历史的单个请求
+        
+        :param idx: 请求索引
+        :param conversation: 对话历史
+        :param image_paths: 图像路径列表
+        :param video_paths: 视频路径列表
+        :param system_prompt: 系统提示
+        :return: (索引, 响应文本)
+        """
+        messages = self._build_messages_from_conversation(
+            conversation,
+            image_paths,
+            video_paths,
+            system_prompt
+        )
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                timeout=self.timeout,
+                stream=self.send_request_stream
+            )
+            
+            return idx, resp.choices[0].message.content
+        except Exception as e:
+            self.logger.error(f"Request {idx} failed: {str(e)}")
+            return idx, f"Error: {str(e)}"
+    
+    def generate_from_input_messages(
+        self,
+        conversations: List[List[Dict[str, str]]],
+        image_list: List[List[str]] = None,
+        video_list: List[List[str]] = None,
+        audio_list: List[List[str]] = None,
+        system_prompt: str = "You are a helpful assistant."
     ) -> List[str]:
         """
-        批量生成文本（单线程顺序版本），与 local_model_vlm_serving 接口对齐
-        适用于调试或需要顺序处理的场景
+        批量生成文本，支持对话历史格式，与 local_model_vlm_serving 接口对齐
         
-        :param user_inputs: 文本提示列表
+        :param conversations: 对话历史列表，每个元素是一个对话历史
+                             格式：[[{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}, ...], ...]
+        :param image_list: 图像路径列表的列表，每个元素对应一个样本的图像路径列表
+        :param video_list: 视频路径列表的列表，每个元素对应一个样本的视频路径列表
+        :param audio_list: 音频路径列表的列表（当前未实现）
         :param system_prompt: 系统提示
-        :param image_inputs: 图像路径列表的列表，每个元素是一个样本的图像路径列表
-        :param video_inputs: 视频路径列表的列表，每个元素是一个样本的视频路径列表
-        :param audio_inputs: 音频路径列表的列表（当前未使用）
         :return: 生成的文本列表
         """
-        self.logger.info(f"API VLM Serving (Sequential): Processing {len(user_inputs)} requests")
-        import ipdb;ipdb.set_trace()
-        if image_inputs is not None:
-            self.logger.info(f"Image inputs: {len(image_inputs)}")
-        if video_inputs is not None:
-            self.logger.info(f"Video inputs: {len(video_inputs)}")
+        self.logger.info(f"API VLM Serving: Processing {len(conversations)} conversation requests")
         
-        # 检查是否为纯文本模式
-        is_pure_text = (image_inputs is None or all(img is None for img in image_inputs)) and \
-                       (video_inputs is None or all(vid is None for vid in video_inputs))
+        if image_list is not None:
+            self.logger.info(f"Image inputs: {len(image_list)}")
+        if video_list is not None:
+            self.logger.info(f"Video inputs: {len(video_list)}")
+        if audio_list is not None:
+            self.logger.warning("Audio inputs are not yet supported and will be ignored")
         
-        if is_pure_text:
-            self.logger.info("Pure text mode detected")
+        results = [None] * len(conversations)
+        futures = []
         
-        results = []
-        
-        # 使用 tqdm 显示进度
-        for idx, prompt in enumerate(tqdm(user_inputs, desc="API Generating (Sequential)...")):
-            # 获取当前样本的图像和视频路径
-            current_image_paths = None
-            if image_inputs is not None and idx < len(image_inputs) and image_inputs[idx] is not None:
-                current_image_paths = image_inputs[idx] if isinstance(image_inputs[idx], list) else [image_inputs[idx]]
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            for idx, conversation in enumerate(conversations):
+                # 获取当前样本的图像和视频路径
+                current_image_paths = None
+                if image_list is not None and idx < len(image_list) and image_list[idx] is not None:
+                    current_image_paths = image_list[idx] if isinstance(image_list[idx], list) else [image_list[idx]]
+                
+                current_video_paths = None
+                if video_list is not None and idx < len(video_list) and video_list[idx] is not None:
+                    current_video_paths = video_list[idx] if isinstance(video_list[idx], list) else [video_list[idx]]
+                
+                future = executor.submit(
+                    self._send_conversation_request_with_id,
+                    idx,
+                    conversation,
+                    current_image_paths,
+                    current_video_paths,
+                    system_prompt
+                )
+                futures.append(future)
             
-            current_video_paths = None
-            if video_inputs is not None and idx < len(video_inputs) and video_inputs[idx] is not None:
-                current_video_paths = video_inputs[idx] if isinstance(video_inputs[idx], list) else [video_inputs[idx]]
-            
-            # 直接调用发送请求函数（顺序执行）
-            _, response = self._send_single_request_with_id(
-                idx,
-                prompt,
-                current_image_paths,
-                current_video_paths,
-                system_prompt
-            )
-            results.append(response)
+            # 收集结果
+            for future in tqdm(as_completed(futures), total=len(futures), desc="API Generating (Messages)..."):
+                idx, response = future.result()
+                results[idx] = response
         
         return results

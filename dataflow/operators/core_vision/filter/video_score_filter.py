@@ -61,85 +61,89 @@ def filter_dataset(
         flow_score = clip.get("flow_score")
         blur_score = clip.get("blur_score")
 
-        # 默认通过过滤
-        filtered = True  
+        # 检查是否已有 filtered 字段，如果有则使用已有值，否则默认为 True（通过）
+        # 如果之前的过滤器已经设置为 False，则保持 False
+        filtered = clip.get("filtered", True)  
 
-        # 应用过滤条件和列存在性检查
-        if frames_min is not None:
-            if not check_column_exists(clip, "num_frames", "最小帧数"):
-                filtered = False
-            elif num_frames < frames_min:
-                filtered = False
-        if frames_max is not None:
-            if not check_column_exists(clip, "num_frames", "最大帧数"):
-                filtered = False
-            elif num_frames > frames_max:
-                filtered = False
-        if fps_min is not None:
-            if not check_column_exists(clip, "fps", "最小帧率"):
-                filtered = False
-            elif fps < fps_min:
-                filtered = False
-        if fps_max is not None:
-            if not check_column_exists(clip, "fps", "最大帧率"):
-                filtered = False
-            elif fps > fps_max:
-                filtered = False
-        if resolution_max is not None:
-            if not check_column_exists(clip, "resolution", "最大分辨率"):
-                filtered = False
-            elif resolution > resolution_max:
-                filtered = False
-        if aes_min is not None:
-            if not check_column_exists(clip, "aesthetic_score", "最小美学分数"):
-                filtered = False
-            elif aes_score < aes_min:
-                filtered = False
-        if ocr_min is not None:
-            if not check_column_exists(clip, "ocr_score", "最小OCR分数"):
-                filtered = False
-            elif ocr_score < ocr_min:
-                filtered = False
-        if ocr_max is not None:
-            if not check_column_exists(clip, "ocr_score", "最大OCR分数"):
-                filtered = False
-            elif ocr_score > ocr_max:
-                filtered = False
-        if lum_min is not None:
-            if not check_column_exists(clip, "luminance_mean", "最小亮度分数"):
-                filtered = False
-            elif lum_mean < lum_min:
-                filtered = False
-        if lum_max is not None:
-            if not check_column_exists(clip, "luminance_mean", "最大亮度分数"):
-                filtered = False
-            elif lum_mean > lum_max:
-                filtered = False
-        if motion_min is not None:
-            if not check_column_exists(clip, "motion_score", "最小运动分数"):
-                filtered = False
-            elif motion_score < motion_min:
-                filtered = False
-        if motion_max is not None:
-            if not check_column_exists(clip, "motion_score", "最大运动分数"):
-                filtered = False
-            elif motion_score > motion_max:
-                filtered = False
-        if flow_min is not None:
-            if not check_column_exists(clip, "flow_score", "最小光流分数"):
-                filtered = False
-            elif flow_score < flow_min:
-                filtered = False
-        if flow_max is not None:
-            if not check_column_exists(clip, "flow_score", "最大光流分数"):
-                filtered = False
-            elif flow_score > flow_max:
-                filtered = False
-        if blur_max is not None:
-            if not check_column_exists(clip, "blur_score", "最大模糊分数"):
-                filtered = False
-            elif blur_score > blur_max:
-                filtered = False
+        # 只有当当前 filtered 为 True 时，才进行后续的过滤检查
+        # 如果已经是 False（被之前的过滤器标记），则跳过所有检查
+        if filtered:
+            # 应用过滤条件和列存在性检查
+            if frames_min is not None:
+                if not check_column_exists(clip, "num_frames", "最小帧数"):
+                    filtered = False
+                elif num_frames < frames_min:
+                    filtered = False
+            if frames_max is not None:
+                if not check_column_exists(clip, "num_frames", "最大帧数"):
+                    filtered = False
+                elif num_frames > frames_max:
+                    filtered = False
+            if fps_min is not None:
+                if not check_column_exists(clip, "fps", "最小帧率"):
+                    filtered = False
+                elif fps < fps_min:
+                    filtered = False
+            if fps_max is not None:
+                if not check_column_exists(clip, "fps", "最大帧率"):
+                    filtered = False
+                elif fps > fps_max:
+                    filtered = False
+            if resolution_max is not None:
+                if not check_column_exists(clip, "resolution", "最大分辨率"):
+                    filtered = False
+                elif resolution > resolution_max:
+                    filtered = False
+            if aes_min is not None:
+                if not check_column_exists(clip, "aesthetic_score", "最小美学分数"):
+                    filtered = False
+                elif aes_score < aes_min:
+                    filtered = False
+            if ocr_min is not None:
+                if not check_column_exists(clip, "ocr_score", "最小OCR分数"):
+                    filtered = False
+                elif ocr_score < ocr_min:
+                    filtered = False
+            if ocr_max is not None:
+                if not check_column_exists(clip, "ocr_score", "最大OCR分数"):
+                    filtered = False
+                elif ocr_score > ocr_max:
+                    filtered = False
+            if lum_min is not None:
+                if not check_column_exists(clip, "luminance_mean", "最小亮度分数"):
+                    filtered = False
+                elif lum_mean < lum_min:
+                    filtered = False
+            if lum_max is not None:
+                if not check_column_exists(clip, "luminance_mean", "最大亮度分数"):
+                    filtered = False
+                elif lum_mean > lum_max:
+                    filtered = False
+            if motion_min is not None:
+                if not check_column_exists(clip, "motion_score", "最小运动分数"):
+                    filtered = False
+                elif motion_score < motion_min:
+                    filtered = False
+            if motion_max is not None:
+                if not check_column_exists(clip, "motion_score", "最大运动分数"):
+                    filtered = False
+                elif motion_score > motion_max:
+                    filtered = False
+            if flow_min is not None:
+                if not check_column_exists(clip, "flow_score", "最小光流分数"):
+                    filtered = False
+                elif flow_score < flow_min:
+                    filtered = False
+            if flow_max is not None:
+                if not check_column_exists(clip, "flow_score", "最大光流分数"):
+                    filtered = False
+                elif flow_score > flow_max:
+                    filtered = False
+            if blur_max is not None:
+                if not check_column_exists(clip, "blur_score", "最大模糊分数"):
+                    filtered = False
+                elif blur_score > blur_max:
+                    filtered = False
 
         # 给clip添加filtered标记
         clip["filtered"] = filtered

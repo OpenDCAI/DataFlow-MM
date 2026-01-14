@@ -13,7 +13,7 @@ import os
 import re
 
 # 设置 API Key 环境变量
-os.environ["DF_API_KEY"] = "your api key"
+os.environ["DF_API_KEY"] = "your api-key"
 
 from dataflow.core.Operator import OperatorABC
 from dataflow import get_logger
@@ -23,7 +23,6 @@ from dataflow.operators.core_vision import VideoInfoFilter
 from dataflow.operators.core_vision import VideoSceneFilter
 from dataflow.operators.core_vision import VideoClipFilter
 from dataflow.operators.core_vision import VideoClipGenerator
-from dataflow.operators.core_vision import VideoToCaptionGenerator
 from dataflow.operators.core_vision import VideoMergedCaptionGenerator
 from dataflow.operators.core_vision import VideoCaptionToQAGenerator
 from dataflow.operators.core_vision import PromptedVQAGenerator
@@ -262,10 +261,11 @@ class LongVideoPipelineAPI(OperatorABC):
         )
         
         # Initialize caption generator with prompt template
-        self.video_to_caption_generator = VideoToCaptionGenerator(
-            vlm_serving=self.vlm_serving,
-            prompt_template=VIDEO_CAPTION_PROMPT,
+        self.caption_vqa_generator = PromptedVQAGenerator(
+            serving=self.vlm_serving,
+            system_prompt="You are a helpful assistant."
         )
+        self.caption_prompt_template = DiyVideoPrompt(VIDEO_CAPTION_PROMPT)
         
         # Initialize merged caption generator
         self.video_merged_caption_generator = VideoMergedCaptionGenerator(
@@ -405,12 +405,34 @@ class LongVideoPipelineAPI(OperatorABC):
 
         # Step 5: Generate captions for each clip using API
         self.logger.info("\n[Step 5/6] Generating captions for each clip using API...")
-        self.video_to_caption_generator.run(
-            storage=storage.step(),
+        
+        # Load data and build prompts
+        caption_storage = storage.step()
+        df = caption_storage.read("dataframe")
+        
+        # Build prompts using the template (same prompt for all rows)
+        prompts = [self.caption_prompt_template.build_prompt() for _ in range(len(df))]
+        
+        # Modify conversation column to set first user message to the prompt
+        if input_conversation_key in df.columns:
+            conversations = df[input_conversation_key].tolist()
+            for conv, prompt in zip(conversations, prompts):
+                if isinstance(conv, list) and conv:
+                    first = conv[0]
+                    if isinstance(first, dict) and "value" in first:
+                        first["value"] = prompt
+            df[input_conversation_key] = conversations
+        
+        # Write modified dataframe back to storage
+        caption_storage.write(df)
+        
+        # Call PromptedVQAGenerator to generate captions
+        self.caption_vqa_generator.run(
+            storage=caption_storage.step(),
             input_image_key="image",
             input_video_key="video",
             input_conversation_key=input_conversation_key,
-            output_key=output_key,
+            output_answer_key=output_key,
         )
         self.logger.info("✓ Caption generation complete")
         
