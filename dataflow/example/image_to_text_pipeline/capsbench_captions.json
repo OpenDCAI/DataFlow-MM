@@ -1,0 +1,12 @@
+[
+    {
+        "source":["https://huggingface.co/datasets/OpenDCAI/dataflow-demo-image/resolve/main/capsbench_images/0.png"],
+        "image": ["./dataflow/example/test_data/0.png"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "Please describe the image in detail."
+            }
+        ]
+    }
+]

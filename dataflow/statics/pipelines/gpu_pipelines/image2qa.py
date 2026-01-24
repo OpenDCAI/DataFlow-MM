@@ -1,7 +1,6 @@
 import argparse
 from dataflow.utils.storage import FileStorage
-from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
-from dataflow.prompts.image import QAGeneratorPrompt          
+from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm       
 from dataflow.operators.core_vision import ImageQAGenerator
 
 class ImageQAPipeline:
@@ -27,8 +26,6 @@ class ImageQAPipeline:
             cache_path=cache_path,
             file_name_prefix=file_name_prefix,
             cache_type=cache_type,
-            # media_key=media_key,
-            # media_type="image",
         )
 
         # 2. Serving
@@ -39,12 +36,13 @@ class ImageQAPipeline:
             vllm_tensor_parallel_size=1,
             vllm_temperature=0.7,
             vllm_top_p=0.9,
-            vllm_max_tokens=128,          # 适度长度
+            vllm_max_tokens=512,          # 适度长度
         )
 
         # 3. Operator
         self.qa_generator = ImageQAGenerator(
             llm_serving=self.serving,
+            system_prompt="You are a image question-answer generator. Your task is to generate a question-answer pair for the given image content.",
         )
 
         self.media_key = media_key
@@ -67,10 +65,10 @@ if __name__ == "__main__":
     parser.add_argument("--download_dir", default="./ckpt/models")
     parser.add_argument("--device", choices=["cuda", "cpu"], default="cuda")
 
-    parser.add_argument("--qa_file", default="./dataflow/example/image_to_text_pipeline/capsbench_qas.jsonl")
+    parser.add_argument("--qa_file", default="./dataflow/example/image_to_text_pipeline/capsbench_qas.json")
     parser.add_argument("--cache_path", default="./cache_local")
     parser.add_argument("--file_name_prefix", default="qa")
-    parser.add_argument("--cache_type", default="jsonl")
+    parser.add_argument("--cache_type", default="json")
     parser.add_argument("--media_key", default="image")
     parser.add_argument("--output_key", default="qa")
 

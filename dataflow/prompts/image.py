@@ -62,11 +62,12 @@ class PersQAGeneratorPrompt:
         }
 
     def build_prompt(self) -> str:
+        # 把上面的prompts变成模版
+        prompt_template = "The name of the main character in the image is <{sks}>. You need to answer a question about <{sks}>.\nQuestion: {query} Please answer starting with <{sks}>!\nAnswer: "
 
-        prompt = ''
         system_prompt = f'''You are a personal question-answer generator. Your task is to generate a concise and informative answer for the given question about the main character in the image. The question should be related to the character's appearance or attributes, and the answer should be directly related to the character's features.'''
 
-        return prompt, system_prompt
+        return prompt_template, self.qa_template, system_prompt
 
 class SKVQAGeneratorPrompt:
     '''

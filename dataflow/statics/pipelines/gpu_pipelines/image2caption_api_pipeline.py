@@ -1,8 +1,13 @@
+import os
+
+# 设置 API Key 环境变量
+os.environ["DF_API_KEY"] = "your api-key"
+
 import argparse
 from typing import Any, List
 
 from dataflow.utils.storage import FileStorage
-from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
+from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
 from dataflow.operators.core_vision import ImageCaptionGenerator
 
 
@@ -34,19 +39,19 @@ class ImageCaptioningPipeline:
         )
 
         # ---------- 2. Serving ----------
-        self.serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path=model_path,
-            hf_cache_dir=hf_cache_dir,
-            hf_local_dir=download_dir,
-            vllm_tensor_parallel_size=1,
-            vllm_temperature=0.7,
-            vllm_top_p=0.9,
-            vllm_max_tokens=256,
+        self.vlm_serving = APIVLMServing_openai(
+            api_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            key_name_of_api_key="DF_API_KEY",
+            model_name="qwen3-vl-8b-instruct",
+            image_io=None,
+            send_request_stream=False,
+            max_workers=10,
+            timeout=1800
         )
 
         # ---------- 3. Operator ----------
         self.caption_generator = ImageCaptionGenerator(
-            llm_serving=self.serving,
+            llm_serving=self.vlm_serving,
             system_prompt="You are a image caption generator. Your task is to generate a concise and informative caption for the given image content.",
         )
         

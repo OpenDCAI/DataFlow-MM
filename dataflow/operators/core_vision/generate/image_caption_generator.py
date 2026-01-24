@@ -1,6 +1,3 @@
-from dataflow.core.Operator import OperatorABC
-
-from dataflow.prompts.image import CaptionGeneratorPrompt
 import pandas as pd
 from dataflow.utils.registry import OPERATOR_REGISTRY
 from dataflow import get_logger
@@ -10,17 +7,19 @@ from dataflow.core import OperatorABC
 from dataflow.core import LLMServingABC
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 
-from qwen_vl_utils import process_vision_info
+from dataflow.operators.core_vision import PromptedVQAGenerator
 
 @OPERATOR_REGISTRY.register()
 class ImageCaptionGenerator(OperatorABC):
     '''
     Caption Generator is a class that generates captions for given images.
     '''
-    def __init__(self, llm_serving: LLMServingABC):
+    def __init__(self, llm_serving: LLMServingABC, system_prompt: str):
         self.logger = get_logger()
-        self.prompt_generator = CaptionGeneratorPrompt()
-        self.llm_serving = llm_serving
+        self.generator = PromptedVQAGenerator(
+            serving=llm_serving,
+            system_prompt=system_prompt,
+        )
 
     @staticmethod
     def get_desc(lang: str = "zh"):
@@ -52,53 +51,6 @@ class ImageCaptionGenerator(OperatorABC):
             )
         else:
             return "ImageCaptionGenerate produces textual descriptions for given images using vision-language models."
-    
-    def _validate_dataframe(self, dataframe: pd.DataFrame):
-        required_keys = [self.multi_modal_key]
-        forbidden_keys = [self.output_key]
-
-        missing = [k for k in required_keys if k not in dataframe.columns]
-        conflict = [k for k in forbidden_keys if k in dataframe.columns]
-
-        if missing:
-            raise ValueError(f"Missing required column(s): {missing}")
-        if conflict:
-            raise ValueError(f"The following column(s) already exist and would be overwritten: {conflict}")
-
-
-    def _prepare_batch_inputs(self, media_paths):
-        """
-        Construct batched prompts and image inputs from media paths.
-        """
-        prompts, system_prompt = self.prompt_generator.build_prompt()
-
-        prompt_list = []
-        image_inputs_list = []
-
-        for paths in media_paths:
-            for p in paths:
-                raw_prompt = [
-                    {"role": "system", "content": system_prompt},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "image", "image": p},
-                            {"type": "text", "text": prompts},
-                        ],
-                    },
-                ]
-                # Get vision inputs
-                image_inputs, _ = process_vision_info(raw_prompt)
-
-                # Format prompt using LLM processor
-                prompt = self.llm_serving.processor.apply_chat_template(
-                    raw_prompt, tokenize=False, add_generation_prompt=True
-                )
-
-                image_inputs_list.append(image_inputs)
-                prompt_list.append(prompt)
-
-        return prompt_list, image_inputs_list
 
     def run(
         self,
@@ -109,28 +61,13 @@ class ImageCaptionGenerator(OperatorABC):
         """
         Runs the caption generation process in batch mode, reading from the input file and saving results to output.
         """
-        self.multi_modal_key, self.output_key = input_modal_key, output_key
-        # storage.step()
-        dataframe = storage.read("dataframe")
-        self._validate_dataframe(dataframe)
-        
-        # media_paths = storage.media_paths
-        media_paths = dataframe.get(self.multi_modal_key, pd.Series([])).tolist()
-        # 将media_paths中的非list类型的路径转换为list
-        media_paths = [path if isinstance(path, list) else [path] for path in media_paths]
-        
-        prompt_list, image_inputs_list = self._prepare_batch_inputs(media_paths)
-
-        outputs = self.llm_serving.generate_from_input(
-            user_inputs=prompt_list,
-            image_inputs=image_inputs_list
+        output_answer_key = self.generator.run(
+            storage=storage,
+            input_conversation_key="conversation",
+            input_image_key=input_modal_key,
+            output_answer_key=output_key,
         )
-
-        dataframe[self.output_key] = outputs
-        output_file = storage.write(dataframe)
-        self.logger.info(f"Results saved to {output_file}")
-
-        return [output_key]
+        return [output_answer_key]
 
 if __name__ == "__main__":
     # Initialize model
@@ -143,15 +80,16 @@ if __name__ == "__main__":
     )
 
     caption_generator = ImageCaptionGenerator(
-        llm_serving=model
+        llm_serving=model,
+        system_prompt="You are a image caption generator. Your task is to generate a concise and informative caption for the given image content.",
     )
 
     # Prepare input
     storage = FileStorage(
-        first_entry_file_name="dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl", 
+        first_entry_file_name="./dataflow/example/image_to_text_pipeline/capsbench_captions.json", 
         cache_path="./cache_local",
         file_name_prefix="caption",
-        cache_type="jsonl",
+        cache_type="json",
     )
     storage.step()  # Load the data
 
