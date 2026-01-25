@@ -45,17 +45,17 @@ class VideoCaptionToQAGenerator(OperatorABC):
         return "基于 prompt 生成数据" if lang == "zh" else "Generate data from a prompt."
 
     # ----------------------------- Helpers -----------------------------------
-    def _build_prompts(self, df: pd.DataFrame) -> List[str]:
-        """Build one prompt per row using the template and the ``caption`` column.
+    def _build_prompts(self, df: pd.DataFrame, input_caption_key: str) -> List[str]:
+        """Build one prompt per row using the template and the caption column.
 
         Raises:
-            KeyError: if the required ``caption`` column is missing.
+            KeyError: if the required caption column is missing.
         """
-        if "caption" not in df.columns:
-            raise KeyError("Input dataframe must contain a 'caption' column.")
+        if input_caption_key not in df.columns:
+            raise KeyError(f"Input dataframe must contain a '{input_caption_key}' column.")
 
         # Using .apply keeps the code concise and readable.
-        prompts = df["caption"].apply(lambda c: self.prompt_template.build_prompt(caption=c))
+        prompts = df[input_caption_key].apply(lambda c: self.prompt_template.build_prompt(caption=c))
         return prompts.tolist()
 
     @staticmethod
@@ -81,7 +81,7 @@ class VideoCaptionToQAGenerator(OperatorABC):
         input_image_key: str = None,
         input_video_key: str = None,
         input_conversation_key: str = "conversation",
-        # 输出的 conversation 可能是 None 也可能是 conversation，请类型检查
+        input_caption_key: str = "caption",
         output_key: str = "answer",
     ) -> str:
         if not output_key:
@@ -92,12 +92,15 @@ class VideoCaptionToQAGenerator(OperatorABC):
         df: pd.DataFrame = storage.read("dataframe")
         self.logger.info("Loaded dataframe with %d rows", len(df))
         
-        prompts = self._build_prompts(df)
+        prompts = self._build_prompts(df, input_caption_key)
 
-        # Rewrite the first user message per conversation to the built prompt.
+        # Create or update conversation column
         if input_conversation_key not in df.columns:
-            raise KeyError("Input dataframe must contain a 'conversation' column.")
+            # Create default empty conversations
+            self.logger.info(f"Creating default '{input_conversation_key}' column")
+            df[input_conversation_key] = [[{"from": "human", "value": ""}]] * len(df)
 
+        # Rewrite the first user message per conversation to the built prompt
         df[input_conversation_key] = [
             self._set_first_user_message(conv, prompt)
             for conv, prompt in zip(df[input_conversation_key].tolist(), prompts)

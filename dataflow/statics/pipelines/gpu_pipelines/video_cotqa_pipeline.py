@@ -85,64 +85,9 @@ class VideoCOTQATest:
             prompts.append(prompt)
         
         return prompts
-
-    @staticmethod
-    def _set_first_user_message(conversation, value: str):
-        """Safely set the first user message's 'value' in a conversation."""
-        try:
-            if isinstance(conversation, list) and conversation:
-                first = conversation[0]
-                if isinstance(first, dict) and "value" in first:
-                    first["value"] = value
-        except Exception:
-            pass
-        return conversation
-
-    def run(self):
-        print("Running VideoCOTQAGenerator pipeline...")
-        
-        # Step 1: Generate CoT QA responses
-        print("\n[Step 1/3] Generating CoT QA responses...")
-        
-        # Load data and build prompts
-        storage = self.storage.step()
-        df = storage.read("dataframe")
-        
-        # Build prompts
-        prompts = self._build_prompts(df)
-        
-        # Create or update conversations
-        if "conversation" not in df.columns or df["conversation"].isna().all():
-            # Create default conversations
-            df["conversation"] = [
-                [{"from": "human", "value": prompt}] for prompt in prompts
-            ]
-        else:
-            # Update existing conversations
-            df["conversation"] = [
-                self._set_first_user_message(conv, prompt)
-                for conv, prompt in zip(df["conversation"].tolist(), prompts)
-            ]
-        # import ipdb;ipdb.set_trace()
-        # Write the modified dataframe back to storage
-        storage.write(df)
-        
-        # Use PromptedVQAGenerator to generate responses
-        temp_response_key = "_temp_cotqa_response"
-        self.prompted_vqa_generator.run(
-            storage=storage.step(),
-            input_image_key="image",
-            input_video_key="video",
-            input_conversation_key="conversation",
-            output_answer_key=temp_response_key,
-        )
-        
-        # Read back the results with responses
-        storage.step()
-        df = storage.read("dataframe")
-        responses = df[temp_response_key].tolist()
-        
-        # Process responses - extract think chain and answer
+    
+    def _process_responses(self, responses):
+        """Process CoT QA responses to extract answers and think chains."""
         answers = []
         processes = []
         
@@ -154,67 +99,96 @@ class VideoCOTQATest:
             answers.append(final_ans)
             processes.append(f"<think>{think_chain}</think>" if think_chain else "")
         
+        return answers, processes
+    
+    def _print_results_summary(self, result_df):
+        """Print summary of final results."""
+        print("\n" + "="*60)
+        print("Final Results:")
+        print("="*60)
+        print(f"Results shape: {result_df.shape}")
+        
+        if result_df.empty:
+            return
+        
+        print("\nColumns:", result_df.columns.tolist())
+        
+        # Calculate and display statistics
+        if 'reward' in result_df.columns and 'select' in result_df.columns:
+            rewards = result_df['reward'].tolist()
+            selects = result_df['select'].tolist()
+            print(f"\nAverage reward: {sum(rewards)/len(rewards):.4f}")
+            print(f"Selected samples: {sum(selects)}/{len(selects)}")
+        
+        # Print first result samples if available
+        print("\nSample results:")
+        cols_to_show = ['answer', 'process', 'reward', 'select']
+        available_cols = [col for col in cols_to_show if col in result_df.columns]
+        print(result_df[available_cols].head())
+
+    def run(self):
+        print("Running VideoCOTQAGenerator pipeline...")
+        
+        # Step 1: Generate CoT QA responses
+        print("\n[Step 1/3] Generating CoT QA responses...")
+        
+        # Load data and build prompts
+        storage = self.storage.step()
+        df = storage.read("dataframe")
+        
+        # Build prompts and add to dataframe
+        prompts = self._build_prompts(df)
+        df["prompt"] = prompts
+        storage.write(df)
+        
+        # Use PromptedVQAGenerator to generate responses
+        self.prompted_vqa_generator.run(
+            storage=storage.step(),
+            input_image_key="image",
+            input_video_key="video",
+            input_prompt_key="prompt",
+            output_answer_key="_temp_cotqa_response",
+        )
+        
+        # Read back the results with responses
+        storage.step()
+        df = storage.read("dataframe")
+        responses = df["_temp_cotqa_response"].tolist()
+        
+        # Process responses - extract think chain and answer
+        answers, processes = self._process_responses(responses)
+        
         # Attach extracted answers and processes
         df["answer"] = answers
         df["process"] = processes
         df["full_response"] = responses
-        
-        # Clean up temporary column
-        df = df.drop(columns=[temp_response_key])
         storage.write(df)
-        
-        answer_key = "answer"
-        print(f"Generation finished. Output key: {answer_key}")
-        
+                
         # Step 2: Evaluate answers and calculate rewards
         print("\n[Step 2/3] Evaluating answers and calculating rewards...")
-        reward_key = self.evaluator.run(
+        self.evaluator.run(
             storage=self.storage.step(),
             input_model_output_key="full_response",
             input_gt_solution_key="solution",
             input_question_type_key="problem_type",
             output_reward_key="reward",
         )
-        print(f"Evaluation finished. Output key: {reward_key}")
         
         # Step 3: Filter based on reward threshold
         print("\n[Step 3/3] Filtering based on reward threshold...")
-        select_key = self.score_filter.run(
+        self.score_filter.run(
             storage=self.storage.step(),
             input_score_key="reward",
             output_select_key="select",
         )
-        print(f"Filtering finished. Output key: {select_key}")
         
-        # Verify results
-        print("\n" + "="*60)
-        print("Final Results:")
-        print("="*60)
+        # Print results summary
         result_df = self.storage.step().read("dataframe")
-        print(f"Results shape: {result_df.shape}")
-        if not result_df.empty:
-            print("\nColumns:", result_df.columns.tolist())
-            
-            # Calculate and display statistics
-            if 'reward' in result_df.columns and 'select' in result_df.columns:
-                rewards = result_df['reward'].tolist()
-                selects = result_df['select'].tolist()
-                print(f"\nAverage reward: {sum(rewards)/len(rewards):.4f}")
-                print(f"Selected samples: {sum(selects)}/{len(selects)}")
-            
-            # Print first result samples if available
-            print("\nSample results:")
-            cols_to_show = ['answer', 'process', 'reward', 'select']
-            available_cols = [col for col in cols_to_show if col in result_df.columns]
-            print(result_df[available_cols].head())
+        self._print_results_summary(result_df)
 
 if __name__ == "__main__":
     # Set visible GPUs if necessary
     # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    
-    try:
-        test = VideoCOTQATest()
-        test.run()
-    except Exception as e:
-        print(f"Test failed with error: {e}")
+    test = VideoCOTQATest()
+    test.run()
 
