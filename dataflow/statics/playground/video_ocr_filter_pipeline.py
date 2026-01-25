@@ -25,8 +25,8 @@ class VideoOCRPipeline(OperatorABC):
             load_num=3,                    # sample 3 frames by default
             batch_size=8,
             num_workers=2,
-            det_model_dir="/mnt/shared-storage-user/mineru2-shared/zqt/zqt2/DataFlow-MM/models/PP-OCRv5_server_det",
-            rec_model_dir="/mnt/shared-storage-user/mineru2-shared/zqt/zqt2/DataFlow-MM/models/PP-OCRv5_server_rec",
+            det_model_dir="/path/to/PP-OCRv5_server_det",
+            rec_model_dir="/path/to/PP-OCRv5_server_rec",
             ocr_min=None,
             ocr_max=0.3,
         )

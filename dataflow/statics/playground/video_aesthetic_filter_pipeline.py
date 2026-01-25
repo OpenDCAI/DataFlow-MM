@@ -26,8 +26,8 @@ class VideoAestheticPipeline(OperatorABC):
             load_num=3,
             batch_size=16,
             num_workers=2,
-            clip_model="/mnt/shared-storage-user/mineru2-shared/zqt/zqt2/DataFlow-MM/models/ViT-L-14.pt",
-            mlp_checkpoint="/mnt/shared-storage-user/mineru2-shared/zqt/zqt2/DataFlow-MM/models/sac+logos+ava1-l14-linearMSE.pth",
+            clip_model="/path/to/ViT-L-14.pt",
+            mlp_checkpoint="/path/to/sac+logos+ava1-l14-linearMSE.pth",
             aes_min=0.1,  # set threshold if you want {"filtered": ...}
         )
 

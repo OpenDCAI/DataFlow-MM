@@ -64,8 +64,8 @@ class VideoFilteredClipGenerator(OperatorABC):
         )
         self.video_aesthetic_filter = VideoAestheticFilter(
             figure_root="./cache/extract_frames",
-            clip_model="/mnt/shared-storage-user/mineru2-shared/zqt/zqt2/DataFlow-MM/models/ViT-L-14.pt",  # from https://openaipublic.azureedge.net/clip/models/b8cca3fd41ae0c99ba7e8951adf17d267cdb84cd88be6f7c2e0eca1737a03836/ViT-L-14.pt
-            mlp_checkpoint="/mnt/shared-storage-user/mineru2-shared/zqt/zqt2/DataFlow-MM/models/sac+logos+ava1-l14-linearMSE.pth",  # from https://github.com/christophschuhmann/improved-aesthetic-predictor
+            clip_model="/path/to/ViT-L-14.pt",  # from https://openaipublic.azureedge.net/clip/models/b8cca3fd41ae0c99ba7e8951adf17d267cdb84cd88be6f7c2e0eca1737a03836/ViT-L-14.pt
+            mlp_checkpoint="/path/to/sac+logos+ava1-l14-linearMSE.pth",  # from https://github.com/christophschuhmann/improved-aesthetic-predictor
             aes_min=4,
         )
         self.video_luminance_filter = VideoLuminanceFilter(
@@ -75,8 +75,8 @@ class VideoFilteredClipGenerator(OperatorABC):
         )
         self.video_ocr_filter = VideoOCRFilter(
             figure_root="./cache/extract_frames",
-            det_model_dir="/mnt/shared-storage-user/mineru2-shared/zqt/zqt2/DataFlow-MM/models/PP-OCRv5_server_det",
-            rec_model_dir="/mnt/shared-storage-user/mineru2-shared/zqt/zqt2/DataFlow-MM/models/PP-OCRv5_server_rec",
+            det_model_dir="/path/to/PP-OCRv5_server_det",
+            rec_model_dir="/path/to/PP-OCRv5_server_rec",
             ocr_min=None,
             ocr_max=0.3,
         )

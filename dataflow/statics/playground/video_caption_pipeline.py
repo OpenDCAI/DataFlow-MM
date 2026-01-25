@@ -13,7 +13,7 @@ class VideoCaptionGenerator():
         )
 
         self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="/mnt/shared-storage-user/mineru2-shared/zqt/zqt2/models/Qwen/Qwen2.5-VL-7B-Instruct",
+            hf_model_name_or_path="Qwen/Qwen2.5-VL-7B-Instruct",
             hf_cache_dir='./dataflow_cache',
             vllm_tensor_parallel_size=1,
             vllm_temperature=0.7,
