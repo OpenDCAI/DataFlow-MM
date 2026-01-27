@@ -40,8 +40,8 @@ class ImageCaptioningPipeline:
 
         # ---------- 2. Serving ----------
         self.vlm_serving = APIVLMServing_openai(
-            api_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-            key_name_of_api_key="DF_API_KEY",
+            api_url="https://dashscope.aliyuncs.com/compatible-mode/v1", # Any API platform compatible with OpenAI format
+            key_name_of_api_key="DF_API_KEY", # Set the API key for the corresponding platform in the environment variable or line 4
             model_name="qwen3-vl-8b-instruct",
             image_io=None,
             send_request_stream=False,
