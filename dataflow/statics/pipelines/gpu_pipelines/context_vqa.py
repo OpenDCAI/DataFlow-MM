@@ -86,10 +86,10 @@ if __name__ == "__main__":
     parser.add_argument("--download_dir", default="./ckpt")
     parser.add_argument("--device", choices=["cuda", "cpu", "mps"], default="cuda")
 
-    parser.add_argument("--images_file", default="dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl")
+    parser.add_argument("--images_file", default="dataflow/example/image_to_text_pipeline/capsbench_captions.json")
     parser.add_argument("--cache_path", default="./cache_local")
     parser.add_argument("--file_name_prefix", default="context_vqa")
-    parser.add_argument("--cache_type", default="jsonl")
+    parser.add_argument("--cache_type", default="json")
 
     args = parser.parse_args()
 

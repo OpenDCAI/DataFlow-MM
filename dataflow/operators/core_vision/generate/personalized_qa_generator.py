@@ -1,7 +1,3 @@
-import random
-from dataflow.core.Operator import OperatorABC
-
-from dataflow.prompts.image import PersQAGeneratorPrompt
 import pandas as pd
 from dataflow.utils.registry import OPERATOR_REGISTRY
 from dataflow import get_logger
@@ -11,7 +7,11 @@ from dataflow.core import OperatorABC
 from dataflow.core import LLMServingABC
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 
-from qwen_vl_utils import process_vision_info
+from dataflow.prompts.image import PersQAGeneratorPrompt
+from dataflow.operators.core_vision import PromptedVQAGenerator
+
+import random
+from typing import List, Optional
 
 @OPERATOR_REGISTRY.register()
 class PersQAGenerator(OperatorABC):
@@ -20,8 +20,12 @@ class PersQAGenerator(OperatorABC):
     '''
     def __init__(self, llm_serving: LLMServingABC):
         self.logger = get_logger()
-        self.prompt_generator = PersQAGeneratorPrompt()
-        self.llm_serving = llm_serving
+        prompt_generator = PersQAGeneratorPrompt()
+        self.prompt_template, self.qa_template, system_prompt = prompt_generator.build_prompt()
+        self.generator = PromptedVQAGenerator(
+            serving=llm_serving,
+            system_prompt=system_prompt,
+        )
 
     @staticmethod
     def get_desc(lang: str = "zh"):
@@ -67,54 +71,39 @@ class PersQAGenerator(OperatorABC):
             )
         else:
             return "PersQAGenerate produces personalized question-answer pairs for images with character focus."
-    
-    def _validate_dataframe(self, dataframe: pd.DataFrame):
-        required_keys = [self.multi_modal_key]
-        forbidden_keys = [self.output_key]
 
-        missing = [k for k in required_keys if k not in dataframe.columns]
-        conflict = [k for k in forbidden_keys if k in dataframe.columns]
+    # ----------------------------- Helpers -----------------------------------
+    def _build_prompts(self, df: pd.DataFrame, sks: str) -> List[str]:
+        """Build one prompt per row using the configured template.
 
-        if missing:
-            raise ValueError(f"Missing required column(s): {missing}")
-        if conflict:
-            raise ValueError(f"The following column(s) already exist and would be overwritten: {conflict}")
-
-    def _prepare_batch_inputs(self, media_paths, query_list, sks):
+        Unlike the QA variant, this template does not depend on row fields, so
+        we simply create ``len(df)`` prompts by calling ``build_prompt()``.
         """
-        Construct batched prompts and image inputs from media paths.
-        """
-        _, system_prompt = self.prompt_generator.build_prompt()
-
+        human_qs = self.qa_template["human_qs"]
         prompt_list = []
-        image_inputs_list = []
+        for _ in range(len(df)):
+            query = random.choice(human_qs).replace("<sks>", f"<{sks}>")
+            prompt = self.prompt_template.format(sks=sks, query=query)
+            prompt_list.append(prompt)
 
-        for paths, query in zip(media_paths, query_list):
-            for p in paths:
-                prompts = f"The name of the main character in the image is <{sks}>. You need to answer a question about <{sks}>.\nQuestion: " + query + f" Please answer starting with <{sks}>!\nAnswer: "
+        return prompt_list
 
-                raw_prompt = [
-                    {"role": "system", "content": system_prompt},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "image", "image": p},
-                            {"type": "text", "text": prompts},
-                        ],
-                    },
-                ]
-                # Get vision inputs
-                image_inputs, _ = process_vision_info(raw_prompt)
+    @staticmethod
+    def _set_first_user_message(conversation: object, value: str) -> object:
+        """Safely set the first user message's 'value' in a conversation.
 
-                # Format prompt using LLM processor
-                prompt = self.llm_serving.processor.apply_chat_template(
-                    raw_prompt, tokenize=False, add_generation_prompt=True
-                )
-
-                image_inputs_list.append(image_inputs)
-                prompt_list.append(prompt)
-
-        return prompt_list, image_inputs_list
+        Expected format: a list of messages (dicts), where the first item
+        represents the user's message and has a 'value' field.
+        """
+        try:
+            if isinstance(conversation, list) and conversation:
+                first = conversation[0]
+                if isinstance(first, dict) and "value" in first:
+                    first["value"] = value
+        except Exception:
+            # Be defensive but don't fail the whole run
+            pass
+        return conversation
 
     def run(
         self,
@@ -125,32 +114,30 @@ class PersQAGenerator(OperatorABC):
         """
         Runs the caption generation process in batch mode, reading from the input file and saving results to output.
         """
-        self.multi_modal_key, self.output_key = input_modal_key, output_key
-        # storage.step()
-        dataframe = storage.read("dataframe")
-        self._validate_dataframe(dataframe)
-        # media_paths = storage.media_paths
-        media_paths = dataframe[self.multi_modal_key].tolist()
-        # 将media_paths中的非list类型的路径转换为list
-        media_paths = [path if isinstance(path, list) else [path] for path in media_paths]
+        if not output_key:
+            raise ValueError("'output_key' must be a non-empty string.")
+
+        df: pd.DataFrame = storage.read("dataframe")
+        self.logger.info("Loaded dataframe with %d rows", len(df))
         
         sks = 'mam'
-        query_list = [random.choice(self.prompt_generator.qa_template["obj_qs"]).replace("<sks>", f"<{sks}>") for _ in range(len(media_paths))]
+        prompts = self._build_prompts(df, sks)
 
-        prompt_list, image_inputs_list = self._prepare_batch_inputs(media_paths, query_list, sks)
+        df["conversation"] = [
+            self._set_first_user_message(conv, prompt)
+            for conv, prompt in zip(df["conversation"].tolist(), prompts)
+        ]
 
-        outputs = self.llm_serving.generate_from_input(
-            user_inputs=prompt_list,
-            image_inputs=image_inputs_list
+        # Write the modified dataframe back to storage
+        storage.write(df)
+
+        output_answer_key = self.generator.run(
+            storage=storage.step(),
+            input_conversation_key="conversation",
+            input_image_key=input_modal_key,
+            output_answer_key=output_key,
         )
-
-        outputs = [f"Question: {ques}, Answer: {ans}" for ques, ans in zip(query_list, outputs)]  # Add sks prefix to each output
-
-        dataframe[self.output_key] = outputs
-        output_file = storage.write(dataframe)
-        self.logger.info(f"Results saved to {output_file}")
-
-        return [output_key]
+        return [output_answer_key]
 
 if __name__ == "__main__":
     # Initialize model
@@ -168,10 +155,10 @@ if __name__ == "__main__":
 
     # Prepare input
     storage = FileStorage(
-        first_entry_file_name="dataflow/example/Image2TextPipeline/test_image2caption.jsonl", 
-        cache_type="jsonl", 
-        media_key="image", 
-        media_type="image"
+        first_entry_file_name="./dataflow/example/image_to_text_pipeline/sample_data.json", 
+        cache_path="./cache_local",
+        file_name_prefix="pers_qa",
+        cache_type="json",
     )
     storage.step()  # Load the data
 
