@@ -16,54 +16,76 @@
 [简体中文](./README-zh.md) | English
 </div>
 
+## 📰 1. News
+
+## 🔍 2. Overview
+
+<!--  ![dataflow_framework](https://github.com/user-attachments/assets/b44db630-754a-44a8-bec7-6d350bf5ed61) -->
+
+![df_overview_final_300](https://github.com/user-attachments/assets/57dd0838-6e24-4814-a89a-02ca0667bd5c)
+
+DataFlow series is a data preparation and training system designed to **parse, generate, process, and evaluate** high-quality data from noisy sources (PDF, plain-text, low-quality QA), thereby improving the performance of large language models (LLMs) in specific domains through targeted training (Pre-training, Supervised Fine-tuning, RL training) or RAG using knowledge base cleaning. 
+
+Specifically, we are constructing diverse `operators` leveraging rule-based methods, deep learning models, LLMs, and LLM APIs. These operators are systematically integrated into distinct `pipelines`, collectively forming the comprehensive `DataFlow system`. Additionally, we develop an intelligent `DataFlow-agent` capable of dynamically assembling new `pipelines` by recombining existing `operators` on demand.
+
+DataFlow-MM is the multimodal extension version of the awesome repo [DataFlow](https://github.com/OpenDCAI/DataFlow)
+
+
 ## Quick Start
-Install with the following command:
+
+### Installation
+
+First, clone the repository and install **DataFlow-MM** in editable mode:
+
 ```bash
-cd ./Dataflow-MM
-conda create -n Dataflow-MM python=3.12
+cd ./DataFlow-MM
+conda create -n dataflow-mm python=3.12
+conda activate dataflow-mm
 pip install -e .
 ```
 
-## Audio Test
-Extra environments:
+#### Optional Dependencies
+
+Install additional dependencies based on your use case:
+
+**Audio environment**
+
 ```bash
 pip install -e ".[audio]"
-pip install -e ".[vllm]"
 ```
 
-测试命令
+**Image environment**
+
 ```bash
-python /data0/gty/DataFlow-MM/test/test_whisper_promptedvqa.py
-python /data0/gty/DataFlow-MM/test/test_audio_promptedvqa.py
-
-python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_merge.py
-python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_ctc_forced_aligner_filter.py
-python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_ctc_forced_aligner.py
-python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_silero_vad_generator.py
-python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_whisper_promptedaqa.py
-python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_promptedaqa.py
-python /mnt/public/data/guotianyu/dataflow_project/DataFlow-MM/test/test_audio_asr_pipeline.py
+pip install -e ".[image]"
 ```
 
-# nano-banana (gemini-v2.5-image) Test
-测试命令
+---
+
+### Initialize a DataFlow Workspace
+
+Create and initialize a DataFlow-MM workspace:
+
 ```bash
-python test/test_image_editing.py --api_key < your api key >
+mkdir test_dataflow
+cd test_dataflow
+dataflowmm init
 ```
-we utilize the api from [yucha](http://123.129.219.111:3000/)
 
-## 多参考图生成测试
-测试命令
-```bash
-python test/test_echo4o_w_nano.py --api_key < your api key >
-```
-we utilize the api from [yucha](http://123.129.219.111:3000/)
+This command will generate the basic directory structure and configuration files required to run DataFlow-MM pipelines.
+
+---
+
+### Demo Data
+
+To run the **Image** or **Video** examples, please download the corresponding demo datasets from Hugging Face (GitHub is not suitable for hosting large files):
+
+* **Image Examples**:
+  [https://huggingface.co/datasets/OpenDCAI/dataflow-demo-image](https://huggingface.co/datasets/OpenDCAI/dataflow-demo-image)
+
+* **Video Examples**:
+  [https://huggingface.co/datasets/OpenDCAI/dataflow-demo-video](https://huggingface.co/datasets/OpenDCAI/dataflow-demo-video)
+
+After downloading, place the data in the "test_dataflow/example" directory as instructed in each example.
 
 
-# data selection测试脚本
-测试命令
-```bash
-python test/test_data_selection.py
-
-# 目前没完成处理好显存占用问题。建议datatailor单独测试，剩下的可以一起测试
-```
