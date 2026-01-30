@@ -1,32 +1,36 @@
-
-from dataflow.operators.core_vision import PromptedVQAGenerator, GeneralTextAnswerEvaluator, ScoreFilter
-from dataflow.serving import LocalModelVLMServing_vllm
-from dataflow.utils.storage import FileStorage
-from dataflow.prompts.video import VideoCOTQAGeneratorPrompt
 import os
 import re
 
+# 设置 API Key 环境变量
+os.environ["DF_API_KEY"] = "your api-key"
+
+from dataflow.operators.core_vision import PromptedVQAGenerator, GeneralTextAnswerEvaluator, ScoreFilter
+from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
+from dataflow.utils.storage import FileStorage
+from dataflow.prompts.video import VideoCOTQAGeneratorPrompt
+
 class VideoCOTQATest:
     def __init__(self):
+        """
+        Initialize VideoCOTQATest with API model parameters.
+        """
         # Initialize storage
         self.storage = FileStorage(
             first_entry_file_name="./dataflow/example/video_cot_qa/sample_data.json",
             cache_path="./cache",
-            file_name_prefix="video_cotqa",
+            file_name_prefix="video_cotqa_api",
             cache_type="json",
         )
         
-        self.model_cache_dir = './dataflow_cache'
-        
-        self.vlm_serving = LocalModelVLMServing_vllm(
-            hf_model_name_or_path="Qwen/Qwen2.5-VL-7B-Instruct",
-            hf_cache_dir=self.model_cache_dir,
-            vllm_tensor_parallel_size=1,  # Adjust based on available GPUs
-            vllm_temperature=1.0,
-            vllm_top_p=0.95,
-            vllm_max_tokens=2048,
-            vllm_max_model_len=51200,
-            vllm_gpu_memory_utilization=0.9,
+        # Initialize VLM API serving
+        self.vlm_serving = APIVLMServing_openai(
+            api_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            key_name_of_api_key="DF_API_KEY",
+            model_name="qwen3-vl-8b-instruct",
+            image_io=None,
+            send_request_stream=False,
+            max_workers=10,
+            timeout=1800
         )
 
         # Initialize Operators
@@ -127,10 +131,10 @@ class VideoCOTQATest:
         print(result_df[available_cols].head())
 
     def run(self):
-        print("Running VideoCOTQAGenerator pipeline...")
+        print("Running VideoCOTQAGenerator pipeline (API version)...")
         
         # Step 1: Generate CoT QA responses
-        print("\n[Step 1/3] Generating CoT QA responses...")
+        print("\n[Step 1/3] Generating CoT QA responses using API...")
         
         # Load data and build prompts
         storage = self.storage.step()
@@ -187,8 +191,6 @@ class VideoCOTQATest:
         self._print_results_summary(result_df)
 
 if __name__ == "__main__":
-    # Set visible GPUs if necessary
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     test = VideoCOTQATest()
     test.run()
 

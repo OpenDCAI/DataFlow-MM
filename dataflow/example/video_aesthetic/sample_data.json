@@ -1,0 +1,12 @@
+[
+    {
+        "source":["https://media.w3.org/2010/05/sintel/trailer.mp4"],
+        "video": ["./dataflow/example/video_aesthetic/trailer_1.mp4"],
+        "conversation": [
+            {
+                "from": "human",
+                "value": "<video>\nPlease describe the video in detail."
+            }
+        ]
+    }
+]

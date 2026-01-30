@@ -37,7 +37,11 @@ dataflow/example/video_caption/*.mp4
 dataflow/example/video_cot_qa/*.mp4
 dataflow/example/video_cot_qa/*.png
 dataflow/example/video_split/*.mp4
+dataflow/example/video_aesthetic/*.mp4
+dataflow/example/video_luminance/*.mp4
+dataflow/example/video_ocr/*.mp4
 dataflow/example/upload.py
+dataflow/example/dataflow-demo-video
 
 requirements_zyh.txt
 selected_samples_output

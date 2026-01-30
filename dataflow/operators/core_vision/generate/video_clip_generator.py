@@ -19,7 +19,6 @@ from dataflow.core import OperatorABC
 
 FFMPEG_PATH = "/usr/bin/ffmpeg"
 
-
 def get_ffmpeg_acceleration():
     try:
         output = subprocess.check_output(

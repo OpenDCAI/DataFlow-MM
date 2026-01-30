@@ -32,6 +32,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from PIL import Image
+import cv2  # type: ignore
 
 import torch
 import torch.distributed as dist
@@ -151,6 +152,7 @@ class ClipSample:
     clip_idx: int
     clip_id: str
     image_paths: List[str]
+    video_path: Optional[str] = None
 
 class ClipFrameDataset(Dataset):
     """
@@ -170,11 +172,19 @@ class ClipFrameDataset(Dataset):
         paths = sorted(self.samples[idx].image_paths)[: self.load_num]
         # if not enough, pad by repeating last
         if len(paths) == 0:
-            # create a 1x3x224x224 black image (CLIP size) as placeholder to not break shapes
-            # But better: mark empty and let collate handle; here we fallback to a dummy zero tensor
-            img = Image.new("RGB", (224, 224), (0, 0, 0))
-            tensor = self.preprocess(img)  # (C,H,W)
-            images = torch.stack([tensor for _ in range(self.load_num)], dim=0)
+            # whole-video mode: sample frames directly from video_path
+            if smp.video_path:
+                pil_imgs = _sample_frames_from_video_pil(smp.video_path, self.load_num)
+                if len(pil_imgs) == 0:
+                    pil_imgs = [Image.new("RGB", (224, 224), (0, 0, 0)) for _ in range(self.load_num)]
+                while len(pil_imgs) < self.load_num:
+                    pil_imgs.append(pil_imgs[-1])
+                imgs = [self.preprocess(im) for im in pil_imgs[: self.load_num]]
+                images = torch.stack(imgs, dim=0)  # (N, C, H, W)
+            else:
+                img = Image.new("RGB", (224, 224), (0, 0, 0))
+                tensor = self.preprocess(img)  # (C,H,W)
+                images = torch.stack([tensor for _ in range(self.load_num)], dim=0)
         else:
             while len(paths) < self.load_num:
                 paths.append(paths[-1])
@@ -196,6 +206,44 @@ class ClipFrameDataset(Dataset):
 # ----------------------------
 # Scoring Core
 # ----------------------------
+
+def _sample_frames_from_video_pil(video_path: str, load_num: int) -> List[Image.Image]:
+    """
+    Sample up to `load_num` frames from the whole video (evenly spaced) and return PIL Images.
+    Used when we don't have extracted frames on disk (e.g. video_clips_key=None mode).
+    """
+    load_num = max(1, int(load_num))
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return []
+    try:
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        if total <= 0:
+            imgs: List[Image.Image] = []
+            for _ in range(load_num):
+                ret, frame = cap.read()
+                if not ret or frame is None:
+                    break
+                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                imgs.append(Image.fromarray(rgb))
+            return imgs
+
+        if total == 1:
+            indices = [0]
+        else:
+            indices = np.linspace(0, total - 1, num=min(load_num, total), dtype=int).tolist()
+
+        imgs: List[Image.Image] = []
+        for i in indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(i))
+            ret, frame = cap.read()
+            if not ret or frame is None:
+                continue
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            imgs.append(Image.fromarray(rgb))
+        return imgs
+    finally:
+        cap.release()
 
 def _discover_clip_images(figure_root: str, video_path: str, clip_id: str) -> List[str]:
     """
@@ -223,7 +271,23 @@ def _build_samples_from_df(
         for cidx, clip in enumerate(vc["clips"]):
             clip_id = str(clip.get("id", f"{_video_stem(vpath)}_{cidx}"))
             imgs = _discover_clip_images(figure_root, vpath, clip_id)
-            samples.append(ClipSample(ridx, cidx, clip_id, imgs))
+            samples.append(ClipSample(ridx, cidx, clip_id, imgs, vpath))
+    return samples
+
+def _build_samples_from_df_whole_video(
+    df: pd.DataFrame,
+    input_video_key: str,
+) -> List[ClipSample]:
+    """
+    Build samples for whole-video aesthetic scoring (no clip splitting required).
+    Each row produces a single sample, frames will be sampled from video_path.
+    """
+    samples: List[ClipSample] = []
+    for ridx, row in df.iterrows():
+        vpath = _first_path(row.get(input_video_key))
+        if not vpath:
+            continue
+        samples.append(ClipSample(ridx, 0, _video_stem(vpath), [], vpath))
     return samples
 
 def _inject_scores_into_dataframe(
@@ -245,12 +309,23 @@ def _inject_scores_into_dataframe(
             out.at[r, video_clips_key] = cell
     return out
 
+def _inject_row_level_scores_into_dataframe(
+    df: pd.DataFrame,
+    output_key: str,
+    row_indices: List[int],
+    scores: List[float],
+) -> pd.DataFrame:
+    out = df.copy()
+    for r, s in zip(row_indices, scores):
+        out.at[r, output_key] = float(s)
+    return out
+
 
 def score_aesthetics_over_dataframe(
     dataframe: pd.DataFrame,
     figure_root: str,
     input_video_key: str = "video",
-    video_clips_key: str = "video_clips",
+    video_clips_key: Optional[str] = "video_clips",
     clip_model: str = "ViT-L/14",
     mlp_checkpoint: Optional[str] = None,
     load_num: int = 3,
@@ -277,13 +352,18 @@ def score_aesthetics_over_dataframe(
     """
     if input_video_key not in dataframe.columns:
         raise KeyError(f"Column '{input_video_key}' not found.")
-    if video_clips_key not in dataframe.columns:
-        raise KeyError(f"Column '{video_clips_key}' not found.")
 
     df = dataframe.copy()
 
-    # Discover samples
-    samples = _build_samples_from_df(df, input_video_key, video_clips_key, figure_root)
+    row_level_mode = video_clips_key is None
+    if row_level_mode:
+        samples = _build_samples_from_df_whole_video(df, input_video_key)
+        if "aesthetic_score" not in df.columns:
+            df["aesthetic_score"] = np.nan
+    else:
+        if video_clips_key not in dataframe.columns:
+            raise KeyError(f"Column '{video_clips_key}' not found.")
+        samples = _build_samples_from_df(df, input_video_key, video_clips_key, figure_root)
     if len(samples) == 0:
         # Nothing to score; return df unchanged
         return df
@@ -341,11 +421,17 @@ def score_aesthetics_over_dataframe(
             rows_flat = [x for sub in gathered_rows for x in sub]
             clips_flat = [x for sub in gathered_clips for x in sub]
             scores_flat = [x for sub in gathered_scores for x in sub]
-            df_scored = _inject_scores_into_dataframe(df, video_clips_key, rows_flat, clips_flat, scores_flat)
+            if row_level_mode:
+                df_scored = _inject_row_level_scores_into_dataframe(df, "aesthetic_score", rows_flat, scores_flat)
+            else:
+                df_scored = _inject_scores_into_dataframe(df, video_clips_key, rows_flat, clips_flat, scores_flat)
         else:
             df_scored = df  # non-root ranks return original df; caller should only use rank 0 result
     else:
-        df_scored = _inject_scores_into_dataframe(df, video_clips_key, row_ids, clip_ids, scores)
+        if row_level_mode:
+            df_scored = _inject_row_level_scores_into_dataframe(df, "aesthetic_score", row_ids, scores)
+        else:
+            df_scored = _inject_scores_into_dataframe(df, video_clips_key, row_ids, clip_ids, scores)
 
     # Cleanup
     torch.cuda.empty_cache()

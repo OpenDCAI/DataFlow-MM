@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from PIL import Image
+import cv2  # type: ignore
 
 import torch
 import torch.distributed as dist
@@ -73,6 +74,7 @@ class ClipSample:
     clip_idx: int
     clip_id: str
     image_paths: List[str]
+    video_path: Optional[str] = None
 
 class ClipFrameDataset(Dataset):
     """
@@ -93,8 +95,11 @@ class ClipFrameDataset(Dataset):
 
         frames = []
         if len(paths) == 0:
-            # single black frame as fallback
-            frames = [torch.zeros(3, 224, 224, dtype=torch.uint8)]
+            if smp.video_path:
+                frames = _sample_frames_from_video_uint8(smp.video_path, self.load_num)
+            if len(frames) == 0:
+                # single black frame as fallback
+                frames = [torch.zeros(3, 224, 224, dtype=torch.uint8)]
             # pad to load_num
             while len(frames) < self.load_num:
                 frames.append(frames[-1].clone())
@@ -117,6 +122,47 @@ class ClipFrameDataset(Dataset):
 # ----------------------------
 # Core luminance logic
 # ----------------------------
+
+def _sample_frames_from_video_uint8(video_path: str, load_num: int) -> List[torch.Tensor]:
+    """
+    Sample up to `load_num` frames from the whole video (evenly spaced).
+    Returns RGB uint8 tensors with shape (C,H,W).
+    Used when we don't have extracted frames on disk (e.g. video_clips_key=None mode).
+    """
+    load_num = max(1, int(load_num))
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return []
+    try:
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        if total <= 0:
+            frames: List[torch.Tensor] = []
+            for _ in range(load_num):
+                ret, img = cap.read()
+                if not ret or img is None:
+                    break
+                rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                t = torch.from_numpy(rgb).permute(2, 0, 1).contiguous().to(dtype=torch.uint8)
+                frames.append(t)
+            return frames
+
+        if total == 1:
+            indices = [0]
+        else:
+            indices = np.linspace(0, total - 1, num=min(load_num, total), dtype=int).tolist()
+
+        frames: List[torch.Tensor] = []
+        for i in indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(i))
+            ret, img = cap.read()
+            if not ret or img is None:
+                continue
+            rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            t = torch.from_numpy(rgb).permute(2, 0, 1).contiguous().to(dtype=torch.uint8)
+            frames.append(t)
+        return frames
+    finally:
+        cap.release()
 
 def _discover_clip_images(figure_root: str, video_path: str, clip_id: str) -> List[str]:
     """
@@ -146,7 +192,23 @@ def _build_samples_from_df(
             clip_id = str(clip.get("id", f"{_video_stem(vpath)}_{cidx}"))
             imgs = _discover_clip_images(figure_root, vpath, clip_id)
             
-            samples.append(ClipSample(ridx, cidx, clip_id, imgs))
+            samples.append(ClipSample(ridx, cidx, clip_id, imgs, vpath))
+    return samples
+
+def _build_samples_from_df_whole_video(
+    df: pd.DataFrame,
+    input_video_key: str,
+) -> List[ClipSample]:
+    """
+    Build samples for whole-video luminance scoring (no clip splitting required).
+    Each row produces a single sample; frames are sampled from video_path.
+    """
+    samples: List[ClipSample] = []
+    for ridx, row in df.iterrows():
+        vpath = _first_path(row.get(input_video_key))
+        if not vpath:
+            continue
+        samples.append(ClipSample(ridx, 0, _video_stem(vpath), [], vpath))
     return samples
 
 @torch.no_grad()
@@ -192,6 +254,22 @@ def _inject_luminance_into_dataframe(
             out.at[r, video_clips_key] = cell
     return out
 
+def _inject_row_level_luminance_into_dataframe(
+    df: pd.DataFrame,
+    row_indices: List[int],
+    stats_triplets: List[Tuple[float, float, float]],
+) -> pd.DataFrame:
+    """
+    Write row-level stats back into df columns:
+      - luminance_mean, luminance_min, luminance_max
+    """
+    out = df.copy()
+    for r, (m, mn, mx) in zip(row_indices, stats_triplets):
+        out.at[r, "luminance_mean"] = float(m)
+        out.at[r, "luminance_min"] = float(mn)
+        out.at[r, "luminance_max"] = float(mx)
+    return out
+
 
 # ----------------------------
 # Public API
@@ -201,7 +279,7 @@ def score_luminance_over_dataframe(
     dataframe: pd.DataFrame,
     figure_root: str,
     input_video_key: str = "video",
-    video_clips_key: str = "video_clips",
+    video_clips_key: Optional[str] = "video_clips",
     load_num: int = 3,
     batch_size: int = 64,
     num_workers: int = 4,
@@ -224,13 +302,20 @@ def score_luminance_over_dataframe(
     """
     if input_video_key not in dataframe.columns:
         raise KeyError(f"Column '{input_video_key}' not found.")
-    if video_clips_key not in dataframe.columns:
-        raise KeyError(f"Column '{video_clips_key}' not found.")
 
     df = dataframe.copy()
 
-    # Build samples
-    samples = _build_samples_from_df(df, input_video_key, video_clips_key, figure_root)
+    row_level_mode = video_clips_key is None
+    if row_level_mode:
+        samples = _build_samples_from_df_whole_video(df, input_video_key)
+        # ensure output columns exist
+        for col in ["luminance_mean", "luminance_min", "luminance_max"]:
+            if col not in df.columns:
+                df[col] = np.nan
+    else:
+        if video_clips_key not in dataframe.columns:
+            raise KeyError(f"Column '{video_clips_key}' not found.")
+        samples = _build_samples_from_df(df, input_video_key, video_clips_key, figure_root)
     if len(samples) == 0:
         return df  # nothing to do
 
@@ -282,11 +367,17 @@ def score_luminance_over_dataframe(
             rows_flat = [x for sub in gathered_rows for x in sub]
             clips_flat = [x for sub in gathered_clips for x in sub]
             stats_flat = [x for sub in gathered_stats for x in sub]
-            df_scored = _inject_luminance_into_dataframe(df, video_clips_key, rows_flat, clips_flat, stats_flat)
+            if row_level_mode:
+                df_scored = _inject_row_level_luminance_into_dataframe(df, rows_flat, stats_flat)
+            else:
+                df_scored = _inject_luminance_into_dataframe(df, video_clips_key, rows_flat, clips_flat, stats_flat)
         else:
             df_scored = df
     else:
-        df_scored = _inject_luminance_into_dataframe(df, video_clips_key, row_ids, clip_ids, stats)
+        if row_level_mode:
+            df_scored = _inject_row_level_luminance_into_dataframe(df, row_ids, stats)
+        else:
+            df_scored = _inject_luminance_into_dataframe(df, video_clips_key, row_ids, clip_ids, stats)
 
     # Cleanup
     if torch.cuda.is_available():
