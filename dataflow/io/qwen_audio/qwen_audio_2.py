@@ -72,26 +72,27 @@ class Qwen2_AudioIO(object):
         将格式1的数据转换为格式2。
         支持多轮对话和多模态（图片、视频、音频），并验证token数量。
         """
+        if image_list is not None or video_list is not None:
+            raise ValueError("image_list and video_list are not supported in Qwen2-Audio")
+            
         self.system_prompt = system_prompt
 
         message_list = []
         for i, conversation in enumerate(conversations):
             # 收集所有模态路径
             all_modal_paths = {
-                "image": image_list[i] if image_list else [],
-                "video": video_list[i] if video_list else [],
                 "audio": audio_list[i] if audio_list else []
             }
 
             messages =[
                 {
                     "role": "system",
-                    "content": self.system_prompt
+                    "content": [{"type": "text", "text": self.system_prompt}]
                 },
             ]
 
             # 用于跟踪已使用的模态文件索引
-            used_modal_indices = {"image": 0, "video": 0, "audio": 0}
+            used_modal_indices = {"audio": 0}
 
             for turn in conversation:
                 role = "user" if turn["from"] == "human" else "assistant"
@@ -100,7 +101,7 @@ class Qwen2_AudioIO(object):
                 # 解析多模态token
                 token_counts, cleaned_value = self._parse_multimodal_tokens(turn["value"])
 
-                for modal_type in ["image", "video", "audio"]:
+                for modal_type in ["audio"]:
                     for _ in range(token_counts[modal_type]):
                         if used_modal_indices[modal_type] < len(all_modal_paths[modal_type]):
                             content_list.append({
@@ -127,16 +128,12 @@ class Qwen2_AudioIO(object):
         """
         解析文本中的多模态token，并返回它们的计数和去除token后的文本。
         """
-        image_count = len(re.findall(r"<image>", text))
-        video_count = len(re.findall(r"<video>", text))
         audio_count = len(re.findall(r"<audio>", text))
 
-        cleaned_text = text.replace("<image>", "").replace("<video>", "").replace("<audio>", "").strip()
+        cleaned_text = text.replace("<audio>", "").strip()
         # 移除可能因为token移除而产生的多余换行符
         cleaned_text = re.sub(r'\n+', '\n', cleaned_text).strip()
 
         return {
-            "image": image_count,
-            "video": video_count,
             "audio": audio_count
         }, cleaned_text
