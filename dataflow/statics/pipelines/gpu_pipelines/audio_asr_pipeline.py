@@ -12,7 +12,7 @@ from dataflow.prompts.audio import WhisperTranscriptionPrompt
 class Pipeline:
     def __init__(self):
         self.storage = FileStorage(
-            first_entry_file_name="../example_data/audio_asr_pipeline/sample_data_local.jsonl",
+            first_entry_file_name="../example_data/audio_asr_pipeline/sample_data.jsonl",
             cache_path="./cache",
             file_name_prefix="audio_asr_pipeline",
             cache_type="jsonl",
@@ -65,7 +65,7 @@ class Pipeline:
         #     device=["cuda:3"],
         #     num_workers=1,
         #     sampling_rate=16000,
-        #     language="de",
+        #     language="en",
         #     micro_batch_size=16,
         #     chinese_to_pinyin=False,
         #     retain_word_level_alignment=True,
@@ -80,7 +80,7 @@ class Pipeline:
             device=["cuda:3"],
             num_workers=2,
             sampling_rate=16000,
-            language="de",
+            language="en",
             micro_batch_size=16,
             chinese_to_pinyin=False,
             retain_word_level_alignment=True,
