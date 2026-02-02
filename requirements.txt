@@ -19,6 +19,7 @@ torchvision
 qwen_vl_utils
 
 # Video Pipeline
+appdirs
 opencv-python
 tqdm
 imageio
