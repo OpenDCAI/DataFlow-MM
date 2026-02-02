@@ -328,6 +328,8 @@ class MergeChunksRowGenerator(OperatorABC):
         storage: DataFlowStorage,
         input_audio_key: str = "audio",
         input_timestamps_key: str = "timestamps",
+        output_conversation_key: str = "conversation",
+        output_conversation_value: str = "",
     ):
         # 参数验证
         if self.timestamp_type not in ["frame", "time"]:
@@ -340,7 +342,7 @@ class MergeChunksRowGenerator(OperatorABC):
 
         args_iter = [
             (audio_path, self.dst_folder, timestamps, self.timestamp_type,
-             self.max_audio_duration, self.hop_size_samples, self.sampling_rate)
+             self.max_audio_duration, self.hop_size_samples, self.sampling_rate, output_conversation_key, output_conversation_value)
             for audio_path, timestamps in zip(audio_column, timestamps_column)
         ]
 
@@ -382,6 +384,8 @@ class MergeChunksRowGenerator(OperatorABC):
         max_audio_duration = args[4]
         hop_size_samples = args[5]
         sampling_rate = args[6]
+        output_conversation_key = args[7]
+        output_conversation_value = args[8]
 
         if isinstance(audio_path, list):
             audio_path = audio_path[0]
@@ -484,7 +488,7 @@ class MergeChunksRowGenerator(OperatorABC):
                 {
                     'audio': [str(output_path)],
                     'original_audio_path': str(audio_path),
-                    'conversation': [{"from": "human", "value": "<audio>"}],
+                    output_conversation_key: [{"from": "human", "value": output_conversation_value}],
                     'sequence_num': seq['sequence_num'],
                 }
             )

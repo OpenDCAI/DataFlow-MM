@@ -519,13 +519,48 @@ class APIVLMServing_openai(LLMServingABC):
         with open(video_path, "rb") as video_file:
             return base64.b64encode(video_file.read()).decode("utf-8")
 
-    def _build_message_content(self, prompt: str, image_paths: List[str] = None, video_paths: List[str] = None) -> List[Dict[str, Any]]:
+    def _encode_audio_to_base64_from_path(self, audio_path: str) -> str:
+        """
+        将音频文件编码为 base64 字符串
+        
+        :param audio_path: 音频文件路径
+        :return: base64 编码的字符串
+        """
+        with open(audio_path, "rb") as audio_file:
+            return base64.b64encode(audio_file.read()).decode("utf-8")
+
+    def _guess_audio_format(self, audio_path: str) -> str:
+        """
+        给 Chat Completions 的 input_audio.format 用的格式字符串
+        常见：wav / mp3 / m4a / ogg / webm / flac / aac
+        """
+        ext = audio_path.rsplit(".", 1)[-1].lower()
+
+        # 与 docs/常见格式对齐，未知就默认 wav
+        if ext in {"wav", "mp3", "m4a", "ogg", "webm", "flac", "aac"}:
+            return ext
+
+        # 一些边缘扩展名做个容错映射
+        if ext in {"mpeg", "mpga"}:
+            return "mp3"
+        if ext == "mp4":
+            return "mp4"
+
+        return "wav"
+
+    def _build_message_content(
+        self, prompt: str, 
+        image_paths: List[str] = None, 
+        video_paths: List[str] = None,
+        audio_paths: List[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         构建 OpenAI API 格式的消息内容
         
         :param prompt: 文本提示
         :param image_paths: 图像路径列表
         :param video_paths: 视频路径列表
+        :param audio_paths: 音频路径列表
         :return: OpenAI API 格式的内容列表
         """
         content = []
@@ -562,6 +597,19 @@ class APIVLMServing_openai(LLMServingABC):
                         "type": "video_url",
                         "video_url": {"url": f"data:video/mp4;base64,{base64_video}"}
                     })
+
+        # 添加音频内容
+        if audio_paths:
+            for audio_path in audio_paths:
+                if audio_path:
+                    base64_audio = self._encode_audio_to_base64_from_path(audio_path)
+                    fmt = self._guess_audio_format(audio_path)
+                    content.append({
+                        "type": "audio_url",
+                        "audio_url": {
+                            "url": f"data:audio/{fmt};base64,{base64_audio}",
+                        }
+                    })
         
         # 添加文本内容
         content.append({"type": "text", "text": prompt})
@@ -574,6 +622,7 @@ class APIVLMServing_openai(LLMServingABC):
         prompt: str,
         image_paths: List[str] = None,
         video_paths: List[str] = None,
+        audio_paths: List[str] = None,
         system_prompt: str = "You are a helpful assistant."
     ) -> Tuple[int, str]:
         """
@@ -583,10 +632,11 @@ class APIVLMServing_openai(LLMServingABC):
         :param prompt: 文本提示
         :param image_paths: 图像路径列表
         :param video_paths: 视频路径列表
+        :param audio_paths: 音频路径列表
         :param system_prompt: 系统提示
         :return: (索引, 响应文本)
         """
-        content = self._build_message_content(prompt, image_paths, video_paths)
+        content = self._build_message_content(prompt, image_paths, video_paths, audio_paths)
         
         messages = [
             {"role": "system", "content": system_prompt},
@@ -640,10 +690,13 @@ class APIVLMServing_openai(LLMServingABC):
             self.logger.info(f"Image inputs: {len(image_inputs)}")
         if video_inputs is not None:
             self.logger.info(f"Video inputs: {len(video_inputs)}")
+        if audio_inputs is not None:
+            self.logger.info(f"Audio inputs: {len(audio_inputs)}")
         
         # 检查是否为纯文本模式
         is_pure_text = (image_inputs is None or all(img is None for img in image_inputs)) and \
-                       (video_inputs is None or all(vid is None for vid in video_inputs))
+                       (video_inputs is None or all(vid is None for vid in video_inputs)) and \
+                       (audio_inputs is None or all(aud is None for aud in audio_inputs))
         
         if is_pure_text:
             self.logger.info("Pure text mode detected")
@@ -662,12 +715,18 @@ class APIVLMServing_openai(LLMServingABC):
                 if video_inputs is not None and idx < len(video_inputs) and video_inputs[idx] is not None:
                     current_video_paths = video_inputs[idx] if isinstance(video_inputs[idx], list) else [video_inputs[idx]]
                 
+                current_audio_paths = None
+                if audio_inputs is not None and idx < len(audio_inputs) and audio_inputs[idx] is not None:
+                    current_audio_paths = audio_inputs[idx] if isinstance(audio_inputs[idx], list) else [audio_inputs[idx]]
+
+
                 future = executor.submit(
                     self._send_single_request_with_id,
                     idx,
                     prompt,
                     current_image_paths,
                     current_video_paths,
+                    current_audio_paths,
                     system_prompt
                 )
                 futures.append(future)
@@ -684,6 +743,7 @@ class APIVLMServing_openai(LLMServingABC):
         conversation: List[Dict[str, str]],
         image_paths: List[str] = None,
         video_paths: List[str] = None,
+        audio_paths: List[str] = None,
         system_prompt: str = "You are a helpful assistant."
     ) -> List[Dict[str, Any]]:
         """
@@ -692,6 +752,7 @@ class APIVLMServing_openai(LLMServingABC):
         :param conversation: 单个对话历史，格式为 [{"role": "user", "content": "..."}, ...]
         :param image_paths: 图像路径列表
         :param video_paths: 视频路径列表
+        :param audio_paths: 音频路径列表
         :param system_prompt: 系统提示
         :return: OpenAI API 格式的消息列表
         """
@@ -742,6 +803,19 @@ class APIVLMServing_openai(LLMServingABC):
                                 "type": "video_url",
                                 "video_url": {"url": f"data:video/mp4;base64,{base64_video}"}
                             })
+
+                # 添加音频内容
+                if audio_paths:
+                    for audio_path in audio_paths:
+                        if audio_path:
+                            base64_audio = self._encode_audio_to_base64_from_path(audio_path)
+                            fmt = self._guess_audio_format(audio_path)
+                            content.append({
+                                "type": "audio_url",
+                                "audio_url": {
+                                    "url": f"data:audio/{fmt};base64,{base64_audio}",
+                                }
+                            })
                 
                 # 添加文本内容
                 message_content.append({"type": "text", "text": content})
@@ -759,6 +833,7 @@ class APIVLMServing_openai(LLMServingABC):
         conversation: List[Dict[str, str]],
         image_paths: List[str] = None,
         video_paths: List[str] = None,
+        audio_paths: List[str] = None,
         system_prompt: str = "You are a helpful assistant."
     ) -> Tuple[int, str]:
         """
@@ -768,6 +843,7 @@ class APIVLMServing_openai(LLMServingABC):
         :param conversation: 对话历史
         :param image_paths: 图像路径列表
         :param video_paths: 视频路径列表
+        :param audio_paths: 音频路径列表
         :param system_prompt: 系统提示
         :return: (索引, 响应文本)
         """
@@ -775,6 +851,7 @@ class APIVLMServing_openai(LLMServingABC):
             conversation,
             image_paths,
             video_paths,
+            audio_paths,
             system_prompt
         )
         try:
@@ -831,6 +908,10 @@ class APIVLMServing_openai(LLMServingABC):
                 current_video_paths = None
                 if video_list is not None and idx < len(video_list) and video_list[idx] is not None:
                     current_video_paths = video_list[idx] if isinstance(video_list[idx], list) else [video_list[idx]]
+
+                current_audio_paths = None
+                if audio_list is not None and idx < len(audio_list) and audio_list[idx] is not None:
+                    current_audio_paths = audio_list[idx] if isinstance(audio_list[idx], list) else [audio_list[idx]]
                 
                 future = executor.submit(
                     self._send_conversation_request_with_id,
@@ -838,6 +919,7 @@ class APIVLMServing_openai(LLMServingABC):
                     conversation,
                     current_image_paths,
                     current_video_paths,
+                    current_audio_paths,
                     system_prompt
                 )
                 futures.append(future)

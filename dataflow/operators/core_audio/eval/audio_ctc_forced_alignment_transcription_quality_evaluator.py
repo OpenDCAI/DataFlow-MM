@@ -382,18 +382,15 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
         if self.chinese_to_pinyin:
             from pypinyin import lazy_pinyin
             def convert_chinese_to_pinyin(text: str) -> str:
-                pinyin = lazy_pinyin(text, iso_code="cmn")
+                pinyin = lazy_pinyin(text)
                 return " ".join(pinyin)
-
-        if self.romanize:
-            import uroman
-            ur = uroman.Uroman()
 
         ctc_params = {
             'sampling_rate': self.sampling_rate,
             'language': self.language,
             'micro_batch_size': self.micro_batch_size,
             'retain_word_level_alignment': self.retain_word_level_alignment,
+            'romanize': self.romanize,
         }
 
         self.logger.info("Running CTC Forced Aligner...")
@@ -411,8 +408,6 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
             if self.chinese_to_pinyin:
                 text = convert_chinese_to_pinyin(text)
             
-            if self.romanize:
-                text = ur.romanize_string(text, lang=Lang(self.language).pt3)
             texts_normalized.append(text)
 
         if self.is_parallel:
@@ -508,6 +503,8 @@ class Aligner:
         language = kwargs.get('language', 'en')
         micro_batch_size = kwargs.get('micro_batch_size', 16)
         retain_word_level_alignment = kwargs.get('retain_word_level_alignment', False)
+        romanize = kwargs.get('romanize', False)
+
         try:
             # audio, sr = librosa.load(audio_path, sr=sampling_rate)
             if audio_path.startswith("http://") or audio_path.startswith("https://"):
@@ -519,21 +516,21 @@ class Aligner:
             spans_list = []
 
             emissions, stride = generate_emissions(self.model, audio, batch_size=micro_batch_size)
-            tokens_starred, text_starred = preprocess_text(text, romanize=True, language=Lang(language).pt3)
+            tokens_starred, text_starred = preprocess_text(text, romanize=romanize, language=Lang(language).pt3)
             segments, scores, blank_token = self.get_alignments(emissions, tokens_starred, self.tokenizer)
             # segments, scores, blank_token = get_alignments(emissions, tokens_starred, self.tokenizer)
             spans = get_spans(tokens_starred, segments, blank_token)
 
-            j = 0
+            # j = 0
             for seg_list in spans:
                 for seg in seg_list:
                     spans_list.append({
                         'label': seg.label,
                         'start': seg.start,
                         'end': seg.end,
-                        'score': math.exp(scores[seg.start: seg.end + 1][0]),
+                        'score': math.exp(scores[seg.start: seg.end + 1].mean()),
                     })
-                    j += 1
+                    # j += 1
 
             if retain_word_level_alignment:
                 word_timestamps = postprocess_results(text_starred, spans, stride, scores)
@@ -1242,8 +1239,7 @@ def preprocess_text(
         "segment",
         "edges",
     ], "Star frequency must be segment or edges"
-    if language in ["jpn", "chi"]:
-        split_size = "char"
+
     text_split = split_text(text, split_size)
     norm_text = [text_normalize(line.strip(), language) for line in text_split]
 
@@ -1293,7 +1289,7 @@ def postprocess_results(
 
         audio_start_sec = seg_start_idx * (stride) / 1000
         audio_end_sec = seg_end_idx * (stride) / 1000
-        score = scores[seg_start_idx:seg_end_idx].sum()
+        score = scores[seg_start_idx:seg_end_idx].mean()
         sample = {
             "start": audio_start_sec,
             "end": audio_end_sec,
