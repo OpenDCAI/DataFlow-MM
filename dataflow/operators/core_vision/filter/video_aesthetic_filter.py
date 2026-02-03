@@ -100,7 +100,7 @@ class VideoAestheticFilter(OperatorABC):
         self,
         figure_root: str = "extract_frames",
         input_video_key: str = "video",
-        video_clips_key: str = "video_clips",
+        video_clips_key: Optional[str] = None,
         clip_model: str = "ViT-L/14",
         mlp_checkpoint: Optional[str] = None,
         load_num: int = 3,
@@ -179,7 +179,7 @@ class VideoAestheticFilter(OperatorABC):
         import os
         figure_root = figure_root or os.path.join(storage.cache_path, self.figure_root)
         input_video_key = input_video_key or self.input_video_key
-        video_clips_key = video_clips_key or self.video_clips_key
+        video_clips_key = self.video_clips_key if video_clips_key is None else video_clips_key
         clip_model = clip_model or self.clip_model
         mlp_checkpoint = mlp_checkpoint or self.mlp_checkpoint
         load_num = load_num or self.load_num
@@ -210,25 +210,46 @@ class VideoAestheticFilter(OperatorABC):
         self.logger.info("Aesthetic scores computed")
 
         # Step 2: Apply filtering based on aes_min
-        if aes_min is not None:
-            self.logger.info(f"Applying aesthetic filter (aes_min={aes_min})...")
-            filtered = apply_aesthetic_filter(
-                dataframe=scored,
-                video_clips_key=video_clips_key,
-                aes_min=aes_min,
-            )
-            self.logger.info("Aesthetic filtering complete")
+        if video_clips_key is None:
+            # Whole-video mode: score stored at row level (`aesthetic_score`)
+            score_col = "aesthetic_score"
+            if score_col not in scored.columns:
+                scored[score_col] = None
+
+            if aes_min is not None:
+                def _pass(v: Optional[float]) -> bool:
+                    if v is None:
+                        return False
+                    try:
+                        vv = float(v)
+                    except Exception:
+                        return False
+                    return vv >= float(aes_min)
+
+                scored[output_key] = scored[score_col].apply(lambda v: {"aesthetic_score": v, "filtered": _pass(v)})
+            else:
+                scored[output_key] = scored[score_col].apply(lambda v: {"aesthetic_score": v})
+            filtered = scored
         else:
-            # No filtering, but ensure filtered field exists
-            self.logger.info("No aesthetic threshold specified, initializing filtered field...")
-            filtered = apply_aesthetic_filter(
-                dataframe=scored,
-                video_clips_key=video_clips_key,
-                aes_min=None,
-            )
+            if aes_min is not None:
+                self.logger.info(f"Applying aesthetic filter (aes_min={aes_min})...")
+                filtered = apply_aesthetic_filter(
+                    dataframe=scored,
+                    video_clips_key=video_clips_key,
+                    aes_min=aes_min,
+                )
+                self.logger.info("Aesthetic filtering complete")
+            else:
+                # No filtering, but ensure filtered field exists
+                self.logger.info("No aesthetic threshold specified, initializing filtered field...")
+                filtered = apply_aesthetic_filter(
+                    dataframe=scored,
+                    video_clips_key=video_clips_key,
+                    aes_min=None,
+                )
 
         # Write back
-        if output_key != video_clips_key:
+        if video_clips_key is not None and output_key != video_clips_key:
             filtered[output_key] = filtered[video_clips_key]
 
         storage.write(filtered)

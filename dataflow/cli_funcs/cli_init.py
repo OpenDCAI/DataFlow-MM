@@ -21,7 +21,7 @@ def _copy_pipelines():
     # Copy pipelines
 
 def _copy_playground():
-    target_dir = os.getcwd()
+    target_dir = os.path.join(os.getcwd(), "playground")
     if not os.path.exists(target_dir):
         os.makedirs(target_dir)
     copy_files_recursively(DataFlowPath.get_dataflow_playground_dir(), target_dir)

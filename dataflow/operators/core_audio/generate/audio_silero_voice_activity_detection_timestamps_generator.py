@@ -812,12 +812,6 @@ class SileroVADModel:
                 speech_dict['end'] *= step
 
         return speeches
-    
-    def close(self):
-        if self.pool:
-            self.pool.close()
-            self.pool.join()
-            self.logger.info("Worker pool closed")
 
 # 已废弃的
 # def run(self, 

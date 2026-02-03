@@ -110,7 +110,7 @@ class VideoLuminanceFilter(OperatorABC):
         self,
         figure_root: str = "extract_frames",
         input_video_key: str = "video",
-        video_clips_key: str = "video_clips",
+        video_clips_key: Optional[str] = None,
         load_num: int = 3,
         batch_size: int = 64,
         num_workers: int = 4,
@@ -184,7 +184,7 @@ class VideoLuminanceFilter(OperatorABC):
         import os
         figure_root = figure_root or os.path.join(storage.cache_path, self.figure_root)
         input_video_key = input_video_key or self.input_video_key
-        video_clips_key = video_clips_key or self.video_clips_key
+        video_clips_key = self.video_clips_key if video_clips_key is None else video_clips_key
         load_num = load_num or self.load_num
         batch_size = batch_size or self.batch_size
         num_workers = num_workers or self.num_workers
@@ -212,27 +212,70 @@ class VideoLuminanceFilter(OperatorABC):
         self.logger.info("Luminance statistics computed")
 
         # Step 2: Apply filtering based on lum_min/lum_max
-        if lum_min is not None or lum_max is not None:
-            self.logger.info(f"Applying luminance filter (lum_min={lum_min}, lum_max={lum_max})...")
-            filtered = apply_luminance_filter(
-                dataframe=scored,
-                video_clips_key=video_clips_key,
-                lum_min=lum_min,
-                lum_max=lum_max,
-            )
-            self.logger.info("Luminance filtering complete")
+        if video_clips_key is None:
+            # Whole-video mode: stats stored at row level (luminance_mean/min/max)
+            mean_col = "luminance_mean"
+            min_col = "luminance_min"
+            max_col = "luminance_max"
+            for c in [mean_col, min_col, max_col]:
+                if c not in scored.columns:
+                    scored[c] = None
+
+            if lum_min is not None or lum_max is not None:
+                def _pass(v: Optional[float]) -> bool:
+                    if v is None:
+                        return False
+                    try:
+                        vv = float(v)
+                    except Exception:
+                        return False
+                    if lum_min is not None and vv < float(lum_min):
+                        return False
+                    if lum_max is not None and vv > float(lum_max):
+                        return False
+                    return True
+
+                scored[output_key] = scored.apply(
+                    lambda r: {
+                        "luminance_mean": r.get(mean_col),
+                        "luminance_min": r.get(min_col),
+                        "luminance_max": r.get(max_col),
+                        "filtered": _pass(r.get(mean_col)),
+                    },
+                    axis=1,
+                )
+            else:
+                scored[output_key] = scored.apply(
+                    lambda r: {
+                        "luminance_mean": r.get(mean_col),
+                        "luminance_min": r.get(min_col),
+                        "luminance_max": r.get(max_col),
+                    },
+                    axis=1,
+                )
+            filtered = scored
         else:
-            # No filtering, but ensure filtered field exists
-            self.logger.info("No luminance threshold specified, initializing filtered field...")
-            filtered = apply_luminance_filter(
-                dataframe=scored,
-                video_clips_key=video_clips_key,
-                lum_min=None,
-                lum_max=None,
-            )
+            if lum_min is not None or lum_max is not None:
+                self.logger.info(f"Applying luminance filter (lum_min={lum_min}, lum_max={lum_max})...")
+                filtered = apply_luminance_filter(
+                    dataframe=scored,
+                    video_clips_key=video_clips_key,
+                    lum_min=lum_min,
+                    lum_max=lum_max,
+                )
+                self.logger.info("Luminance filtering complete")
+            else:
+                # No filtering, but ensure filtered field exists
+                self.logger.info("No luminance threshold specified, initializing filtered field...")
+                filtered = apply_luminance_filter(
+                    dataframe=scored,
+                    video_clips_key=video_clips_key,
+                    lum_min=None,
+                    lum_max=None,
+                )
 
         # Write back
-        if output_key != video_clips_key:
+        if video_clips_key is not None and output_key != video_clips_key:
             filtered[output_key] = filtered[video_clips_key]
 
         storage.write(filtered)

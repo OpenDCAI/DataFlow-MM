@@ -27,37 +27,18 @@ class VideoCaptionGenerator():
             timeout=1800
         )
 
+        self.prompt_template = VideoCaptionGeneratorPrompt()
+        
         self.prompted_vqa_generator = PromptedVQAGenerator(
             serving=self.vlm_serving,
-            system_prompt="You are a helpful assistant."
+            system_prompt="You are a helpful assistant.",
+            prompt_template=self.prompt_template
         )
-        
-        self.prompt_template = VideoCaptionGeneratorPrompt()
 
     def forward(self):
-        # Load data from storage
-        storage = self.storage.step()
-        df = storage.read("dataframe")
-        
-        # Build prompts using the template (same prompt for all rows)
-        prompts = [self.prompt_template.build_prompt() for _ in range(len(df))]
-        
-        # Modify conversation column to set first user message to the prompt
-        if "conversation" in df.columns:
-            conversations = df["conversation"].tolist()
-            for conv, prompt in zip(conversations, prompts):
-                if isinstance(conv, list) and conv:
-                    first = conv[0]
-                    if isinstance(first, dict) and "value" in first:
-                        first["value"] = prompt
-            df["conversation"] = conversations
-        
-        # Write modified dataframe back to storage
-        storage.write(df)
-        
         # Call PromptedVQAGenerator to generate captions
         self.prompted_vqa_generator.run(
-            storage=storage.step(),
+            storage=self.storage.step(),
             input_image_key="image",
             input_video_key="video",
             input_conversation_key="conversation",
