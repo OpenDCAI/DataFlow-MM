@@ -52,7 +52,6 @@ if TYPE_CHECKING:
     from .eval.video_aesthetic_evaluator import VideoAestheticEvaluator
     from .eval.video_luminance_evaluator import VideoLuminanceEvaluator
     from .eval.video_ocr_evaluator import VideoOCREvaluator
-    from .eval.emscore_evaluator import EMScoreEval
     from .eval.general_text_answer_evaluator import GeneralTextAnswerEvaluator
     from .eval.image.image_evaluator import EvalImageGenerationGenerator
     from .eval.image_clip_evaluator import ImageCLIPEvaluator

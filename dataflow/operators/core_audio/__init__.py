@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from .filter.audio_ctc_forced_alignment_transcription_quality_filter import CTCForcedAlignmentFilter
 
     # === Eval ===
-    from .eval.video_audio_similarity_evaluator import VideoAudioSimilarity
     from .eval.audio_ctc_forced_alignment_transcription_quality_evaluator import CTCForcedAlignmentSampleEvaluator
 
 else:
