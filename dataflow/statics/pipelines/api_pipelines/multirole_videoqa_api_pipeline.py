@@ -85,9 +85,6 @@ class MultiRoleVideoQAPipeline():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch video QA generation with DataFlow (Single GPU)")
     
-    parser.add_argument("--card_id", type=str, default="0",
-                                 help="The single CUDA device ID to use (e.g., '0' or '1').")
-    
     parser.add_argument("--images_file", default="./dataflow/example/ads_QA/adsQA.jsonl",
                                  help="Path to the first entry file for DataFlow.")
     parser.add_argument("--cache_path", default="./cache_local",
@@ -98,8 +95,6 @@ if __name__ == "__main__":
                                  help="Type of cache file (e.g., jsonl).")
 
     args = parser.parse_args()
-
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.card_id.replace(' ', '')
     
     pipe = MultiRoleVideoQAPipeline(
         first_entry_file=args.images_file,
