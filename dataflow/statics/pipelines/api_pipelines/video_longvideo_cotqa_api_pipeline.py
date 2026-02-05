@@ -11,10 +11,6 @@ All operations use API models instead of local models.
 
 import os
 import re
-
-# 设置 API Key 环境变量
-os.environ["DF_API_KEY"] = "your api-key"
-
 from dataflow.core.Operator import OperatorABC
 from dataflow import get_logger
 from dataflow.utils.storage import DataFlowStorage, FileStorage
