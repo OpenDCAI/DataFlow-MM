@@ -861,7 +861,6 @@ class APIVLMServing_openai(LLMServingABC):
                 timeout=self.timeout,
                 stream=self.send_request_stream
             )
-            
             return idx, resp.choices[0].message.content
         except Exception as e:
             self.logger.error(f"Request {idx} failed: {str(e)}")
