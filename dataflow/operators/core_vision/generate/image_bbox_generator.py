@@ -19,6 +19,7 @@ from dataflow.core import OperatorABC
 from dataflow.core import LLMServingABC
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 
+
 def vp_normalize(in_p, pad_x, pad_y, width, height):
     if len(in_p) == 2:
         x0, y0 = in_p
