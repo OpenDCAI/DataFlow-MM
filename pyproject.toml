@@ -56,3 +56,5 @@ sglang =["sglang[all]<=0.4.3"]
 audio=["librosa", "soundfile", "ffmpeg", "vllm"]
 image=["ultralytics"]
 
+[tool.uv.extra-build-dependencies]
+clip = ["setuptools"]
