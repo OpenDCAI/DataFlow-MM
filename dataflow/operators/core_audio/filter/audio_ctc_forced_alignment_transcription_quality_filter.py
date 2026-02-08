@@ -19,9 +19,9 @@ class CTCForcedAlignmentFilter(OperatorABC):
         language: str = "en",
         micro_batch_size: int = 16,
         chinese_to_pinyin: bool = False,
+        romanize: bool = True,
         threshold: float = 0.8,
         threshold_mode: str = "min",
-        romanize: bool = True,
     ):
         self.logger = get_logger(__name__)
         self.evaluator = CTCForcedAlignmentSampleEvaluator(

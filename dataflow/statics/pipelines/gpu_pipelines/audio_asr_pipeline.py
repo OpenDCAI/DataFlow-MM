@@ -2,6 +2,7 @@ from dataflow.utils.storage import FileStorage
 from dataflow.operators.core_audio import (
     PromptedAQAGenerator,
     TextNormalizer,
+    CTCForcedAlignmentFilter,
     CTCForcedAlignmentSampleEvaluator,
 )
 from dataflow.serving import LocalModelVLMServing_vllm, APIVLMServing_openai
