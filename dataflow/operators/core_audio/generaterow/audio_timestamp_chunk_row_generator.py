@@ -25,11 +25,12 @@ def chunk_list(data, num_chunks):
     return [data[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(num_chunks) if data[i * k + min(i, m):(i + 1) * k + min(i + 1, m)]]
 
 @OPERATOR_REGISTRY.register()
-class MergeChunksRowGenerator(OperatorABC):
+class TimestampChunkRowGenerator(OperatorABC):
     def __init__(
         self, 
         dst_folder: str,
-        timestamp_type: Literal["frame", "time"] = "time",  # 手动指定类型
+        timestamp_unit: Literal["frame", "second"] = "second",  # 手动指定类型
+        mode: Literal["merge", "split"] = "split",
         max_audio_duration: float = float('inf'),
         hop_size_samples: int = 512,  # hop_size, 是样本点数量
         sampling_rate: int = 16000,
@@ -42,7 +43,8 @@ class MergeChunksRowGenerator(OperatorABC):
         self.pool = None        # 持久化进程池的占位符
         
         self.dst_folder = dst_folder
-        self.timestamp_type = timestamp_type
+        self.timestamp_unit = timestamp_unit
+        self.mode = mode
         self.max_audio_duration = max_audio_duration
         self.hop_size_samples = hop_size_samples
         self.sampling_rate = sampling_rate
@@ -64,7 +66,8 @@ class MergeChunksRowGenerator(OperatorABC):
                 "def __init__(\n"
                 "    self,\n"
                 "    dst_folder: str,\n"
-                "    timestamp_type: Literal['frame', 'time'] = 'time',\n"
+                "    timestamp_unit: Literal['frame', 'second'] = 'second',\n"
+                "    mode: Literal['merge', 'split'] = 'merge',\n"
                 "    max_audio_duration: float = float('inf'),\n"
                 "    hop_size_samples: int = 512,\n"
                 "    sampling_rate: int = 16000,\n"
@@ -74,18 +77,22 @@ class MergeChunksRowGenerator(OperatorABC):
                 "  合并后音频文件的输出目录：\n"
                 "  * 若传入一个有效路径，所有新生成的音频都会写入该目录；\n"
                 "  * 若传 None 或空字符串，内部逻辑会退回到原始音频所在目录（通过 _process_audio 中的逻辑处理）。\n\n"
-                "- timestamp_type: Literal['frame', 'time'] = 'time'\n"
+                "- timestamp_unit: Literal['frame', 'second'] = 'second'\n"
                 "  输入时间戳类型：\n"
                 "  * 'frame'：时间戳为帧编号（start/end 是帧索引），会使用 hop_size_samples 和 sampling_rate\n"
                 "    转换为秒；\n"
                 "  * 'time' ：时间戳已为秒单位，直接使用。\n\n"
+                "- mode: Literal['merge', 'split'] = 'merge'\n"
+                "  处理模式：\n"
+                "  * 'merge'：合并模式，将多个音频片段合并为一个音频文件；\n"
+                "  * 'split'：拆分模式，将一个音频文件拆分为多个音频文件。\n\n"
                 "- max_audio_duration: float = float('inf')\n"
                 "  单个“合并后音频序列”的最大时长（秒）：\n"
                 "  * 当当前序列累计时长 current_duration + 新片段时长 > max_audio_duration 且当前序列非空时，\n"
                 "    会先将当前序列收束为一个输出文件，再开启新序列；\n"
                 "  * 默认为无限长（不切分，只要有片段就全部合并为一个序列）。\n\n"
                 "- hop_size_samples: int = 512\n"
-                "  帧移（hop size），单位为样本点数，仅在 timestamp_type='frame' 时用于将帧编号转换为秒：\n"
+                "  帧移（hop size），单位为样本点数，仅在 timestamp_unit='frame' 时用于将帧编号转换为秒：\n"
                 "  t = frame_idx * hop_size_samples / sampling_rate。\n\n"
                 "- sampling_rate: int = 16000\n"
                 "  加载音频和写出新音频文件时使用的采样率（Hz），用于 librosa/soundfile 或内部读写函数。\n\n"
@@ -112,23 +119,23 @@ class MergeChunksRowGenerator(OperatorABC):
                 "  DataFrame 中音频路径所在列名；每个单元格可以是字符串路径，或仅包含一个路径的 list。\n\n"
                 "- input_timestamps_key: str = 'timestamps'\n"
                 "  DataFrame 中时间戳所在列名；每行通常是一个 List[Dict]，其中每个 dict 至少包含：\n"
-                "    * 当 timestamp_type='frame' 时：{'start': 帧索引, 'end': 帧索引}\n"
-                "    * 当 timestamp_type='time'  时：{'start': 秒, 'end': 秒}\n\n"
+                "    * 当 timestamp_unit='frame' 时：{'start': 帧索引, 'end': 帧索引}\n"
+                "    * 当 timestamp_unit='second'  时：{'start': 秒, 'end': 秒}\n\n"
 
                 "三、运行行为\n"
                 "1）参数校验：\n"
-                "   - 若 self.timestamp_type 不在 ['frame', 'time'] 中，抛出 ValueError。\n\n"
+                "   - 若 self.timestamp_unit 不在 ['frame', 'second'] 中，抛出 ValueError。\n\n"
                 "2）从 storage 读取输入 DataFrame：\n"
                 "   - dataframe = storage.read('dataframe')；\n"
                 "   - 取出 audio 列和 timestamps 列，构造迭代参数列表 args_iter：\n"
-                "     每一项为 (audio_path, dst_folder, timestamps, timestamp_type,\n"
-                "              max_audio_duration, hop_size_samples, sampling_rate)。\n\n"
+                "     每一项为 (audio_path, dst_folder, timestamps, timestamp_unit,\n"
+                "              mode, max_audio_duration, hop_size_samples, sampling_rate)。\n\n"
                 "3）根据 is_parallel 选择执行模式：\n"
                 "   - 串行模式（num_workers <= 1）：\n"
                 "     * 使用 tqdm 对 args_iter 逐行遍历；\n"
                 "     * 调用静态方法 _process_audio(args)：\n"
                 "       - 加载原始音频（支持本地路径和 HTTP/HTTPS 远程音频，分别通过 _read_audio_local / _read_audio_remote）；\n"
-                "       - 根据 timestamp_type 调用 convert_to_timestamps，将帧索引或秒转为统一的秒级区间；\n"
+                "       - 根据 timestamp_unit 调用 convert_to_timestamps，将帧索引或秒转为统一的秒级区间；\n"
                 "       - 按时间顺序遍历每个片段：\n"
                 "         · 计算该片段在原音频中的起止时间（裁剪到 [0, total_duration] 范围内）；\n"
                 "         · 计算片段时长并累加到当前序列 current_duration；\n"
@@ -189,7 +196,8 @@ class MergeChunksRowGenerator(OperatorABC):
                 "def __init__(\n"
                 "    self,\n"
                 "    dst_folder: str,\n"
-                "    timestamp_type: Literal['frame', 'time'] = 'time',\n"
+                "    timestamp_unit: Literal['frame', 'second'] = 'second',\n"
+                "    mode: Literal['merge', 'split'] = 'merge',\n"
                 "    max_audio_duration: float = float('inf'),\n"
                 "    hop_size_samples: int = 512,\n"
                 "    sampling_rate: int = 16000,\n"
@@ -200,11 +208,15 @@ class MergeChunksRowGenerator(OperatorABC):
                 "  * If a valid path is provided, all new WAV files are saved there;\n"
                 "  * If None or empty, the operator falls back to the directory of the source audio\n"
                 "    (handled inside _process_audio).\n\n"
-                "- timestamp_type: Literal['frame', 'time'] = 'time'\n"
+                "- timestamp_unit: Literal['frame', 'second'] = 'second'\n"
                 "  Type of timestamps stored in the dataframe:\n"
                 "  * 'frame' – timestamps are frame indices (start/end are frame numbers) and are converted\n"
                 "    to seconds using hop_size_samples and sampling_rate;\n"
-                "  * 'time'  – timestamps are already in seconds and used as-is.\n\n"
+                "  * 'second'  – timestamps are already in seconds and used as-is.\n\n"
+                "- mode: Literal['merge', 'split'] = 'merge'\n"
+                "  Processing mode:\n"
+                "  * 'merge' – merge mode, merge multiple audio segments into one audio file;\n"
+                "  * 'split' – split mode, split one audio file into multiple audio files.\n\n"
                 "- max_audio_duration: float = float('inf')\n"
                 "  Maximum duration (in seconds) of a single merged sequence:\n"
                 "  * When current_duration + segment_duration exceeds this value and the current sequence\n"
@@ -213,7 +225,7 @@ class MergeChunksRowGenerator(OperatorABC):
                 "  * Default is infinite (all segments for a given source audio are merged into one sequence\n"
                 "    as long as there is at least one segment).\n\n"
                 "- hop_size_samples: int = 512\n"
-                "  Hop size in samples, used only when timestamp_type='frame'. The conversion rule is:\n"
+                "  Hop size in samples, used only when timestamp_unit='frame'. The conversion rule is:\n"
                 "  t = frame_idx * hop_size_samples / sampling_rate.\n\n"
                 "- sampling_rate: int = 16000\n"
                 "  Sampling rate (Hz) used when loading audio and writing merged WAV files.\n\n"
@@ -243,18 +255,18 @@ class MergeChunksRowGenerator(OperatorABC):
                 "- input_timestamps_key: str = 'timestamps'\n"
                 "  Name of the column containing timestamps. Each row is typically a List[Dict], where each dict\n"
                 "  at least contains:\n"
-                "    * For timestamp_type='frame': {'start': frame_idx, 'end': frame_idx}\n"
-                "    * For timestamp_type='time' : {'start': seconds, 'end': seconds}\n\n"
+                "    * For timestamp_unit='frame': {'start': frame_idx, 'end': frame_idx}\n"
+                "    * For timestamp_unit='second' : {'start': seconds, 'end': seconds}\n\n"
 
                 "3. Runtime behavior\n"
                 "1) Validate configuration:\n"
-                "   - If self.timestamp_type is not 'frame' or 'time', a ValueError is raised.\n\n"
+                "   - If self.timestamp_unit is not 'frame' or 'second', a ValueError is raised.\n\n"
                 "2) Read the input DataFrame:\n"
                 "   - dataframe = storage.read('dataframe');\n"
                 "   - Extract the audio and timestamps columns;\n"
                 "   - Build args_iter, a list of tuples\n"
-                "       (audio_path, dst_folder, timestamps, timestamp_type,\n"
-                "        max_audio_duration, hop_size_samples, sampling_rate)\n"
+                "       (audio_path, dst_folder, timestamps, timestamp_unit,\n"
+                "        mode, max_audio_duration, hop_size_samples, sampling_rate)\n"
                 "     for each row.\n\n"
                 "3) Choose execution path based on is_parallel:\n"
                 "   - Serial mode (num_workers <= 1):\n"
@@ -264,7 +276,7 @@ class MergeChunksRowGenerator(OperatorABC):
                 "       - Compute total_duration = len(audio) / sr;\n"
                 "       - Call convert_to_timestamps(...) to normalize timestamps:\n"
                 "         · For 'frame', convert frame indices to seconds using hop_size_samples/sampling_rate;\n"
-                "         · For 'time', reuse timestamps as-is.\n"
+                "         · For 'second', reuse timestamps as-is.\n"
                 "       - Iterate over converted timestamps in chronological order:\n"
                 "         · Clip [start, end] to [0, total_duration]; skip invalid intervals where start >= end;\n"
                 "         · Compute segment_duration = end_time - start_time;\n"
@@ -328,12 +340,15 @@ class MergeChunksRowGenerator(OperatorABC):
         storage: DataFlowStorage,
         input_audio_key: str = "audio",
         input_timestamps_key: str = "timestamps",
-        output_conversation_key: str = "conversation",
-        output_conversation_value: str = "",
+        # output_conversation_key: str = "conversation",
+        # output_conversation_value: str = "",
     ):
         # 参数验证
-        if self.timestamp_type not in ["frame", "time"]:
-            raise ValueError(f"timestamp_type must be 'frame' or 'time'")
+        if self.timestamp_unit not in ["frame", "second"]:
+            raise ValueError(f"timestamp_unit must be 'frame' or 'second'")
+        
+        if self.mode not in ["merge", "split"]:
+            raise ValueError(f"mode must be 'merge' or 'split'")
         
         dataframe = storage.read('dataframe')
         audio_column = dataframe[input_audio_key]
@@ -341,21 +356,23 @@ class MergeChunksRowGenerator(OperatorABC):
         output_dataframe = []
 
         args_iter = [
-            (audio_path, self.dst_folder, timestamps, self.timestamp_type,
-             self.max_audio_duration, self.hop_size_samples, self.sampling_rate, output_conversation_key, output_conversation_value)
+            # (audio_path, self.dst_folder, timestamps, self.timestamp_unit, self.mode,
+            #  self.max_audio_duration, self.hop_size_samples, self.sampling_rate, output_conversation_key, output_conversation_value)
+            (audio_path, self.dst_folder, timestamps, self.timestamp_unit, self.mode,
+             self.max_audio_duration, self.hop_size_samples, self.sampling_rate)
             for audio_path, timestamps in zip(audio_column, timestamps_column)
         ]
 
         if self.is_parallel:
             args_chunks = chunk_list(args_iter, self.num_workers)
-            worker = partial(MergeChunksRowGenerator._process_audio_chunk_static)
+            worker = partial(TimestampChunkRowGenerator._process_audio_chunk_static)
             for chunk_result in tqdm(self.pool.imap(worker, args_chunks), total=len(args_chunks),
-                            desc="Merging Chunks", unit=" chunk"):
+                            desc="Generating Chunks...", unit=" chunk"):
                 output_dataframe.extend(chunk_result)
 
         else:
-            for args in tqdm(args_iter, desc="Merging", unit=" row", total=len(args_iter)):
-                ret = MergeChunksRowGenerator._process_audio(args)
+            for args in tqdm(args_iter, desc="Generating Chunks", unit=" row", total=len(args_iter)):
+                ret = TimestampChunkRowGenerator._process_audio(args)
                 output_dataframe.extend(ret)
 
         output_dataframe = pd.DataFrame(output_dataframe)
@@ -371,8 +388,8 @@ class MergeChunksRowGenerator(OperatorABC):
     def _process_audio_chunk_static(args_chunk):
         """静态方法封装，给多进程用"""
         results = []
-        for args in tqdm(args_chunk, desc="Merging", unit=" row", total=len(args_chunk)):
-            results.extend(MergeChunksRowGenerator._process_audio(args))
+        for args in args_chunk:
+            results.extend(TimestampChunkRowGenerator._process_audio(args))
         return results
 
     @staticmethod
@@ -380,12 +397,13 @@ class MergeChunksRowGenerator(OperatorABC):
         audio_path = args[0]
         dst_folder = args[1]
         timestamps = args[2]
-        timestamp_type = args[3]
-        max_audio_duration = args[4]
-        hop_size_samples = args[5]
-        sampling_rate = args[6]
-        output_conversation_key = args[7]
-        output_conversation_value = args[8]
+        timestamp_unit = args[3]
+        mode = args[4]
+        max_audio_duration = args[5]
+        hop_size_samples = args[6]
+        sampling_rate = args[7]
+        # output_conversation_key = args[8]
+        # output_conversation_value = args[9]
 
         if isinstance(audio_path, list):
             audio_path = audio_path[0]
@@ -401,72 +419,92 @@ class MergeChunksRowGenerator(OperatorABC):
             return []
         total_duration = len(audio) / sr
         converted_timestamps = convert_to_timestamps(
-                timestamp_type=timestamp_type,
+                timestamp_unit=timestamp_unit,
                 timestamps=timestamps,
                 hop_size_samples=hop_size_samples,
-                sampling_rate=sampling_rate
+                sampling_rate=sr
             )
 
-        audio_sequences = []
-        current_segments = []  # 当前序列的音频片段
-        current_duration = 0   # 当前序列的累计时长
-        current_timestamps = []  # 当前序列使用的时间戳
-        sequence_num = 1       # 序列编号
-                
-        for i, ts in enumerate(converted_timestamps):
-            start_time = max(0, ts["start"])
-            end_time = min(total_duration, ts["end"])
-                    
-            if start_time >= end_time:  # 跳过无效片段
-                continue
+        audio_name = Path(audio_path).stem
+        audio_dir = Path(dst_folder) if dst_folder else Path(audio_path).parent
+        audio_dir.mkdir(parents=True, exist_ok=True)
 
-            segment_duration = end_time - start_time
-                    
-            # 检查最大时长限制
-            if current_duration + segment_duration > max_audio_duration and current_segments:
-                # 已达到最长限制
+        audio_sequences = []
+
+        if mode == "split":
+            # 一个 timestamp 输出一个 wav（一个 sequence）
+            sequence_num = 1
+            for i, ts in enumerate(converted_timestamps):
+                start_time = max(0, ts["start"])
+                end_time = min(total_duration, ts["end"])
+                if start_time >= end_time:
+                    continue
+
+                start_sample = int(start_time * sampling_rate)
+                end_sample = int(end_time * sampling_rate)
+                segment = audio[start_sample:end_sample]
+
                 audio_sequences.append({
-                    "segments": current_segments.copy(),
-                    "timestamps": current_timestamps.copy(),
-                    "duration": current_duration,
+                    "segments": [segment],
+                    "timestamps": [timestamps[i]],
+                    "duration": end_time - start_time,
                     "sequence_num": sequence_num,
                     "source_audio_path": audio_path
                 })
-
-                # 重置为新序列
-                current_segments = []
-                current_duration = 0
-                current_timestamps = []
                 sequence_num += 1
-                
-            # 添加当前片段到序列
-            start_sample = int(start_time * sampling_rate)
-            end_sample = int(end_time * sampling_rate)
-            segment = audio[start_sample:end_sample]
-                
-            current_segments.append(segment)
-            current_timestamps.append(timestamps[i])
-            current_duration += segment_duration
-                
-        # 保存最后一个序列
-        if current_segments:
-            audio_sequences.append({
-                "segments": current_segments,
-                "timestamps": current_timestamps,
-                "duration": current_duration,
-                "sequence_num": sequence_num,
-                "source_audio_path": audio_path,
-            })
+        elif mode == "merge":
+            current_segments = []  # 当前序列的音频片段
+            current_duration = 0   # 当前序列的累计时长
+            current_timestamps = []  # 当前序列使用的时间戳
+            sequence_num = 1       # 序列编号
+                    
+            for i, ts in enumerate(converted_timestamps):
+                start_time = max(0, ts["start"])
+                end_time = min(total_duration, ts["end"])
+                        
+                if start_time >= end_time:  # 跳过无效片段
+                    continue
+
+                segment_duration = end_time - start_time
+                        
+                # 检查最大时长限制
+                if current_duration + segment_duration > max_audio_duration and current_segments:
+                    # 已达到最长限制
+                    audio_sequences.append({
+                        "segments": current_segments.copy(),
+                        "timestamps": current_timestamps.copy(),
+                        "duration": current_duration,
+                        "sequence_num": sequence_num,
+                        "source_audio_path": audio_path
+                    })
+
+                    # 重置为新序列
+                    current_segments = []
+                    current_duration = 0
+                    current_timestamps = []
+                    sequence_num += 1
+                    
+                # 添加当前片段到序列
+                start_sample = int(start_time * sampling_rate)
+                end_sample = int(end_time * sampling_rate)
+                segment = audio[start_sample:end_sample]
+                    
+                current_segments.append(segment)
+                current_timestamps.append(timestamps[i])
+                current_duration += segment_duration
+                    
+            # 保存最后一个序列
+            if current_segments:
+                audio_sequences.append({
+                    "segments": current_segments,
+                    "timestamps": current_timestamps,
+                    "duration": current_duration,
+                    "sequence_num": sequence_num,
+                    "source_audio_path": audio_path,
+                })
 
         if not audio_sequences:
             return []
-            
-        # 写入文件
-        audio_name = Path(audio_path).stem
-        if dst_folder:
-            audio_dir = Path(dst_folder)
-        else:
-            audio_dir = Path(audio_path).parent
 
         ret = []
         for seq in audio_sequences:
@@ -474,13 +512,7 @@ class MergeChunksRowGenerator(OperatorABC):
             merged_audio = np.concatenate(seq["segments"])
                         
             # 生成文件名
-            if seq["timestamps"]:
-                if len(seq["segments"]) == 1:
-                    # 单个片段
-                    output_filename = f"{audio_name}_{seq['sequence_num']}.wav"
-                else:
-                    # 多个片段，添加序列号
-                    output_filename = f"{audio_name}_{seq['sequence_num']}.wav"
+            output_filename = f"{audio_name}_{seq['sequence_num']}.wav"
                     
             output_path = audio_dir / output_filename
             sf.write(output_path, merged_audio, sampling_rate)
@@ -488,20 +520,20 @@ class MergeChunksRowGenerator(OperatorABC):
                 {
                     'audio': [str(output_path)],
                     'original_audio_path': str(audio_path),
-                    output_conversation_key: [{"from": "human", "value": output_conversation_value}],
+                    # output_conversation_key: [{"from": "human", "value": output_conversation_value}],
                     'sequence_num': seq['sequence_num'],
                 }
             )
         return ret
 
 def convert_to_timestamps(
-    timestamp_type,
+    timestamp_unit,
     timestamps,
     hop_size_samples,
     sampling_rate
 ):
 # 根据类型处理时间戳
-    if timestamp_type == "frame":
+    if timestamp_unit == "frame":
         # 帧编号模式
         if hop_size_samples is None:
             raise ValueError("'hop_size_samples' is required!")
@@ -515,7 +547,7 @@ def convert_to_timestamps(
             for ts in timestamps
         ]
             
-    else:  # timestamp_type == "time"
+    else:  # timestamp_unit == "second"
         # 时间戳模式
         converted_timestamps = timestamps
 

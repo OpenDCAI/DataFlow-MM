@@ -19,7 +19,6 @@ class CTCForcedAlignmentFilter(OperatorABC):
         language: str = "en",
         micro_batch_size: int = 16,
         chinese_to_pinyin: bool = False,
-        retain_word_level_alignment: bool = True,
         threshold: float = 0.8,
         threshold_mode: str = "min",
         romanize: bool = True,
@@ -33,14 +32,12 @@ class CTCForcedAlignmentFilter(OperatorABC):
             language=language,
             micro_batch_size=micro_batch_size,
             chinese_to_pinyin=chinese_to_pinyin,
-            retain_word_level_alignment=retain_word_level_alignment,
             romanize=romanize,
         )
         self.sampling_rate = sampling_rate
         self.language = language
         self.micro_batch_size = micro_batch_size
         self.chinese_to_pinyin = chinese_to_pinyin
-        self.retain_word_level_alignment = retain_word_level_alignment
         self.threshold = threshold
         self.threshold_mode = threshold_mode
         self.romanize = romanize
@@ -64,7 +61,6 @@ class CTCForcedAlignmentFilter(OperatorABC):
                 "    language: str = \"en\",\n"
                 "    micro_batch_size: int = 16,\n"
                 "    chinese_to_pinyin: bool = False,\n"
-                "    retain_word_level_alignment: bool = True,\n"
                 "    threshold: float = 0.8,\n"
                 "    threshold_mode: str = \"min\",\n"
                 "    romanize: bool = True,\n"
@@ -88,9 +84,6 @@ class CTCForcedAlignmentFilter(OperatorABC):
                 "  生成 CTC 发射概率时的微批大小（传给 generate_emissions），也由内部 evaluator 使用。\n\n"
                 "- chinese_to_pinyin: bool\n"
                 "  若为 True，在对齐前先使用 pypinyin 将中文文本转为拼音（空格分词），用于 evaluator 对齐。\n\n"
-                "- retain_word_level_alignment: bool\n"
-                "  若为 True，内部 evaluator 会计算词/片段级时间戳 word_timestamps；\n"
-                "  当前过滤逻辑只依赖 spans 的 score，word_timestamps 仅作额外信息使用。\n\n"
                 "- threshold: float\n"
                 "  过滤阈值。根据 threshold_mode 聚合得到的样本整体分数 val 若小于该值，则样本被丢弃。\n\n"
                 "- threshold_mode: str\n"
@@ -183,7 +176,6 @@ class CTCForcedAlignmentFilter(OperatorABC):
                 "    language: str = \"en\",\n"
                 "    micro_batch_size: int = 16,\n"
                 "    chinese_to_pinyin: bool = False,\n"
-                "    retain_word_level_alignment: bool = True,\n"
                 "    threshold: float = 0.8,\n"
                 "    threshold_mode: str = \"min\",\n"
                 "    romanize: bool = True,\n"
@@ -209,10 +201,6 @@ class CTCForcedAlignmentFilter(OperatorABC):
                 "  Micro batch size used when generating emissions in generate_emissions.\n\n"
                 "- chinese_to_pinyin: bool\n"
                 "  If True, Chinese text is converted into pinyin before alignment (space-separated).\n\n"
-                "- retain_word_level_alignment: bool\n"
-                "  If True, the underlying evaluator also computes word/segment-level timestamps\n"
-                "  (word_timestamps). The filtering logic itself only depends on span scores, but\n"
-                "  word-level timestamps are kept as extra information.\n\n"
                 "- threshold: float\n"
                 "  Filtering threshold. Given an aggregated sample score val, any sample with\n"
                 "  val < threshold is discarded.\n\n"
@@ -325,12 +313,12 @@ class CTCForcedAlignmentFilter(OperatorABC):
             if row[output_answer_key]['error'] is not None:
                 continue
             
-            spans_list = row[output_answer_key]['spans']
+            alignment_list = row[output_answer_key]['alignment']
 
             if self.threshold_mode == 'min':
-                val = min(span_dict['score'] for span_dict in spans_list)
+                val = min(alignment_dict['score'] for alignment_dict in alignment_list)
             else:
-                val = sum(span_dict['score'] for span_dict in spans_list) / len(spans_list)
+                val = sum(alignment_dict['score'] for alignment_dict in alignment_list) / len(alignment_list)
                     
             if val >= self.threshold:
                 output_dataframe.append(row.to_dict())

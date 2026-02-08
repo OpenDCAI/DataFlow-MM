@@ -7,7 +7,7 @@ from dataflow import get_logger
 from dataflow.utils.storage import DataFlowStorage
 from dataflow.core import OperatorABC
 
-from typing import Union, List, Dict, Any
+from typing import Union, List, Dict, Any, Optional
 import warnings
 
 from tqdm import tqdm
@@ -33,17 +33,13 @@ class SileroVADGenerator(OperatorABC):
         device: Union[str, List[str]] = "cuda",
         num_workers: int = 1,
         threshold: float = 0.5,
-        use_min_cut: bool = False,
         sampling_rate: int = 16000,
         min_speech_duration_s: float = 0.25,
         max_speech_duration_s: float = float('inf'),
         min_silence_duration_s: float = 0.1,
         speech_pad_s: float = 0.03,
         return_seconds: bool = False,
-        time_resolution: int = 1,
-        neg_threshold: float = None,
-        min_silence_at_max_speech: float = 0.098,
-        use_max_poss_sil_at_max_speech: bool = True   
+        **kwargs,
     ):
         super().__init__()
         self.logger = get_logger(__name__)
@@ -52,17 +48,26 @@ class SileroVADGenerator(OperatorABC):
         self.is_parallel = self.num_workers > 1
         self.pool = None        # 持久化进程池的占位符
         self.threshold = threshold
-        self.use_min_cut = use_min_cut
         self.sampling_rate = sampling_rate
         self.min_speech_duration_s = min_speech_duration_s
         self.max_speech_duration_s = max_speech_duration_s
         self.min_silence_duration_s = min_silence_duration_s
         self.speech_pad_s = speech_pad_s
         self.return_seconds = return_seconds
-        self.time_resolution = time_resolution
-        self.neg_threshold = neg_threshold
-        self.min_silence_at_max_speech = min_silence_at_max_speech
-        self.use_max_poss_sil_at_max_speech = use_max_poss_sil_at_max_speech
+
+        self.vad_params = {
+            "threshold": self.threshold,
+            "sampling_rate": self.sampling_rate,
+            "min_speech_duration_s": self.min_speech_duration_s,
+            "max_speech_duration_s": self.max_speech_duration_s,
+            "min_silence_duration_s": self.min_silence_duration_s,
+            "speech_pad_s": self.speech_pad_s,
+            "return_seconds": self.return_seconds,
+            "time_resolution": kwargs.pop("time_resolution", 1),
+            "neg_threshold": kwargs.pop("neg_threshold", None),
+            "min_silence_at_max_speech": kwargs.pop("min_silence_at_max_speech", 0.098),
+            "use_max_poss_sil_at_max_speech": kwargs.pop("use_max_poss_sil_at_max_speech", True),
+        }
 
         if self.is_parallel:
             # --- 并行模式配置 ---
@@ -110,7 +115,6 @@ class SileroVADGenerator(OperatorABC):
                 "    device: Union[str, List[str]] = \"cuda\",\n"
                 "    num_workers: int = 1,\n"
                 "    threshold: float = 0.5,\n"
-                "    use_min_cut: bool = False,\n"
                 "    sampling_rate: int = 16000,\n"
                 "    min_speech_duration_s: float = 0.25,\n"
                 "    max_speech_duration_s: float = float('inf'),\n"
@@ -136,9 +140,6 @@ class SileroVADGenerator(OperatorABC):
                 "  * num_workers  > 1：多进程模式，每个子进程通过 _init_worker 持有独立 SileroVADModel 实例。\n\n"
                 "- threshold: float\n"
                 "  语音概率阈值，VAD 输出概率大于该值视为“语音”，默认 0.5。\n\n"
-                "- use_min_cut: bool\n"
-                "  当语音段超过 max_speech_duration_s 时，是否使用“最小能量切分”（改写的 min-cut 逻辑）\n"
-                "  在长段内部寻找更自然的切分点；默认 False 表示使用原始的“静音切分 + 硬切”策略。\n\n"
                 "- sampling_rate: int\n"
                 "  音频采样率，当前 Silero VAD 支持 8000 和 16000（以及 16000 的整数倍，会自动降采样），默认 16000。\n\n"
                 "- min_speech_duration_s: float\n"
@@ -186,7 +187,7 @@ class SileroVADGenerator(OperatorABC):
                 "1）参数检查：\n"
                 "   - 若 output_answer_key 为 None，直接抛出 ValueError。\n\n"
                 "2）构造 vad_params：\n"
-                "   - 将 __init__ 中配置的 threshold、use_min_cut、sampling_rate 等参数打包为字典 vad_params，\n"
+                "   - 将 __init__ 中配置的 threshold、sampling_rate 等参数打包为字典 vad_params，\n"
                 "     并设置 window_size_samples=512（内部会根据采样率覆盖为 512 或 256）。\n\n"
                 "3）从 storage 中读取 DataFrame：\n"
                 "   - 通过 storage.read('dataframe') 读取上游写入的数据；\n"
@@ -238,7 +239,6 @@ class SileroVADGenerator(OperatorABC):
                 "    device: Union[str, List[str]] = \"cuda\",\n"
                 "    num_workers: int = 1,\n"
                 "    threshold: float = 0.5,\n"
-                "    use_min_cut: bool = False,\n"
                 "    sampling_rate: int = 16000,\n"
                 "    min_speech_duration_s: float = 0.25,\n"
                 "    max_speech_duration_s: float = float('inf'),\n"
@@ -264,10 +264,6 @@ class SileroVADGenerator(OperatorABC):
                 "  * num_workers  > 1: multi-process mode; each worker has its own SileroVADModel.\n\n"
                 "- threshold: float\n"
                 "  Speech probability threshold; VAD probabilities above this value are considered SPEECH (default 0.5).\n\n"
-                "- use_min_cut: bool\n"
-                "  If True, when a speech segment exceeds max_speech_duration_s, a custom min-cut like logic\n"
-                "  is used to find a smoother split point inside the segment; if False, splitting relies on\n"
-                "  silence detection and hard cuts.\n\n"
                 "- sampling_rate: int\n"
                 "  Audio sampling rate. Silero VAD supports 8000 and 16000 (and multiples of 16000 that are\n"
                 "  downsampled internally). Default is 16000.\n\n"
@@ -374,22 +370,6 @@ class SileroVADGenerator(OperatorABC):
     ):
         if output_answer_key is None:
             raise ValueError("At least one of output_answer_key must be provided.")
-        
-        vad_params = {
-            "use_min_cut": self.use_min_cut,
-            "threshold": self.threshold,
-            "sampling_rate": self.sampling_rate,
-            "min_speech_duration_s": self.min_speech_duration_s,
-            "max_speech_duration_s": self.max_speech_duration_s,
-            "min_silence_duration_s": self.min_silence_duration_s,
-            "speech_pad_s": self.speech_pad_s,
-            "return_seconds": self.return_seconds,
-            "time_resolution": self.time_resolution,
-            "neg_threshold": self.neg_threshold,
-            "window_size_samples": 512,
-            "min_silence_at_max_speech": self.min_silence_at_max_speech,
-            "use_max_poss_sil_at_max_speech": self.use_max_poss_sil_at_max_speech,
-        }
 
         self.logger.info("Running SileroVADGenerator...")
         self.input_audio_key = input_audio_key
@@ -403,9 +383,9 @@ class SileroVADGenerator(OperatorABC):
         audio_paths = dataframe.get(self.input_audio_key, pd.Series([])).tolist()
 
         if self.is_parallel:
-            timestamps_list = self._parallel_process(audio_paths, vad_params=vad_params)
+            timestamps_list = self._parallel_process(audio_paths, vad_params=self.vad_params)
         else:
-            timestamps_list = self._serial_process(audio_paths, vad_params=vad_params)
+            timestamps_list = self._serial_process(audio_paths, vad_params=self.vad_params)
 
         dataframe[self.output_answer_key] = timestamps_list
         storage.write(dataframe)
@@ -429,15 +409,10 @@ class SileroVADGenerator(OperatorABC):
         # 只需要准备每个任务的数据负载，不再需要配置信息
         worker_payloads = []
         for i, chunk in enumerate(audio_chunks):
-            if len(chunk) > 0:
-                # 【重点】每次分发任务时，都附带上模型配置信息
-                # device = self.devices[i % len(self.devices)]
-                # model_config = {'device': device, **self.model_init_args}
-                
+            if len(chunk) > 0:                
                 payload = {
                     'audio_paths_chunk': chunk.tolist(),
                     'vad_params': vad_params,
-                    # 'model_config': model_config  # 传入配置
                 }
                 worker_payloads.append(payload)
         
@@ -447,10 +422,6 @@ class SileroVADGenerator(OperatorABC):
             total=len(worker_payloads),
             desc="SileroVAD parallel processing..."
         ))
-
-        # results_nested = self.pool.imap(_parallel_worker, worker_payloads)
-        # self.pool.close()
-        # self.pool.join()
         
         return [item for sublist in results_nested for item in sublist]
     
@@ -473,7 +444,7 @@ def _parallel_worker(payload: Dict[str, Any]) -> List[List[Dict[str, float]]]:
             
     results = []
     # 使用已经存在于子进程中的 _worker_model_processor
-    for audio_path in tqdm(audio_paths_chunk, unit=" row", desc="SileroVAD"):
+    for audio_path in audio_paths_chunk:
         if isinstance(audio_path, list): 
             audio_path = audio_path[0]
         results.append(_worker_model_processor.process_audio_file(audio_path, **vad_params))
@@ -579,7 +550,6 @@ class SileroVADModel:
             list containing ends and beginnings of speech chunks (samples or seconds based on return_seconds)
         """
 
-        use_min_cut = kwargs.get('use_min_cut', False)
         threshold = kwargs.get('threshold', 0.5)
         sampling_rate = kwargs.get('sampling_rate', 16000)
         min_speech_duration_s = kwargs.get('min_speech_duration_s', 0.25)
@@ -589,7 +559,6 @@ class SileroVADModel:
         return_seconds = kwargs.get('return_seconds', False)
         time_resolution = kwargs.get('time_resolution', 1)
         neg_threshold = kwargs.get('neg_threshold', None)
-        window_size_samples = kwargs.get('window_size_samples', 512)
         min_silence_at_max_speech = kwargs.get('min_silence_at_max_speech', 0.098)
         use_max_poss_sil_at_max_speech = kwargs.get('use_max_poss_sil_at_max_speech', True)
 
@@ -701,62 +670,14 @@ class SileroVADModel:
                     prev_end = next_start = temp_end = 0
                     possible_ends = []
                 else:
-                    if use_min_cut:     # 使用min-cut算法对过长的音频进行截断
-                        start_samp = current_speech['start']
-                        end_samp = hop_size_samples * i
-
-                        # 帧序号
-                        first_frame = start_samp // hop_size_samples
-                        last_frame  = end_samp // hop_size_samples
-                        seg_probs = speech_probs[first_frame: last_frame + 1]
-                        n = len(seg_probs)
-
-                        if n <= 1:
-                            # 兜底：段太短，硬切
-                            split_frame_global = i
-                        else:
-                            # 在“当前段”的后半段里找最小值
-                            search_after = n // 2
-                            if search_after >= n:       # 后半段可能为空
-                                split_frame_global = i  # 兜底
-                            else:
-                                sub = seg_probs[search_after:]
-                                # 找子区间最小值位置
-                                off_in_sub, _ = min(enumerate(sub), key=lambda x: x[1])
-                                split_frame_global = first_frame + search_after + off_in_sub
-
-                        # 保护：避免切点等于段首或超过当前帧，回退为硬切
-                        if split_frame_global <= first_frame or split_frame_global >= i:
-                            split_frame_global = i
-
-                        # if search_after >= seg_probs.size(0):
-                        #     # 兜底：整段太短，硬切到最后一帧
-                        #     split_frame = seg_probs.size(0) - 1
-                        # else:
-                        #     split_offset = torch.argmin(seg_probs[search_after:]).item()  # 相对子切片
-                        #     split_frame  = search_after + split_offset                    # 相对 seg_probs
-
-                        split_samp   = split_frame_global * hop_size_samples     # 全局采样点
-
-                        # 切成两段
-                        current_speech['end'] = split_samp
-                        speeches.append(current_speech)
-                        # 后半段继续检测
-                        current_speech = {'start': split_samp}
-                        # triggered 保持 True
-                        # ----------  局部 torch-min-cut end   ----------
-                        prev_end = next_start = temp_end = 0
-                        possible_ends = []
-                        continue
-                    else:
-                        # 正常滑动窗口
-                        current_speech['end'] = hop_size_samples * i
-                        speeches.append(current_speech)
-                        current_speech = {}
-                        prev_end = next_start = temp_end = 0
-                        triggered = False
-                        possible_ends = []
-                        continue
+                    # 正常滑动窗口
+                    current_speech['end'] = hop_size_samples * i
+                    speeches.append(current_speech)
+                    current_speech = {}
+                    prev_end = next_start = temp_end = 0
+                    triggered = False
+                    possible_ends = []
+                    continue
             
             # triggered表示当前正在说话状态
             # 当语音概率低于负阈值时，触发静音状态
@@ -812,67 +733,3 @@ class SileroVADModel:
                 speech_dict['end'] *= step
 
         return speeches
-
-# 已废弃的
-# def run(self, 
-    #         storage: DataFlowStorage,
-    #         input_audio_key: str = "audio",
-    #         # input_conversation_key: str = "conversation",
-    #         # 输出的conversation可能是none也可能是conversation，请类型检查
-    #         output_answer_key: str = "timestamps",
-    #         threshold: float = 0.5,
-    #         use_min_cut: bool = False,
-    #         sampling_rate: int = 16000,
-    #         min_speech_duration_s: int = 0.25,
-    #         max_speech_duration_s: float = float('inf'),
-    #         min_silence_duration_s: int = 0.1,
-    #         speech_pad_s: int = 0.03,
-    #         return_seconds: bool = False,
-    #         time_resolution: int = 1,
-    #         # visualize_probs: bool = False,
-    #         progress_tracking_callback: Callable[[float], None] = None,
-    #         neg_threshold: float = None,
-    #         window_size_samples: int = 512,
-    #         min_silence_at_max_speech: float = 98,
-    #         use_max_poss_sil_at_max_speech: bool = True
-    # ):
-    #     if output_answer_key is None:
-    #         raise ValueError("At least one of output_answer_key must be provided.")
-
-    #     self.logger.info("Running SileroVADGenerator...")
-    #     self.input_audio_key = input_audio_key
-    #     # self.input_conversation_key = input_conversation_key
-    #     self.output_answer_key = output_answer_key
-        
-    #     # Load the raw dataframe from the input file
-    #     dataframe = storage.read('dataframe')
-    #     self.logger.info(f"Loading, number of rows: {len(dataframe)}")
-
-    #     audio_paths = dataframe.get(self.input_audio_key, pd.Series([])).tolist()
-    #     timestamps_list = []
-    #     for audio_path in tqdm(audio_paths, unit="row", desc="SileroVAD Processing"):
-    #         if isinstance(audio_path, list):
-    #             audio_path = audio_path[0]
-    #         audio = self.read_audio(audio_path).to(self.device)
-    #         timestamps = self.get_speech_timestamps(
-    #             audio=audio,
-    #             model=self.model,
-    #             threshold=threshold,
-    #             use_min_cut=use_min_cut,
-    #             sampling_rate=sampling_rate,
-    #             min_speech_duration_s=min_speech_duration_s,
-    #             max_speech_duration_s=max_speech_duration_s,
-    #             min_silence_duration_s=min_silence_duration_s,
-    #             speech_pad_s=speech_pad_s,
-    #             return_seconds=return_seconds,
-    #             time_resolution=time_resolution,
-    #             progress_tracking_callback=progress_tracking_callback,
-    #             neg_threshold=neg_threshold,
-    #             window_size_samples=window_size_samples,
-    #             min_silence_at_max_speech=min_silence_at_max_speech,
-    #             use_max_poss_sil_at_max_speech=use_max_poss_sil_at_max_speech
-    #         )
-    #         timestamps_list.append(timestamps)
-    #     dataframe[self.output_answer_key] = timestamps_list
-    #     storage.write(dataframe)
-    #     return output_answer_key

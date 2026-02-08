@@ -61,7 +61,7 @@ def _parallel_worker(payload: Dict[str, Any]) -> List[List[Dict[str, float]]]:
 
     records = []
     # 使用已经存在于子进程中的 _worker_model_processor
-    for audio_path, text in tqdm(zip(audio_paths_chunk, text_chunk), total=len(audio_paths_chunk), unit=" row", desc="CTC Forced Aligner..."):
+    for audio_path, text in zip(audio_paths_chunk, text_chunk):
         if isinstance(audio_path, list): 
             audio_path = audio_path[0]
         records.append(_worker_model_processor.process_audio_file(audio_path, text, **ctc_params))
@@ -83,7 +83,6 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
         language: str = "en",
         micro_batch_size: int = 16,
         chinese_to_pinyin: bool = False,
-        retain_word_level_alignment: bool = False,
         romanize: bool = True,
     ):
         self.logger = get_logger()
@@ -94,7 +93,6 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
         self.language = language
         self.micro_batch_size = micro_batch_size
         self.chinese_to_pinyin = chinese_to_pinyin
-        self.retain_word_level_alignment = retain_word_level_alignment
         self.romanize = romanize
 
         if self.is_parallel:
@@ -151,9 +149,6 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
                 "  进行模型前向推理时的微批大小，用于控制 generate_emissions 中的批处理大小。\n\n"
                 "- chinese_to_pinyin: bool = False\n"
                 "  若为 True，将在对齐前使用 pypinyin 将中文文本转换为拼音（以空格分隔）。\n\n"
-                "- retain_word_level_alignment: bool = False\n"
-                "  若为 True，则在输出中附加词/片段级别的时间戳信息（word_timestamps），\n"
-                "  否则仅输出帧级对齐结果（spans）。\n\n"
                 "- romanize: bool = True\n"
                 "  若为 True，则使用 uroman 对文本进行罗马化（适用于非拉丁文字），并在对齐时使用该罗马化序列。\n\n"
                 "初始化行为：\n"
@@ -269,9 +264,6 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
                 "  Micro batch size used when generating emissions in generate_emissions.\n\n"
                 "- chinese_to_pinyin: bool = False\n"
                 "  If True, Chinese text is first converted into pinyin (space-separated) using pypinyin.\n\n"
-                "- retain_word_level_alignment: bool = False\n"
-                "  If True, word/segment-level timestamps (word_timestamps) are produced in the output;\n"
-                "  otherwise, only frame-level spans are returned.\n\n"
                 "- romanize: bool = True\n"
                 "  If True, text is romanized using uroman given the specified language code, which is\n"
                 "  useful for non-Latin scripts.\n\n"
@@ -389,7 +381,6 @@ class CTCForcedAlignmentSampleEvaluator(OperatorABC):
             'sampling_rate': self.sampling_rate,
             'language': self.language,
             'micro_batch_size': self.micro_batch_size,
-            'retain_word_level_alignment': self.retain_word_level_alignment,
             'romanize': self.romanize,
         }
 
@@ -502,7 +493,6 @@ class Aligner:
         sampling_rate = kwargs.get('sampling_rate', 16000)
         language = kwargs.get('language', 'en')
         micro_batch_size = kwargs.get('micro_batch_size', 16)
-        retain_word_level_alignment = kwargs.get('retain_word_level_alignment', False)
         romanize = kwargs.get('romanize', False)
 
         try:
@@ -513,42 +503,23 @@ class Aligner:
                 audio, sr = _read_audio_local(audio_path, sr=sampling_rate)
             audio = torch.from_numpy(audio).to(self.device)
 
-            spans_list = []
-
             emissions, stride = generate_emissions(self.model, audio, batch_size=micro_batch_size)
             tokens_starred, text_starred = preprocess_text(text, romanize=romanize, language=Lang(language).pt3)
             segments, scores, blank_token = self.get_alignments(emissions, tokens_starred, self.tokenizer)
-            # segments, scores, blank_token = get_alignments(emissions, tokens_starred, self.tokenizer)
             spans = get_spans(tokens_starred, segments, blank_token)
 
-            # j = 0
-            for seg_list in spans:
-                for seg in seg_list:
-                    spans_list.append({
-                        'label': seg.label,
-                        'start': seg.start,
-                        'end': seg.end,
-                        'score': math.exp(scores[seg.start: seg.end + 1].mean()),
-                    })
-                    # j += 1
-
-            if retain_word_level_alignment:
-                word_timestamps = postprocess_results(text_starred, spans, stride, scores)
-                for i in range(len(word_timestamps)):
-                            score = word_timestamps[i]['score']
-                            word_timestamps[i]['score'] = math.exp(score)
-            else:
-                word_timestamps = []
+            word_timestamps = postprocess_results(text_starred, spans, stride, scores)
+            for i in range(len(word_timestamps)):
+                score = word_timestamps[i]['score']
+                word_timestamps[i]['score'] = math.exp(score)
         
             record = {
-                'spans': spans_list,
-                'word_timestamps': word_timestamps,
+                'alignment': word_timestamps,
                 'error': None,
             }
         except Exception as e:
             record = {
-                'spans': [],
-                'word_timestamps': [],
+                'alignment': [],
                 'error': str(e),
             }
             self.logger.info(f"error: {str(e)}")
@@ -750,7 +721,7 @@ def load_alignment_model(
             attn_implementation = "eager"
         elif (
             is_flash_attn_2_available()
-            and device == "cuda"
+            and device.startswith("cuda")
             and dtype in [torch.float16, torch.bfloat16]
         ):
             attn_implementation = "flash_attention_2"
