@@ -101,7 +101,7 @@ class PromptedAQAGenerator(OperatorABC):
 
         conversations_raw = dataframe.get(self.input_conversation_key, pd.Series([])).tolist()
 
-        use_api_mode = is_api_serving(self.serving)
+        use_api_mode = is_api_serving(self.vlm_serving)
 
         if use_api_mode:
             conversations_list = []
@@ -116,7 +116,7 @@ class PromptedAQAGenerator(OperatorABC):
                             conversation.append({"role": role, "content": content})
                 conversations_list.append(conversation)
             
-            response= self.serving.generate_from_input_messages(
+            response= self.vlm_serving.generate_from_input_messages(
                 conversations=conversations_list,
                 audio_list=audio_inputs_list,
                 system_prompt=self.system_prompt
@@ -154,7 +154,7 @@ class PromptedAQAGenerator(OperatorABC):
                         conversation.append(turn)
                 conversations_with_tokens.append(conversation)
             
-            response = self.serving.generate_from_input_messages(
+            response = self.vlm_serving.generate_from_input_messages(
                 conversations=conversations_with_tokens,
                 audio_list=audio_inputs_list,
                 system_prompt=self.system_prompt
