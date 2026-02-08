@@ -41,7 +41,7 @@ imageio-ffmpeg
 ffmpeg-python
 nltk
 setuptools
-clip @ git+https://github.com/openai/CLIP.git
+# clip @ git+https://github.com/openai/CLIP.git
 cpbd
 rouge_score
 # paddlepaddle-gpu==3.0.0 --index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
