@@ -41,7 +41,7 @@ imageio-ffmpeg
 ffmpeg-python
 nltk
 setuptools
-clip
+openai-clip
 # clip @ git+https://github.com/openai/CLIP.git
 cpbd
 rouge_score
