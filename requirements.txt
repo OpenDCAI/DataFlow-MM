@@ -40,8 +40,8 @@ scenedetect
 imageio-ffmpeg
 ffmpeg-python
 nltk
-setuptools
-openai-clip
+setuptools>=68.0.0
+openai-clip>=1.0.1
 # clip @ git+https://github.com/openai/CLIP.git
 cpbd
 rouge_score
