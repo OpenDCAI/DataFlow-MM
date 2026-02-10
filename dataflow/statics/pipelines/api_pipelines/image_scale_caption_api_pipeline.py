@@ -275,7 +275,7 @@ class ImageScaleCaptionPipeline:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="ScaleCap Dense Captioning Pipeline")
+    parser = argparse.ArgumentParser(description="ScaleCap Dense Caption Pipeline")
     # Storage / IO
     parser.add_argument("--input_jsonl", default="./dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl", help="Input file with images")
     parser.add_argument("--cache_path", default="./cache_scalecap_results")
