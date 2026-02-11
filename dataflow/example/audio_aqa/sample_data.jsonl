@@ -1,2 +1,0 @@
-{"audio": ["https://raw.githubusercontent.com/gty1829/DataFlow-MM/df-audio-dev-1/dataflow/example/whisper_transcription/BAC009S0022W0165.wav"], "conversation": [{"from": "human", "value": "<audio>\nTranscribe the audio into Chinese." }]}
-{"audio": ["https://raw.githubusercontent.com/gty1829/DataFlow-MM/df-audio-dev-1/dataflow/example/audio_vqa/Santa%20Motor.wav"], "conversation": [{"from": "human", "value": "<audio>\nDescribe the sound in this audio clip." }]}

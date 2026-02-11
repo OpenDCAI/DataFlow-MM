@@ -6,6 +6,11 @@ from dataflow.utils.storage import DataFlowStorage
 from dataflow.core import OperatorABC
 from dataflow.core import VLMServingABC
 
+def is_api_serving(serving):
+    """判断 serving 是否为 API 类型"""
+    from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
+    return isinstance(serving, APIVLMServing_openai)
+
 @OPERATOR_REGISTRY.register()
 class PromptedAQAGenerator(OperatorABC):
     '''
@@ -82,15 +87,79 @@ class PromptedAQAGenerator(OperatorABC):
         dataframe = storage.read('dataframe')
         self.logger.info(f"Loading, number of rows: {len(dataframe)}")
 
-        audio_column = dataframe.get(self.input_audio_key, pd.Series([])).tolist()
+        if input_audio_key is None or input_audio_key not in dataframe.columns:
+            audio_column = None
+        else:
+            audio_column = dataframe.get(input_audio_key, pd.Series([])).tolist()
+            audio_column = [path if isinstance(path, list) else [path] for path in audio_column]
+            if len(audio_column) == 0 or all(p is None for p in audio_column):
+                audio_column = None
 
-        conversations = dataframe.get(self.input_conversation_key, pd.Series([])).tolist()
+        audio_inputs_list = audio_column
+        if audio_inputs_list is not None and all(aud is None for aud in audio_inputs_list):
+            audio_inputs_list = None
 
-        response = self.vlm_serving.generate_from_input_messages(
-            conversations=conversations,
-            audio_list=audio_column,
-            system_prompt=self.system_prompt,
-        )
+        conversations_raw = dataframe.get(self.input_conversation_key, pd.Series([])).tolist()
+
+        use_api_mode = is_api_serving(self.vlm_serving)
+
+        if use_api_mode:
+            conversations_list = []
+            for conv in conversations_raw:
+                conversation = []
+                if isinstance(conv, list):
+                    for turn in conv:
+                        if isinstance(turn, dict):
+                            # Convert from/value format to role/content format
+                            role = "user" if turn.get("from") == "human" else "assistant"
+                            content = turn.get("value", "")
+                            conversation.append({"role": role, "content": content})
+                conversations_list.append(conversation)
+            
+            response= self.vlm_serving.generate_from_input_messages(
+                conversations=conversations_list,
+                audio_list=audio_inputs_list,
+                system_prompt=self.system_prompt
+            )
+        else:
+            # Local 模式：保持原始格式 {"from": "human/gpt", "value": "..."}
+            # 但需要注入 <image> 和 <video> tokens 供 IO 层识别
+            self.logger.info("Using local serving mode with generate_from_input_messages")
+            
+            # Inject multimodal tokens into the first user message if needed
+            conversations_with_tokens = []
+            for idx, conv_raw in enumerate(conversations_raw):
+                conversation = []
+                for turn_idx, turn in enumerate(conv_raw):
+                    if isinstance(turn, dict):
+                        # Check if this is the first user message
+                        is_first_user = turn.get("from") == "human" and turn_idx == 0
+                        
+                        if is_first_user:
+                            # Inject tokens before the text
+                            value = turn.get("value", "")
+                            tokens = []
+                            
+                            if audio_inputs_list and idx < len(audio_inputs_list) and audio_inputs_list[idx]:
+                                # Filter out None values
+                                valid_audios = [aud for aud in audio_inputs_list[idx] if aud is not None]
+                                if valid_audios:
+                                    tokens.extend(["<audio>"] * len(valid_audios))
+                            
+                            # Combine tokens with original value
+                            if tokens:
+                                new_value = "".join(tokens) + value
+                                turn = {**turn, "value": new_value}
+                        
+                        conversation.append(turn)
+                conversations_with_tokens.append(conversation)
+            
+            response = self.vlm_serving.generate_from_input_messages(
+                conversations=conversations_with_tokens,
+                audio_list=audio_inputs_list,
+                system_prompt=self.system_prompt
+            )
+        
         dataframe[self.output_answer_key] = response
         storage.write(dataframe)
         return output_answer_key

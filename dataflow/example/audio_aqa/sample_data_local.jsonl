@@ -1,2 +1,0 @@
-{"audio": ["/share/project/guotianyu/dataflow_local_test_data/dataflow_example_whisper_transcription_BAC009S0022W0165.wav"], "conversation": [{"from": "human", "value": "<audio>\nTranscribe the audio into Chinese." }]}
-{"audio": ["/share/project/guotianyu/dataflow_local_test_data/dataflow_example_audio_vqa_Santa Motor.wav"], "conversation": [{"from": "human", "value": "<audio>\nDescribe the sound in this audio clip." }]}

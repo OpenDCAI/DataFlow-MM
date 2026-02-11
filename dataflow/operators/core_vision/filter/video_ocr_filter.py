@@ -110,7 +110,7 @@ class VideoOCRFilter(OperatorABC):
         self,
         figure_root: str = "extract_frames",
         input_video_key: str = "video",
-        video_clips_key: str = "video_clips",
+        video_clips_key: Optional[str] = None,
         load_num: int = 3,
         batch_size: int = 8,
         num_workers: int = 4,
@@ -198,7 +198,7 @@ class VideoOCRFilter(OperatorABC):
         # Resolve runtime config
         figure_root = figure_root or self.figure_root
         input_video_key = input_video_key or self.input_video_key
-        video_clips_key = video_clips_key or self.video_clips_key
+        video_clips_key = self.video_clips_key if video_clips_key is None else video_clips_key
         load_num = load_num or self.load_num
         batch_size = batch_size or self.batch_size
         num_workers = num_workers or self.num_workers
@@ -232,27 +232,52 @@ class VideoOCRFilter(OperatorABC):
         self.logger.info("OCR scores computed")
 
         # Step 2: Apply filtering based on ocr_min/ocr_max
-        if ocr_min is not None or ocr_max is not None:
-            self.logger.info(f"Applying OCR filter (ocr_min={ocr_min}, ocr_max={ocr_max})...")
-            filtered = apply_ocr_filter(
-                dataframe=scored,
-                video_clips_key=video_clips_key,
-                ocr_min=ocr_min,
-                ocr_max=ocr_max,
-            )
-            self.logger.info("OCR filtering complete")
+        if video_clips_key is None:
+            # Whole-video mode: score is stored at row level (`ocr_score`)
+            ocr_col = "ocr_score"
+            if ocr_col not in scored.columns:
+                scored[ocr_col] = None
+
+            if ocr_min is not None or ocr_max is not None:
+                def _pass(v: Optional[float]) -> bool:
+                    if v is None:
+                        return False
+                    try:
+                        vv = float(v)
+                    except Exception:
+                        return False
+                    if ocr_min is not None and vv < ocr_min:
+                        return False
+                    if ocr_max is not None and vv > ocr_max:
+                        return False
+                    return True
+
+                scored[output_key] = scored[ocr_col].apply(lambda v: {"ocr_score": v, "filtered": _pass(v)})
+            else:
+                scored[output_key] = scored[ocr_col].apply(lambda v: {"ocr_score": v})
+            filtered = scored
         else:
-            # No filtering, but ensure filtered field exists
-            self.logger.info("No OCR threshold specified, initializing filtered field...")
-            filtered = apply_ocr_filter(
-                dataframe=scored,
-                video_clips_key=video_clips_key,
-                ocr_min=None,
-                ocr_max=None,
-            )
+            if ocr_min is not None or ocr_max is not None:
+                self.logger.info(f"Applying OCR filter (ocr_min={ocr_min}, ocr_max={ocr_max})...")
+                filtered = apply_ocr_filter(
+                    dataframe=scored,
+                    video_clips_key=video_clips_key,
+                    ocr_min=ocr_min,
+                    ocr_max=ocr_max,
+                )
+                self.logger.info("OCR filtering complete")
+            else:
+                # No filtering, but ensure filtered field exists
+                self.logger.info("No OCR threshold specified, initializing filtered field...")
+                filtered = apply_ocr_filter(
+                    dataframe=scored,
+                    video_clips_key=video_clips_key,
+                    ocr_min=None,
+                    ocr_max=None,
+                )
 
         # Write back
-        if output_key != video_clips_key:
+        if video_clips_key is not None and output_key != video_clips_key:
             filtered[output_key] = filtered[video_clips_key]
 
         storage.write(filtered)

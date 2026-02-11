@@ -11,10 +11,6 @@ All operations use API models instead of local models.
 
 import os
 import re
-
-# 设置 API Key 环境变量
-os.environ["DF_API_KEY"] = "your api-key"
-
 from dataflow.core.Operator import OperatorABC
 from dataflow import get_logger
 from dataflow.utils.storage import DataFlowStorage, FileStorage
@@ -152,120 +148,55 @@ class LongVideoPipelineAPI(OperatorABC):
     Integrates caption generation, reasoning QA generation, and reformatting.
     """
     
-    def __init__(
-        self,
-        # VideoInfoFilter parameters
-        backend: str = "opencv",
-        ext: bool = False,
-        
-        # VideoSceneFilter parameters
-        frame_skip: int = 0,
-        start_remove_sec: float = 0.0,
-        end_remove_sec: float = 0.0,
-        min_seconds: float = 2.0,
-        max_seconds: float = 15.0,
-        use_adaptive_detector: bool = False,
-        overlap: bool = False,
-        use_fixed_interval: bool = False,
-        
-        # API VLM parameters (for caption generation)
-        vlm_api_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        vlm_api_key_name: str = "DF_API_KEY",
-        vlm_model_name: str = "qwen3-vl-8b-instruct",
-        vlm_max_workers: int = 10,
-        vlm_timeout: int = 1800,
-        
-        # API LLM parameters (for reasoning generation)
-        llm_api_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        llm_api_key_name: str = "DF_API_KEY",
-        llm_model_name: str = "qwen-plus",
-        llm_max_workers: int = 10,
-        llm_timeout: int = 1800,
-        
-        # API LLM parameters (for reasoning reformatting)
-        reformat_api_url: str = "https://openrouter.ai/api/v1",
-        reformat_api_key_name: str = "OPENROUTER_API_KEY",
-        reformat_model_name: str = "openai/gpt-4o",
-        reformat_max_workers: int = 10,
-        reformat_timeout: int = 1800,
-        
-        # VideoClipGenerator parameters
-        video_save_dir: str = "./cache/video_clips",
-    ):
+    def __init__(self):
         """
-        Initialize the long video cotqa pipeline with API models.
-        
-        Args:
-            backend: Video backend for info extraction (opencv, torchvision, av)
-            ext: Whether to filter non-existent files
-            frame_skip: Frame skip for scene detection
-            start_remove_sec: Seconds to remove from start of each scene
-            end_remove_sec: Seconds to remove from end of each scene
-            min_seconds: Minimum scene duration
-            max_seconds: Maximum scene duration
-            use_adaptive_detector: Whether to use AdaptiveDetector in scene detection
-            overlap: If True, use overlap splitting strategy
-            use_fixed_interval: If True, use fixed interval splitting instead of scene detection
-            vlm_api_url: API URL for VLM service (caption generation)
-            vlm_api_key_name: Environment variable name for VLM API key
-            vlm_model_name: VLM model name for caption generation
-            vlm_max_workers: Max concurrent workers for VLM API
-            vlm_timeout: Timeout for VLM API requests
-            llm_api_url: API URL for LLM service (reasoning generation)
-            llm_api_key_name: Environment variable name for LLM API key
-            llm_model_name: LLM model name for reasoning generation
-            llm_max_workers: Max concurrent workers for LLM API
-            llm_timeout: Timeout for LLM API requests
-            reformat_api_url: API URL for LLM service (reasoning reformatting)
-            reformat_api_key_name: Environment variable name for reformatting API key
-            reformat_model_name: LLM model name for reasoning reformatting
-            reformat_max_workers: Max concurrent workers for reformatting API
-            reformat_timeout: Timeout for reformatting API requests
-            video_save_dir: Directory to save cut video clips
+        Initialize the long video cotqa pipeline with default API model configurations.
         """
         self.logger = get_logger()
         
-        # Initialize video processing operators
+        # Initialize video processing operators with default parameters
         self.video_info_filter = VideoInfoFilter(
-            backend=backend,
-            ext=ext,
+            backend="opencv",
+            ext=False,
         )
         self.video_scene_filter = VideoSceneFilter(
-            frame_skip=frame_skip,
-            start_remove_sec=start_remove_sec,
-            end_remove_sec=end_remove_sec,
-            min_seconds=min_seconds,
-            max_seconds=max_seconds,
+            frame_skip=0,
+            start_remove_sec=0.0,
+            end_remove_sec=0.0,
+            min_seconds=0.0,
+            max_seconds=10.0,
             disable_parallel=True,
-            use_adaptive_detector=use_adaptive_detector,
-            overlap=overlap,
-            use_fixed_interval=use_fixed_interval,
+            use_adaptive_detector=False,
+            overlap=False,
+            use_fixed_interval=True,
         )
         
         # Initialize clip processing operators
         self.video_clip_filter = VideoClipFilter()
         self.video_clip_generator = VideoClipGenerator(
-            video_save_dir=video_save_dir,
+            video_save_dir="./cache/video_clips",
         )
         
         # Initialize VLM API serving for caption generation
         self.logger.info("Initializing VLM API serving for caption generation...")
         self.vlm_serving = APIVLMServing_openai(
-            api_url=vlm_api_url,
-            key_name_of_api_key=vlm_api_key_name,
-            model_name=vlm_model_name,
+            api_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            key_name_of_api_key="DF_API_KEY",
+            model_name="qwen3-vl-8b-instruct",
             image_io=None,
             send_request_stream=False,
-            max_workers=vlm_max_workers,
-            timeout=vlm_timeout
+            max_workers=10,
+            timeout=1800
         )
         
         # Initialize caption generator with prompt template
+        self.caption_prompt_template = DiyVideoPrompt(VIDEO_CAPTION_PROMPT)
+        
         self.caption_vqa_generator = PromptedVQAGenerator(
             serving=self.vlm_serving,
-            system_prompt="You are a helpful assistant."
+            system_prompt="You are a helpful assistant.",
+            prompt_template=self.caption_prompt_template
         )
-        self.caption_prompt_template = DiyVideoPrompt(VIDEO_CAPTION_PROMPT)
         
         # Initialize merged caption generator
         self.video_merged_caption_generator = VideoMergedCaptionGenerator(
@@ -275,32 +206,32 @@ class LongVideoPipelineAPI(OperatorABC):
         # Initialize LLM API serving for reasoning QA generation
         self.logger.info("Initializing LLM API serving for reasoning generation...")
         self.llm_serving = APIVLMServing_openai(
-            api_url=llm_api_url,
-            key_name_of_api_key=llm_api_key_name,
-            model_name=llm_model_name,
+            api_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            key_name_of_api_key="DF_API_KEY",
+            model_name="qwen2.5-72b-instruct",
             image_io=None,
             send_request_stream=False,
-            max_workers=llm_max_workers,
-            timeout=llm_timeout
+            max_workers=10,
+            timeout=1800
         )
         
         # Initialize reasoning QA generator with custom prompt
         self.reasoning_qa_generator = VideoCaptionToQAGenerator(
             vlm_serving=self.llm_serving,
             prompt_template=DiyVideoPrompt(REASONING_QA_PROMPT),
-            use_video_input=False,  # Use pure text mode for reasoning generation
+            use_video_input=False,
         )
         
         # Initialize separate LLM API serving for reasoning reformatting
         self.logger.info("Initializing LLM API serving for reasoning reformatting...")
         self.reformat_serving = APIVLMServing_openai(
-            api_url=reformat_api_url,
-            key_name_of_api_key=reformat_api_key_name,
-            model_name=reformat_model_name,
+            api_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            key_name_of_api_key="DF_API_KEY",
+            model_name="qwen2.5-72b-instruct",
             image_io=None,
             send_request_stream=False,
-            max_workers=reformat_max_workers,
-            timeout=reformat_timeout
+            max_workers=10,
+            timeout=1800
         )
         
         # Initialize PromptedVQAGenerator for reformatting with separate LLM service
@@ -333,208 +264,17 @@ class LongVideoPipelineAPI(OperatorABC):
             )
         else:
             return "long video cotqa pipeline using API models."
-
-    def run(
-        self,
-        storage: DataFlowStorage,
-        input_video_key: str = "video",
-        input_conversation_key: str = "conversation",
-        output_key: str = "caption",
-    ):
+    
+    def _build_reformatting_prompts(self, df):
         """
-        Execute the complete long video cotqa pipeline.
+        Build reformatting prompts for each video with valid parsed reasoning.
         
         Args:
-            storage: DataFlow storage object
-            input_video_key: Input video path field name (default: 'video')
-            input_conversation_key: Input conversation field name (default: 'conversation')
-            output_key: Output caption field name (default: 'caption')
+            df: DataFrame containing parsed_reasoning column
             
         Returns:
-            str: Output key name
+            tuple: (prompts, full_questions, valid_indices)
         """
-        self.logger.info("="*80)
-        self.logger.info("Running Complete Long Video CoTQA Pipeline (API Version)...")
-        self.logger.info("="*80)
-        
-        # ============================================================
-        # STAGE 1: Video Caption Generation
-        # ============================================================
-        self.logger.info("\n" + "="*80)
-        self.logger.info("STAGE 1: VIDEO CAPTION GENERATION")
-        self.logger.info("="*80)
-        
-        # Step 1: Extract video info
-        self.logger.info("\n[Step 1/6] Extracting video info...")
-        self.video_info_filter.run(
-            storage=storage.step(),
-            input_video_key=input_video_key,
-            output_key="video_info",
-        )
-        self.logger.info("✓ Video info extracted")
-
-        # Step 2: Detect video scenes
-        self.logger.info("\n[Step 2/6] Detecting video scenes...")
-        self.video_scene_filter.run(
-            storage=storage.step(),
-            input_video_key=input_video_key,
-            video_info_key="video_info",
-            output_key="video_scene",
-        )
-        self.logger.info("✓ Scene detection complete")
-        
-        # Step 3: Generate clip metadata
-        self.logger.info("\n[Step 3/6] Generating clip metadata...")
-        self.video_clip_filter.run(
-            storage=storage.step(),
-            input_video_key=input_video_key,
-            video_info_key="video_info",
-            video_scene_key="video_scene",
-            output_key="video_clip",
-        )
-        self.logger.info("✓ Clip metadata generated")
-
-        # Step 4: Cut and save video clips
-        self.logger.info("\n[Step 4/6] Cutting and saving video clips...")
-        self.video_clip_generator.run(
-            storage=storage.step(),
-            video_clips_key="video_clip",
-            output_key="video",
-        )
-        self.logger.info("✓ Video clips cut and saved")
-
-        # Step 5: Generate captions for each clip using API
-        self.logger.info("\n[Step 5/6] Generating captions for each clip using API...")
-        
-        # Load data and build prompts
-        caption_storage = storage.step()
-        df = caption_storage.read("dataframe")
-        
-        # Build prompts using the template (same prompt for all rows)
-        prompts = [self.caption_prompt_template.build_prompt() for _ in range(len(df))]
-        
-        # Modify conversation column to set first user message to the prompt
-        if input_conversation_key in df.columns:
-            conversations = df[input_conversation_key].tolist()
-            for conv, prompt in zip(conversations, prompts):
-                if isinstance(conv, list) and conv:
-                    first = conv[0]
-                    if isinstance(first, dict) and "value" in first:
-                        first["value"] = prompt
-            df[input_conversation_key] = conversations
-        
-        # Write modified dataframe back to storage
-        caption_storage.write(df)
-        
-        # Call PromptedVQAGenerator to generate captions
-        self.caption_vqa_generator.run(
-            storage=caption_storage.step(),
-            input_image_key="image",
-            input_video_key="video",
-            input_conversation_key=input_conversation_key,
-            output_answer_key=output_key,
-        )
-        self.logger.info("✓ Caption generation complete")
-        
-        # Step 6: Generate merged captions by original video
-        self.logger.info("\n[Step 6/6] Generating merged captions by original video...")
-        self.video_merged_caption_generator.run(
-            storage=storage.step(),
-            caption_key=output_key,
-        )
-        self.logger.info("✓ Merged caption generation complete")
-        
-        self.logger.info("\n" + "="*80)
-        self.logger.info("✓ STAGE 1 COMPLETE: Video captions generated and merged")
-        self.logger.info("="*80)
-        
-        # ============================================================
-        # STAGE 2: Reasoning QA Generation
-        # ============================================================
-        self.logger.info("\n" + "="*80)
-        self.logger.info("STAGE 2: REASONING QA GENERATION")
-        self.logger.info("="*80)
-        
-        # Step 1: Prepare data for reasoning QA generation
-        self.logger.info("\n[Step 1/3] Preparing data for reasoning QA generation...")
-        df = storage.step().read("dataframe")
-        self.logger.info(f"Loaded {len(df)} videos with merged captions")
-        
-        # Rename "captions" to "caption" for VideoCaptionToQAGenerator
-        if "captions" in df.columns:
-            df["caption"] = df["captions"]# VideoCaptionToQAGenerator读取caption字段中的caption生成QA
-        
-        # Add conversation field required by VideoCaptionToQAGenerator
-        if "conversation" not in df.columns:
-            df["conversation"] = [[{"from": "human", "value": ""}]] * len(df)
-        
-        storage.write(df)
-        self.logger.info("✓ Data preparation complete")
-        
-        # Step 2: Generate reasoning QA with API LLM
-        self.logger.info("\n[Step 2/3] Generating reasoning QA with API LLM...")
-        self.reasoning_qa_generator.run(
-            storage=storage.step(),
-            input_conversation_key="conversation",
-            output_key="reasoning",
-        )
-        self.logger.info("✓ Reasoning QA generation complete")
-        
-        # Step 3: Parse reasoning results
-        self.logger.info("\n[Step 3/3] Parsing reasoning results...")
-        df = storage.step().read("dataframe")
-        
-        parsed_results = []
-        failed_count = 0
-        for idx, row in df.iterrows():
-            try:
-                if "reasoning" in row and row["reasoning"]:
-                    parsed = parse_reasoning(row["reasoning"])
-                    parsed_results.append(parsed)
-                else:
-                    parsed_results.append({})
-                    failed_count += 1
-            except Exception as e:
-                self.logger.warning(f"Failed to parse reasoning for row {idx}: {e}")
-                parsed_results.append({})
-                failed_count += 1
-        
-        # Add parsed results to dataframe
-        df["parsed_reasoning"] = parsed_results
-        
-        # Remove temporary fields (keep only original "captions")
-        temp_fields = ["caption", "conversation"]
-        df = df.drop(columns=[col for col in temp_fields if col in df.columns])
-        
-        storage.write(df)
-        
-        self.logger.info(f"✓ Parsing complete")
-        self.logger.info(f"  Successfully parsed: {len(parsed_results) - failed_count}/{len(parsed_results)}")
-        if failed_count > 0:
-            self.logger.warning(f"  Failed to parse: {failed_count}/{len(parsed_results)}")
-        
-        self.logger.info("\n" + "="*80)
-        self.logger.info("✓ STAGE 2 COMPLETE: Reasoning QA generated and parsed")
-        self.logger.info("="*80)
-        
-        # ============================================================
-        # STAGE 3: Reasoning Data Reformatting
-        # ============================================================
-        self.logger.info("\n" + "="*80)
-        self.logger.info("STAGE 3: REASONING DATA REFORMATTING")
-        self.logger.info("="*80)
-        
-        # Step 1: Load and prepare data
-        self.logger.info("\n[Step 1/3] Loading parsed reasoning data...")
-        df = storage.step().read("dataframe")
-        self.logger.info(f"Loaded {len(df)} videos with parsed reasoning")
-        
-        # Check if parsed_reasoning exists
-        if "parsed_reasoning" not in df.columns:
-            raise ValueError("Input dataframe must contain 'parsed_reasoning' column")
-        
-        # Step 2: Construct prompts for each video
-        self.logger.info("\n[Step 2/3] Constructing reformatting prompts...")
         prompts = []
         full_questions = []
         valid_indices = []
@@ -580,19 +320,141 @@ class LongVideoPipelineAPI(OperatorABC):
             full_questions.append(full_question)
             valid_indices.append(idx)
         
-        self.logger.info(f"✓ Prepared {len(prompts)} prompts for reformatting")
+        return prompts, full_questions, valid_indices
+
+    def run(
+        self,
+        storage: DataFlowStorage,
+        input_video_key: str = "video",
+        input_conversation_key: str = "conversation",
+        output_key: str = "caption",
+    ):
+        """
+        Execute the complete long video cotqa pipeline.
         
-        if len(prompts) == 0:
-            self.logger.error("No valid data to reformat!")
-            return None
+        Args:
+            storage: DataFlow storage object
+            input_video_key: Input video path field name (default: 'video')
+            input_conversation_key: Input conversation field name (default: 'conversation')
+            output_key: Output caption field name (default: 'caption')
+            
+        Returns:
+            str: Output key name
+        """
+        
+        # ============================================================
+        # STAGE 1: Video Caption Generation
+        # ============================================================
+        self.logger.info("\n" + "="*80)
+        self.logger.info("STAGE 1: VIDEO CAPTION GENERATION")
+        self.logger.info("="*80)
+        
+        # Step 1: Extract video info
+        self.logger.info("\n[Step 1/6] Extracting video info...")
+        self.video_info_filter.run(
+            storage=storage.step(),
+            input_video_key=input_video_key,
+            output_key="video_info",
+        )
+
+        # Step 2: Detect video scenes
+        self.logger.info("\n[Step 2/6] Detecting video scenes...")
+        self.video_scene_filter.run(
+            storage=storage.step(),
+            input_video_key=input_video_key,
+            video_info_key="video_info",
+            output_key="video_scene",
+        )
+        
+        # Step 3: Generate clip metadata
+        self.logger.info("\n[Step 3/6] Generating clip metadata...")
+        self.video_clip_filter.run(
+            storage=storage.step(),
+            input_video_key=input_video_key,
+            video_info_key="video_info",
+            video_scene_key="video_scene",
+            output_key="video_clip",
+        )
+
+        # Step 4: Cut and save video clips
+        self.logger.info("\n[Step 4/6] Cutting and saving video clips...")
+        self.video_clip_generator.run(
+            storage=storage.step(),
+            video_clips_key="video_clip",
+            output_key="video",
+        )
+
+        # Step 5: Generate captions for each clip using API
+        self.logger.info("\n[Step 5/6] Generating captions for each clip using API...")
+        # Call PromptedVQAGenerator to generate captions
+        self.caption_vqa_generator.run(
+            storage=storage.step(),
+            input_image_key="image",
+            input_video_key="video",
+            input_conversation_key=input_conversation_key,
+            output_answer_key=output_key,
+        )
+        
+        # Step 6: Generate merged captions by original video
+        self.logger.info("\n[Step 6/6] Generating merged captions by original video...")
+        self.video_merged_caption_generator.run(
+            storage=storage.step(),
+            caption_key=output_key,
+        )
+        
+        # ============================================================
+        # STAGE 2: Reasoning QA Generation
+        # ============================================================
+        self.logger.info("\n" + "="*80)
+        self.logger.info("STAGE 2: REASONING QA GENERATION")
+        self.logger.info("="*80)
+        
+        # Step 1: Generate reasoning QA with API LLM
+        self.logger.info("\n[Step 1/2] Generating reasoning QA with API LLM...")
+        self.reasoning_qa_generator.run(
+            storage=storage.step(),
+            input_conversation_key="conversation",
+            input_caption_key="captions",
+            output_key="reasoning",
+        )
+        
+        # Step 2: Parse reasoning results
+        self.logger.info("\n[Step 2/2] Parsing reasoning results...")
+        df = storage.step().read("dataframe")
+        
+        parsed_results = []
+        for idx, row in df.iterrows():
+            parsed = parse_reasoning(row["reasoning"])
+            parsed_results.append(parsed)
+
+        
+        # Add parsed results to dataframe
+        df["parsed_reasoning"] = parsed_results
+        storage.write(df)
+        
+        self.logger.info(f"✓ Parsing complete")
+        
+        # ============================================================
+        # STAGE 3: Reasoning Data Reformatting
+        # ============================================================
+        self.logger.info("\n" + "="*80)
+        self.logger.info("STAGE 3: REASONING DATA REFORMATTING")
+        self.logger.info("="*80)
+        
+        # Step 1: Load and prepare data
+        self.logger.info("\n[Step 1/3] Loading parsed reasoning data...")
+        df = storage.step().read("dataframe")
+        self.logger.info(f"Loaded {len(df)} videos with parsed reasoning")
+        
+        # Step 2: Construct prompts for each video
+        self.logger.info("\n[Step 2/3] Constructing reformatting prompts...")
+        prompts, full_questions, valid_indices = self._build_reformatting_prompts(df)
+        self.logger.info(f"✓ Prepared {len(prompts)} prompts for reformatting")
         
         # Create a new dataframe with only valid rows
         valid_df = df.loc[valid_indices].copy().reset_index(drop=True)
         valid_df["prompt"] = prompts
         valid_df["full_question"] = full_questions
-        
-        # Add empty conversation column for PromptedVQAGenerator
-        valid_df["conversation"] = [[{"from": "human", "value": p}] for p in prompts]
         
         storage.write(valid_df)
         
@@ -600,7 +462,7 @@ class LongVideoPipelineAPI(OperatorABC):
         self.logger.info("\n[Step 3/3] Generating reformatted reasoning with API LLM...")
         self.prompted_vqa_generator.run(
             storage=storage.step(),
-            input_conversation_key="conversation",
+            input_prompt_key="prompt",
             output_answer_key="reformatted_reasoning",
         )
         self.logger.info("✓ Reasoning reformatting complete")
@@ -627,8 +489,6 @@ class LongVideoPipelineAPI(OperatorABC):
 
 
 if __name__ == "__main__":
-    # Test the complete pipeline with API models
-    
     storage = FileStorage(
         first_entry_file_name="./dataflow/example/video_split/sample_data.json",
         cache_path="./cache",
@@ -636,42 +496,7 @@ if __name__ == "__main__":
         cache_type="json",
     )
     
-    pipeline = LongVideoPipelineAPI(
-        # Video processing parameters
-        backend="opencv",
-        ext=False,
-        frame_skip=0,
-        start_remove_sec=0.0,
-        end_remove_sec=0.0,
-        min_seconds=0.0,
-        max_seconds=10.0,
-        use_adaptive_detector=False,
-        overlap=False,
-        use_fixed_interval=True,
-        
-        # VLM API parameters (for caption generation)
-        vlm_api_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-        vlm_api_key_name="DF_API_KEY",
-        vlm_model_name="qwen3-vl-8b-instruct",
-        vlm_max_workers=10,
-        vlm_timeout=1800,
-        
-        # LLM API parameters (for reasoning generation)
-        llm_api_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-        llm_api_key_name="DF_API_KEY",
-        llm_model_name="qwen2.5-72b-instruct",
-        llm_max_workers=10,
-        llm_timeout=1800,
-        
-        # LLM API parameters (for reasoning reformatting - using OpenRouter)
-        reformat_api_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-        reformat_api_key_name="DF_API_KEY",
-        reformat_model_name="qwen2.5-72b-instruct",
-        reformat_max_workers=10,
-        reformat_timeout=1800,
-        
-        video_save_dir="./cache/video_clips",
-    )
+    pipeline = LongVideoPipelineAPI()
     
     pipeline.run(
         storage=storage,

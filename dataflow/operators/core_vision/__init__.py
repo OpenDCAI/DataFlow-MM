@@ -52,7 +52,6 @@ if TYPE_CHECKING:
     from .eval.video_aesthetic_evaluator import VideoAestheticEvaluator
     from .eval.video_luminance_evaluator import VideoLuminanceEvaluator
     from .eval.video_ocr_evaluator import VideoOCREvaluator
-    from .eval.emscore_evaluator import EMScoreEval
     from .eval.general_text_answer_evaluator import GeneralTextAnswerEvaluator
     from .eval.image.image_evaluator import EvalImageGenerationGenerator
     from .eval.image_clip_evaluator import ImageCLIPEvaluator
@@ -67,7 +66,11 @@ if TYPE_CHECKING:
 
 else:
     import sys
+    from pathlib import Path
     from dataflow.utils.registry import LazyLoader, generate_import_structure_from_type_checking
     cur_path = "dataflow/operators/core_vision/"
     _import_structure = generate_import_structure_from_type_checking(__file__, cur_path)
-    sys.modules[__name__] = LazyLoader(__name__, "dataflow/operators/core_vision/", _import_structure)
+    _loader = LazyLoader(__name__, "dataflow/operators/core_vision/", _import_structure)
+    _loader.__path__ = [str(Path(__file__).parent)]
+    sys.modules[__name__] = _loader
+    # sys.modules[__name__] = LazyLoader(__name__, "dataflow/operators/core_vision/", _import_structure)

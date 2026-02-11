@@ -75,6 +75,7 @@ class ClipSample:
     image_paths: List[str]
     clip_height: int
     clip_width: int
+    video_path: Optional[str] = None
 
 
 class ClipFrameDataset(Dataset):
@@ -91,14 +92,17 @@ class ClipFrameDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         smp = self.samples[idx]
         paths = sorted(smp.image_paths)[: self.load_num]
-        
-        # Load images using cv2
-        images = []
-        for p in paths:
-            if os.path.exists(p):
-                img = cv2.imread(p)
-                if img is not None:
-                    images.append(img)
+
+        # Load images using cv2; if no paths, sample frames directly from the video.
+        images: List[np.ndarray] = []
+        if paths:
+            for p in paths:
+                if os.path.exists(p):
+                    img = cv2.imread(p)
+                    if img is not None:
+                        images.append(img)
+        elif smp.video_path:
+            images = _sample_frames_from_video(smp.video_path, self.load_num)
         
         # Determine actual clip dimensions
         # Priority: 1) from actual images, 2) from clip metadata
@@ -139,6 +143,45 @@ def _discover_clip_images(figure_root: str, video_path: str, clip_id: str) -> Li
     return all_images
 
 
+def _sample_frames_from_video(video_path: str, load_num: int) -> List[np.ndarray]:
+    """
+    Sample up to `load_num` frames from the whole video (evenly spaced).
+    Used when we don't have extracted frames on disk (e.g. video_clips_key=None mode).
+    """
+    load_num = max(1, int(load_num))
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return []
+
+    try:
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        if total <= 0:
+            # fallback: try reading sequentially
+            frames: List[np.ndarray] = []
+            for _ in range(load_num):
+                ret, img = cap.read()
+                if not ret or img is None:
+                    break
+                frames.append(img)
+            return frames
+
+        if total == 1:
+            indices = [0]
+        else:
+            # evenly spaced across [0, total-1]
+            indices = np.linspace(0, total - 1, num=min(load_num, total), dtype=int).tolist()
+
+        frames = []
+        for i in indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(i))
+            ret, img = cap.read()
+            if ret and img is not None:
+                frames.append(img)
+        return frames
+    finally:
+        cap.release()
+
+
 def _build_samples_from_df(
     df: pd.DataFrame,
     input_video_key: str,
@@ -166,7 +209,37 @@ def _build_samples_from_df(
             clip_height = clip.get("height", 720)  # 720p default
             clip_width = clip.get("width", 1280)   # 720p default
             
-            samples.append(ClipSample(ridx, cidx, clip_id, imgs, clip_height, clip_width))
+            samples.append(ClipSample(ridx, cidx, clip_id, imgs, clip_height, clip_width, vpath))
+    return samples
+
+
+def _build_samples_from_df_whole_video(
+    df: pd.DataFrame,
+    input_video_key: str,
+) -> List[ClipSample]:
+    """
+    Build samples for whole-video OCR (no clip splitting required).
+    Each row produces a single sample with frames sampled directly from the video.
+    """
+    samples: List[ClipSample] = []
+    for ridx, row in df.iterrows():
+        vpath = _first_path(row.get(input_video_key))
+        if not vpath:
+            continue
+
+        # Try to get dimensions from video metadata
+        cap = cv2.VideoCapture(vpath)
+        if cap.isOpened():
+            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+            cap.release()
+        else:
+            w, h = 0, 0
+
+        clip_width = w if w > 0 else 1280
+        clip_height = h if h > 0 else 720
+        clip_id = _video_stem(vpath)
+        samples.append(ClipSample(ridx, 0, clip_id, [], clip_height, clip_width, vpath))
     return samples
 
 
@@ -261,6 +334,21 @@ def _inject_ocr_into_dataframe(
     return out
 
 
+def _inject_ocr_into_dataframe_row_level(
+    df: pd.DataFrame,
+    output_key: str,
+    row_indices: List[int],
+    ocr_scores: List[float],
+) -> pd.DataFrame:
+    """
+    Write row-level OCR score back into df[output_key].
+    """
+    out = df.copy()
+    for r, score in zip(row_indices, ocr_scores):
+        out.at[r, output_key] = float(score)
+    return out
+
+
 # ----------------------------
 # Public API
 # ----------------------------
@@ -269,7 +357,7 @@ def score_ocr_over_dataframe(
     dataframe: pd.DataFrame,
     figure_root: str,
     input_video_key: str = "video",
-    video_clips_key: str = "video_clips",
+    video_clips_key: Optional[str] = "video_clips",
     load_num: int = 3,
     batch_size: int = 8,
     num_workers: int = 4,
@@ -300,13 +388,21 @@ def score_ocr_over_dataframe(
     """
     if input_video_key not in dataframe.columns:
         raise KeyError(f"Column '{input_video_key}' not found.")
-    if video_clips_key not in dataframe.columns:
-        raise KeyError(f"Column '{video_clips_key}' not found.")
 
     df = dataframe.copy()
 
     # Build samples from dataframe
-    samples = _build_samples_from_df(df, input_video_key, video_clips_key, figure_root)
+    row_level_mode = video_clips_key is None
+    if row_level_mode:
+        # whole-video mode: no need for extracted frames or clip metadata
+        samples = _build_samples_from_df_whole_video(df, input_video_key)
+        # ensure output column exists
+        if "ocr_score" not in df.columns:
+            df["ocr_score"] = np.nan
+    else:
+        if video_clips_key not in dataframe.columns:
+            raise KeyError(f"Column '{video_clips_key}' not found.")
+        samples = _build_samples_from_df(df, input_video_key, video_clips_key, figure_root)
     if len(samples) == 0:
         # Nothing to score; return df unchanged
         return df
@@ -379,11 +475,17 @@ def score_ocr_over_dataframe(
             rows_flat = [x for sub in gathered_rows for x in sub]
             clips_flat = [x for sub in gathered_clips for x in sub]
             scores_flat = [x for sub in gathered_scores for x in sub]
-            df_scored = _inject_ocr_into_dataframe(df, video_clips_key, rows_flat, clips_flat, scores_flat)
+            if row_level_mode:
+                df_scored = _inject_ocr_into_dataframe_row_level(df, "ocr_score", rows_flat, scores_flat)
+            else:
+                df_scored = _inject_ocr_into_dataframe(df, video_clips_key, rows_flat, clips_flat, scores_flat)
         else:
             df_scored = df  # non-root ranks return original df; caller should only use rank 0 result
     else:
-        df_scored = _inject_ocr_into_dataframe(df, video_clips_key, row_ids, clip_ids, scores)
+        if row_level_mode:
+            df_scored = _inject_ocr_into_dataframe_row_level(df, "ocr_score", row_ids, scores)
+        else:
+            df_scored = _inject_ocr_into_dataframe(df, video_clips_key, row_ids, clip_ids, scores)
 
     return df_scored
 

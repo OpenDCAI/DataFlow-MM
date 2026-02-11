@@ -22,10 +22,12 @@ class PromptedVQAGenerator(OperatorABC):
     '''
     def __init__(self, 
                  serving: LLMServingABC, 
-                 system_prompt: str = "You are a helpful assistant."):
+                 system_prompt: str = "You are a helpful assistant.",
+                 prompt_template = None):
         self.logger = get_logger()
         self.serving = serving
         self.system_prompt = system_prompt
+        self.prompt_template = prompt_template
             
     @staticmethod
     def get_desc(lang: str = "zh"):
@@ -36,7 +38,8 @@ class PromptedVQAGenerator(OperatorABC):
     
     def run(self, 
             storage: DataFlowStorage,
-            input_conversation_key: str,
+            input_conversation_key: str = "conversation",
+            input_prompt_key: str = None,  # If provided, create conversations from this column
             input_image_key: str = None,  # Can be None for pure text mode
             input_video_key: str = None,  # Can be None for pure text mode
             output_answer_key: str = "answer",
@@ -50,8 +53,25 @@ class PromptedVQAGenerator(OperatorABC):
         dataframe = storage.read('dataframe')
         self.logger.info(f"Loading, number of rows: {len(dataframe)}")
 
-        # Load conversations
-        conversations_raw = dataframe.get(input_conversation_key, pd.Series([])).tolist()
+        # Handle conversation creation from prompt column if specified
+        if input_prompt_key is not None and input_prompt_key in dataframe.columns:
+            self.logger.info(f"Creating conversations from '{input_prompt_key}' column...")
+            prompts = dataframe[input_prompt_key].tolist()
+            conversations_raw = [[{"from": "human", "value": p}] for p in prompts]
+        else:
+            # Load conversations
+            conversations_raw = dataframe.get(input_conversation_key, pd.Series([])).tolist()
+            
+            # If prompt_template is provided, automatically inject prompts into conversations
+            if self.prompt_template is not None:
+                self.logger.info("Auto-injecting prompts from template into conversations...")
+                for conv in conversations_raw:
+                    if isinstance(conv, list) and len(conv) > 0:
+                        first = conv[0]
+                        if isinstance(first, dict) and "value" in first:
+                            # Generate prompt and set it as the first message
+                            prompt = self.prompt_template.build_prompt()
+                            first["value"] = prompt
 
         # Handle image column: if input_image_key is None or key not in dataframe, treat as no images
         if input_image_key is None or input_image_key not in dataframe.columns:
