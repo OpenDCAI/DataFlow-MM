@@ -1,12 +1,11 @@
 from dataflow.utils.storage import FileStorage
 from dataflow.operators.core_audio import (
-    SileroVADGenerator,
-    MergeChunksRowGenerator,
     PromptedAQAGenerator,
+    TextNormalizer,
     CTCForcedAlignmentFilter,
     CTCForcedAlignmentSampleEvaluator,
 )
-from dataflow.serving import LocalModelVLMServing_vllm
+from dataflow.serving import LocalModelVLMServing_vllm, APIVLMServing_openai
 from dataflow.prompts.audio import WhisperTranscriptionPrompt
 
 class Pipeline:
@@ -28,36 +27,21 @@ class Pipeline:
             vllm_gpu_memory_utilization=0.9
         )
 
-        self.silero_vad_generator = SileroVADGenerator(
-            repo_or_dir="snakers4/silero-vad",
-            source="github",
-            device=['cuda:2'],
-            num_workers=1,
-            threshold=0.5,
-            use_min_cut=True,
-            sampling_rate=16000,
-            max_speech_duration_s=30.0,
-            min_silence_duration_s=0.1,
-            speech_pad_s=0.03,
-            return_seconds=True,
-            time_resolution=1,
-            neg_threshold=0.35,
-            min_silence_at_max_speech=0.098,
-            use_max_poss_sil_at_max_speech=True
-        )
+        # self.serving = APIVLMServing_openai(
+        #     api_url="http://127.0.0.1:8091/v1",
+        #     max_workers=3,
+        #     model_name="Qwen/Qwen3-Omni-30B-A3B-Instruct",
+        # )
 
-        self.merger = MergeChunksRowGenerator(
-            num_workers=1,
-            dst_folder="./cache",
-            timestamp_type="time",  # 手动指定类型
-            max_audio_duration=30.0,
-            hop_size_samples=512,  # hop_size, 是样本点数量
-            sampling_rate=16000,
-        )
-
+        # 对于whisper模型, 使用WhisperTranscriptionPrompt生成prompt
         self.prompted_generator = PromptedAQAGenerator(
             vlm_serving=self.serving,
             system_prompt=WhisperTranscriptionPrompt().generate_prompt(language="english", task="transcribe", with_timestamps=False)
+        )
+
+        self.text_normalizer = TextNormalizer(
+            language="en",
+            remove_puncs=True,
         )
 
         # self.filter = CTCForcedAlignmentFilter(
@@ -68,7 +52,6 @@ class Pipeline:
         #     language="en",
         #     micro_batch_size=16,
         #     chinese_to_pinyin=False,
-        #     retain_word_level_alignment=True,
         #     threshold=0.1,
         #     threshold_mode="min",
         #     romanize=True,
@@ -78,37 +61,25 @@ class Pipeline:
         self.evaluator = CTCForcedAlignmentSampleEvaluator(
             model_path="MahmoudAshraf/mms-300m-1130-forced-aligner",
             device=["cuda:3"],
-            num_workers=2,
+            num_workers=1,
             sampling_rate=16000,
             language="en",
             micro_batch_size=16,
             chinese_to_pinyin=False,
-            retain_word_level_alignment=True,
             romanize=True,
         )
         
     def forward(self):
-        self.silero_vad_generator.run(
-            storage=self.storage.step(),
-            input_audio_key='audio',
-            output_answer_key='timestamps',
-        )
-
-        self.silero_vad_generator.close()     # 关闭多进程
-
-        self.merger.run(
-            storage=self.storage.step(),
-            input_audio_key="audio",
-            input_timestamps_key="timestamps",
-        )
-
-        self.merger.close()
-
         self.prompted_generator.run(
             storage=self.storage.step(),
             input_audio_key="audio",
             input_conversation_key="conversation",
             output_answer_key="transcript"
+        )
+
+        self.text_normalizer.run(
+            storage=self.storage.step(),
+            input_text_key="transcript",
         )
 
         # self.filter.run(
