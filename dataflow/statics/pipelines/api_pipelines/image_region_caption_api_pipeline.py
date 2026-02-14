@@ -12,7 +12,7 @@ from dataflow.operators.core_vision.generate.prompted_vqa_generator import (
 from dataflow.utils.storage import FileStorage
 
 from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
-class ImageRegionCaptioningPipeline:
+class ImageRegionCaptionPipeline:
     def __init__(
         self,
         first_entry_file: str = "./data/image_region_caption/image_region_caption_demo.jsonl",
@@ -74,7 +74,7 @@ class ImageRegionCaptioningPipeline:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Image region captioning with DataFlow")
+    parser = argparse.ArgumentParser(description="Image region caption with DataFlow")
     parser.add_argument("--first_entry_file", default="./data/image_region_caption/image_region_caption_demo.jsonl")
     parser.add_argument("--cache_path", default="./cache/image_region_caption")
     parser.add_argument("--file_name_prefix", default="region_caption")
@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    pipe = ImageRegionCaptioningPipeline(
+    pipe = ImageRegionCaptionPipeline(
         first_entry_file=args.first_entry_file,
         cache_path=args.cache_path,
         file_name_prefix=args.file_name_prefix,
