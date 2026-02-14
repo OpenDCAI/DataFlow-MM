@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     # === Generate ===
-    from .generate.image_qa_generator import ImageQAGenerator
+    from .generate.prompted_image_edit_generator import PromptedImageEditGenerator
     from .generate.multimodal_math_generator import MultimodalMathGenerator
     from .generate.personalized_qa_generator import PersQAGenerator
     from .generate.prompted_image_generator import PromptedImageGenerator
