@@ -2,8 +2,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     # === Generate ===
-    from .generate.prompted_image_edit_generator import PromptedImageEditGenerator
-    from .generate.image_caption_generator import ImageCaptionGenerator
     from .generate.image_qa_generator import ImageQAGenerator
     from .generate.multimodal_math_generator import MultimodalMathGenerator
     from .generate.personalized_qa_generator import PersQAGenerator
