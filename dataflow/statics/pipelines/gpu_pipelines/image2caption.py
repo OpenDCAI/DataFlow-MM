@@ -3,7 +3,6 @@ from typing import Any, List
 
 from dataflow.utils.storage import FileStorage
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
-from dataflow.prompts.image import CaptionGeneratorPrompt
 from dataflow.operators.core_vision import ImageCaptionGenerator
 
 
@@ -47,7 +46,8 @@ class ImageCaptioningPipeline:
 
         # ---------- 3. Operator ----------
         self.caption_generator = ImageCaptionGenerator(
-            llm_serving=self.serving
+            llm_serving=self.serving,
+            system_prompt="You are a image caption generator. Your task is to generate a concise and informative caption for the given image content.",
         )
         
         self.media_key = media_key
@@ -75,10 +75,10 @@ if __name__ == "__main__":
     parser.add_argument("--download_dir", default="./ckpt")
     parser.add_argument("--device", choices=["cuda", "cpu", "mps"], default="cuda")
 
-    parser.add_argument("--images_file", default="dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl")
+    parser.add_argument("--images_file", default="./dataflow/example/image_to_text_pipeline/capsbench_captions.json")
     parser.add_argument("--cache_path", default="./cache_local")
     parser.add_argument("--file_name_prefix", default="caption")
-    parser.add_argument("--cache_type", default="jsonl")
+    parser.add_argument("--cache_type", default="json")
     parser.add_argument("--media_key", default="image")
     parser.add_argument("--output_key", default="caption")
 

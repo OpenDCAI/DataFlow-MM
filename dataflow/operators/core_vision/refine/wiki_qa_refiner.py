@@ -20,72 +20,59 @@ def clean_markdown_markers(s: str) -> str:
     return re.sub(r'\*+', '', s).strip()
 
 def parse_wiki_qa(text: str) -> dict:
-    """
-    鲁棒性增强版：
-    1. 先物理切分 Article 和 QA 区域。
-    2. QA 解析依赖 '行结构' 而非 'Markdown 格式'，解决嵌套加粗问题。
-    """
     if not isinstance(text, str) or not text.strip():
         return {"context": "", "qas": []}
 
-    # =======================================================
-    # Step 1: 寻找 Context 和 QA 的分界线
-    # =======================================================
-    # 匹配常见的 QA 标题变体
+    # 1. 寻找 Context 和 QA 的分界线
+    # 兼容: Question Answer Pairs, Q&A, QA, 以及中英文标点
     split_pattern = re.compile(
-        r'(?:^|\n)\s*(?:###|\*\*)\s*(?:Question\s*Answer\s*Pairs|QA|Q&A)(?:\s*\*\*|:)?', 
-        flags=re.IGNORECASE
+        r'(?i)(?:\n|^)\s*(?:###|\*\*|---)?\s*(?:Question[-–—\s]*Answer\s*Pairs|Q&A|QA|Questions?)\s*(?::|\*\*|---)?',
     )
     
     match_split = split_pattern.search(text)
-    
     if match_split:
-        # 分界线左边是 Context，右边是 QAs
         raw_context = text[:match_split.start()]
         raw_qa_section = text[match_split.end():]
     else:
-        # 没找到分界线，假设全是 Context (或者你可以根据业务逻辑改)
-        raw_context = text
-        raw_qa_section = ""
+        # Fallback: 寻找第一个出现 "Question:" 或 "Q:" 的地方
+        fallback_match = re.search(r'(?i)(?:\n|^)\s*(?:-\s*)?(?:Question|Q)\s*[:：]', text)
+        if fallback_match:
+            raw_context = text[:fallback_match.start()]
+            raw_qa_section = text[fallback_match.start():]
+        else:
+            return {"context": normalize_whitespace(text), "qas": []}
 
-    # 清洗 Context (去掉开头可能的 ### Article 等标记)
-    context_clean = re.sub(r'^\s*###\s*(?:Wikipedia\s+)?Article\s*:?', '', raw_context, flags=re.IGNORECASE)
+    # 清洗 Context (移除引导词和末尾分割线)
+    context_clean = re.sub(r'(?i)^\s*(?:###\s*)?(?:Wikipedia\s+)?Article\s*:?', '', raw_context).strip()
+    context_clean = re.sub(r'\s*---+\s*$', '', context_clean)
     context_clean = normalize_whitespace(context_clean)
 
-    # =======================================================
-    # Step 2: 鲁棒地解析 QA 部分
-    # =======================================================
+    # 2. 解析 QA 列表 (贪婪块匹配)
     qas = []
-    if raw_qa_section:
-        # 核心逻辑：不依赖 **，而是依赖 "数字." -> "换行" -> "- 答案" 的结构
-        # Explanation:
-        # (?m)^\s*(\d+)\.\s* -> 多行模式，行首，数字，点，空白
-        # (.+?)               -> 捕获问题文本（非贪婪，直到遇到换行）
-        # \s*(?:\n|\r)\s* -> 必须换行，且可能有缩进
-        # [-–—]\s* -> 破折号或连字符作为答案引导
-        # (.*?)               -> 捕获答案文本
-        # (?=\n\s*\d+\.|\Z)   -> 向前看：直到遇到下一个 "数字." 或者 字符串结束
-        
-        qa_structure_pattern = re.compile(
-            r'(?m)^\s*(\d+)\.\s*(.+?)\s*(?:\n|\r)\s*[-–—]\s*(.*?)(?=\n\s*\d+\.|\Z)', 
-            flags=re.DOTALL
-        )
-        
-        matches = qa_structure_pattern.findall(raw_qa_section)
-        
-        for _, raw_q, raw_a in matches:
-            # 在提取内容后，再清洗 markdown 符号
-            cleaned_q = clean_markdown_markers(raw_q)
-            cleaned_q = normalize_whitespace(cleaned_q)
+    # 步骤 A: 将 QA 区域切分成一个个独立的 QA 块
+    # 匹配模式：以 "数字." 或 "- Question" 或 "Q:" 开头的部分
+    qa_blocks = re.split(r'(?m)^\s*(?:\d+[\.\)]|[-•*]\s*)?(?:Question|Q)\s*[:：]?', raw_qa_section)
+    
+    # 第一个切分出来的一般是空字符串或标题余项，删掉
+    for block in qa_blocks:
+        if not block.strip():
+            continue
             
-            cleaned_a = clean_markdown_markers(raw_a)
-            cleaned_a = normalize_whitespace(cleaned_a)
+        # 步骤 B: 在每个块内部寻找 Answer
+        # 兼容: "Answer: xxx", "- Answer: xxx", "\n- A: xxx"
+        ans_match = re.search(r'(?i)(?:\n|^|\s+)(?:-\s*)?(?:Answer|A)\s*[:：]\s*(.*)', block, re.DOTALL)
+        
+        if ans_match:
+            # Answer 之前的部分就是 Question
+            question_part = block[:ans_match.start()]
+            answer_part = ans_match.group(1)
             
-            if cleaned_q and cleaned_a:
-                qas.append({
-                    "question": cleaned_q,
-                    "answer": cleaned_a
-                })
+            # 清洗
+            q = normalize_whitespace(clean_markdown_markers(question_part))
+            a = normalize_whitespace(clean_markdown_markers(answer_part))
+            
+            if q and a:
+                qas.append({"question": q, "answer": a})
 
     return {"context": context_clean, "qas": qas}
 
@@ -164,12 +151,12 @@ if __name__ == "__main__":
     from dataflow.utils.storage import FileStorage
 
     storage = FileStorage(
-        first_entry_file_name="cache_local/context_vqa_step1.jsonl",
+        first_entry_file_name="cache_local/context_vqa_step1.json",
         cache_path="./cache_local",
         file_name_prefix="wikiqaparse",
-        cache_type="jsonl",
+        cache_type="json",
     )
     storage.step()
 
     op = WikiQARefiner()
-    op.run(storage=storage, input_key="vqa", output_key="parsed")
+    op.run(storage=storage, input_key="vqa", output_key="context_vqa")

@@ -14,7 +14,7 @@ from dataflow.utils.registry import OPERATOR_REGISTRY
 class VisionSegCutoutRefiner(OperatorABC):
     def __init__(
         self,
-        seg_model_path: str = "/data0/mt/.cache/ckpt/yolo/yolo11l-seg.pt",
+        seg_model_path: str = "your yolo11l-seg.pt path",
         conf: float = 0.25,
         classes: Optional[List[int]] = None,
         alpha_threshold: int = 127,
