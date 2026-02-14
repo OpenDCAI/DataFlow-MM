@@ -1,0 +1,3 @@
+{"images": "image.png", "conversations": [{"role": "user", "content": "Make the whole picture more vibrant."}]}
+{"images": ["image.png", "human_inpaint.jpg"], "conversations": [{"role": "user", "content": "Change the background in the first picture to be the same as the second picture."}]}
+{"images": ["image.png", "human_inpaint.jpg"], "conversations": [{"role": "user", "content": "Change the guitar in the first picture to a piano."}, {"role": "user", "content": "Put the person in the second picture to the first picture."}]}

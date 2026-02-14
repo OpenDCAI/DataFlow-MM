@@ -109,7 +109,28 @@ class FileStorage(DataFlowStorage):
             if file_type == "json":
                 return pd.read_json(file_path)
             elif file_type == "jsonl":
-                return pd.read_json(file_path, lines=True)
+                import json
+                records = []
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    for line_num, line in enumerate(f, 1):
+                        line = line.strip()
+                        if line:
+                            try:
+                                record = json.loads(line)
+                                records.append(record)
+                            except json.JSONDecodeError as e:
+                                import warnings
+                                warnings.warn(
+                                    f"Skipping invalid JSON at line {line_num} in {file_path}: {e}",
+                                    UserWarning
+                                )
+                                continue
+                
+                if not records:
+                    raise ValueError(f"No valid JSON records found in {file_path}")
+                
+                df = pd.DataFrame(records)
+                return df
             elif file_type == "csv":
                 return pd.read_csv(file_path)
             elif file_type == "parquet":
@@ -148,11 +169,9 @@ class FileStorage(DataFlowStorage):
             ValueError: For unsupported file types or output types
         """
         file_path = self._get_cache_file_path(self.operator_step)
-        self.logger.info(f"Reading data from {file_path} with type {output_type}")
 
         if self.operator_step == 0:
             source = self.first_entry_file_name
-            self.logger.info(f"Reading remote dataset from {source} with type {output_type}")
             if source.startswith("hf:"):
                 from datasets import load_dataset
                 _, dataset_name, *parts = source.split(":")
@@ -206,7 +225,6 @@ class FileStorage(DataFlowStorage):
 
         file_path = self._get_cache_file_path(self.operator_step + 1)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        self.logger.success(f"Writing data to {file_path} with type {self.cache_type}")
         if self.cache_type == "json":
             dataframe.to_json(file_path, orient="records", force_ascii=False, indent=2)
         elif self.cache_type == "jsonl":
