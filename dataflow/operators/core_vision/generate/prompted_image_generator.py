@@ -34,6 +34,8 @@ class PromptedImageGenerator(OperatorABC):
         output_image_key: str = "images",
         save_image_with_idx: bool = True,
     ):
+        logger = get_logger()
+        
         if output_image_key is None:
             raise ValueError("At least one of output_key must be provided.")
 
@@ -46,9 +48,6 @@ class PromptedImageGenerator(OperatorABC):
         # Initialize the output column with empty lists
         if output_image_key not in df.columns:
             df[output_image_key] = [[] for _ in range(len(df))]
-
-        processed = 0
-        total = len(df)
 
         prompts_and_idx = []
         save_id_list = []
@@ -74,11 +73,15 @@ class PromptedImageGenerator(OperatorABC):
             storage.write(df)
             return
 
+        logger.info(f"Processing {len(prompts_and_idx)} prompts...")
+
         if save_image_with_idx:
             batch_prompts = save_id_list
         else:
             batch_prompts = [p for p, _ in prompts_and_idx]
+        
         generated = self.t2i_serving.generate_from_input(batch_prompts)
+        
         for prompt, idx in prompts_and_idx:
             imgs = generated.get(prompt, [])
             if imgs is None:
