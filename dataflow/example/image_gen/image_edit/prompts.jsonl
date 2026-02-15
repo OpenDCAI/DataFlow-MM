@@ -1,5 +1,0 @@
-{"conversations": [{"content": "turn this image into cybor style", "role": "user"}], "images": ["../example_data/image_gen/image_edit/image.png"]}
-{"conversations": [{"content": "Change the vase to red.", "role": "user"}], "images": ["../example_data/image_gen/image_edit/image.png"]}
-{"conversations": [{"content": "Turn this cow into a dog.", "role": "user"}], "images": ["../example_data/image_gen/image_edit/image.png"]}
-{"conversations": [{"content": "A pretty girl is playing with these toys.", "role": "user"}], "images": ["../example_data/image_gen/image_edit/image.png"]}
-{"conversations": [{"content": "Complete the shadowed part into a generic person's portrait.", "role": "user"}], "images": ["../example_data/image_gen/image_edit/human_inpaint.jpg"]}
