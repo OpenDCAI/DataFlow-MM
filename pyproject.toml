@@ -53,5 +53,5 @@ dependencies = {file = "requirements.txt"}
 vllm = ["vllm<0.8"]
 myscale = ["clickhouse-driver"]
 sglang =["sglang[all]<=0.4.3"]
-audio=["librosa", "soundfile", "ffmpeg", "vllm"]
+audio=["librosa", "soundfile", "ffmpeg", "vllm", "whisper_normalizer", "transformers>=4.40.0,<5.0.0"]
 image=["ultralytics"]
