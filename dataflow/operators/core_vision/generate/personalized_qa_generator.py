@@ -7,6 +7,9 @@ import pandas as pd
 import random
 from typing import List
 
+import random
+from typing import List
+
 from dataflow.utils.registry import OPERATOR_REGISTRY
 from dataflow import get_logger
 
@@ -25,6 +28,10 @@ def is_api_serving(serving):
 
 @OPERATOR_REGISTRY.register()
 class PersQAGenerator(OperatorABC):
+    """
+    Personalized QA generator.
+    """
+
     """
     Personalized QA generator.
     """
@@ -105,11 +112,19 @@ class PersQAGenerator(OperatorABC):
         except Exception:
             pass
         return conversation
+=======
+            pass
+        return conversation
+
+>>>>>>> 59b89e3c5635df9109a0ece2565ac7dc4562ea1d
+
 
 
     def run(
         self,
         storage: DataFlowStorage,
+        input_modal_key: str = "image",
+        output_key: str = "output",
         input_modal_key: str = "image",
         output_key: str = "output",
     ):
@@ -247,6 +262,25 @@ if __name__ == "__main__":
     #     vllm_max_tokens=512,
     # )
 
+    model = APIVLMServing_openai(
+        api_url="http://172.96.141.132:3001/v1", # Any API platform compatible with OpenAI format
+        key_name_of_api_key="DF_API_KEY", # Set the API key for the corresponding platform in the environment variable or line 4
+        model_name="gpt-5-nano-2025-08-07",
+        image_io=None,
+        send_request_stream=False,
+        max_workers=10,
+        timeout=1800
+    )
+
+    # model = LocalModelVLMServing_vllm(
+    #     hf_model_name_or_path="Qwen/Qwen2.5-VL-3B-Instruct",
+    #     vllm_tensor_parallel_size=1,
+    #     vllm_temperature=0.7,
+    #     vllm_top_p=0.9,
+    #     vllm_max_tokens=512,
+    # )
+
+    generator = PersQAGenerator(
     generator = PersQAGenerator(
         llm_serving=model
     )
@@ -260,8 +294,12 @@ if __name__ == "__main__":
 
     storage.step()
 
+    storage.step()
+
+    generator.run(
     generator.run(
         storage=storage,
         input_modal_key="image",
+        output_key="pers_qa",
         output_key="pers_qa",
     )
