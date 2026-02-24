@@ -1,17 +1,21 @@
+import os
+
+# 设置 API Key 环境变量
+os.environ["DF_API_KEY"] = "sk-iaY19LU7WMT5QlK8LujFIG7RjI2omHLWYiCs4Do6imieLKOg"
+
 from dataflow.utils.registry import OPERATOR_REGISTRY
-from dataflow.utils.storage import DataFlowStorage
+from dataflow.utils.storage import DataFlowStorage, FileStorage
 from dataflow.core import OperatorABC, LLMServingABC
 from dataflow import get_logger
-from qwen_vl_utils import process_vision_info
+from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
 
 
 @OPERATOR_REGISTRY.register()
 class BatchVQAGenerator(OperatorABC):
     """
-    [Generate] 批量视觉问答生成器。
-    输入：问题列表 (Questions) + 图片。
-    输出：答案列表 (New Text Content)。
+    批量视觉问答生成器 (One Image, Many Questions)
     """
+
     def __init__(self, serving: LLMServingABC, system_prompt: str = "You are a helpful assistant."):
         self.serving = serving
         self.system_prompt = system_prompt
@@ -21,74 +25,118 @@ class BatchVQAGenerator(OperatorABC):
     def get_desc(lang: str = "zh"):
         if lang == "zh":
             return (
-                "批量视觉问答生成算子 (BatchVQAGenerator)。\n"
-                "该算子用于针对单张图片回答列表中的多个问题 (One Image, Many Questions)。\n\n"
-                "输入参数：\n"
-                "  - input_prompts_key: 问题列表列 (List[str])\n"
-                "  - input_image_key: 图像列\n"
-                "输出参数：\n"
-                "  - output_key: 生成的答案列表列 (List[str])\n"
-                "功能特点：\n"
-                "  - 自动进行广播 (Broadcasting)，将单图映射到多个问题\n"
-                "  - 适用于由粗到细 (Coarse-to-Fine) 的密集描述生成场景\n"
+                "批量视觉问答生成算子。\n"
+                "单张图片对应多个问题，输出答案列表。\n"
+                "自动广播图片到多个问题。"
             )
         else:
             return (
-                "Batch VQA Generator (BatchVQAGenerator).\n"
-                "This operator answers multiple questions based on a single image (One Image, Many Questions).\n\n"
-                "Input Parameters:\n"
-                "  - input_prompts_key: Column containing the list of questions\n"
-                "  - input_image_key: Column containing the image\n"
-                "Output Parameters:\n"
-                "  - output_key: Column storing the list of generated answers\n"
-                "Features:\n"
-                "  - Automatically broadcasts one image to multiple prompts\n"
-                "  - Ideal for coarse-to-fine dense captioning scenarios\n"
+                "Batch VQA Generator.\n"
+                "One image with multiple questions.\n"
+                "Automatically broadcasts image to prompts."
             )
 
-    def run(self, storage: DataFlowStorage, input_prompts_key: str, input_image_key: str, output_key: str):
+    def run(
+        self,
+        storage: DataFlowStorage,
+        input_prompts_key: str,
+        input_image_key: str,
+        output_key: str,
+    ):
         self.logger.info(f"Running BatchVQAGenerator on {input_prompts_key}...")
         df = storage.read("dataframe")
-        
+
         all_answers_nested = []
-        
-        for idx, row in df.iterrows():
+
+        for _, row in df.iterrows():
             questions = row.get(input_prompts_key, [])
-            image_path = row.get(input_image_key)
             
+            image_path = row.get(input_image_key)
+            # 统一处理成 list[str]
+            if isinstance(image_path, str):
+                image_paths = [image_path]
+            elif isinstance(image_path, list):
+                image_paths = image_path
+            else:
+                image_paths = None
+
+
             if not questions or not isinstance(questions, list) or not image_path:
                 all_answers_nested.append([])
                 continue
 
-            batch_prompts = []
-            batch_images = []
-            
+            conversations = []
+            image_list = []
+
+            image_list = []
+
             for q in questions:
-                raw = [
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": [
-                        {"type": "image", "image": image_path},
-                        {"type": "text", "text": q}
-                    ]}
+
+                user_value = "<image>" + q
+
+                conversation = [
+                    {
+                        "from": "human",
+                        "value": user_value
+                    }
                 ]
-                image_inputs, _ = process_vision_info(raw)
-                final_p = self.serving.processor.apply_chat_template(raw, tokenize=False, add_generation_prompt=True)
-                
-                batch_prompts.append(final_p)
-                batch_images.append(image_inputs)
-            
-            if not batch_prompts:
+
+                conversations.append(conversation)
+
+                # 关键修复点
+                image_list.append(image_paths)
+
+            if not conversations:
                 all_answers_nested.append([])
                 continue
-
-            # 批量调用
-            row_answers = self.serving.generate_from_input(
-                system_prompt=self.system_prompt,
-                user_inputs=batch_prompts,
-                image_inputs=batch_images
-            )
-            all_answers_nested.append(row_answers)
             
+            print(f"conversations: {conversations}")
+            print(f"image_list: {image_list}")
+            
+            # 批量调用
+            row_answers = self.serving.generate_from_input_messages(
+                conversations=conversations,
+                image_list=image_list,
+                video_list=None,
+                system_prompt=self.system_prompt
+            )
+
+            all_answers_nested.append(row_answers)
+
         df[output_key] = all_answers_nested
         storage.write(df)
+
         return [output_key]
+
+if __name__ == "__main__":
+
+    model = APIVLMServing_openai(
+        api_url="http://172.96.141.132:3001/v1", # Any API platform compatible with OpenAI format
+        key_name_of_api_key="DF_API_KEY", # Set the API key for the corresponding platform in the environment variable or line 4
+        model_name="gpt-5-nano-2025-08-07",
+        image_io=None,
+        send_request_stream=False,
+        max_workers=10,
+        timeout=1800
+    )
+
+    generator = BatchVQAGenerator(
+        serving=model,
+        system_prompt="You are a helpful assistant.",
+    )
+
+    storage = FileStorage(
+        first_entry_file_name="./dataflow/example/test_data/batched_prompt_data.json", 
+        cache_path="./cache_prompted_vqa",
+        file_name_prefix="batch_prompted_vqa",
+        cache_type="json",
+    )
+
+    storage.step()
+
+    generator.run(
+        storage=storage,
+        input_image_key="image",
+        input_prompts_key="question",
+        output_key="answer",
+    )
