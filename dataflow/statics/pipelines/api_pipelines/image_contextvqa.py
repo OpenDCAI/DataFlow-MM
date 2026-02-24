@@ -6,8 +6,7 @@ os.environ["DF_API_KEY"] = "sk-xxx"
 from dataflow.utils.storage import FileStorage
 from dataflow.core import LLMServingABC
 from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
-from dataflow.operators.core_vision import PromptedVQAGenerator
-from dataflow.operators.core_vision import WikiQARefiner
+from dataflow.operators.core_vision import PromptedVQAGenerator, WikiQARefiner
 
 
 class ContextVQAPipeline:
