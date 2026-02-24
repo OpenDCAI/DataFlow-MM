@@ -18,7 +18,7 @@ class ImageCaptionPipeline:
 
         # ---------- 1. Storage ----------
         self.storage = FileStorage(
-            first_entry_file_name="./dataflow/example/image_to_text_pipeline/capsbench_captions.json",
+            first_entry_file_name="./example_data/image_caption/sample_data.json",
             cache_path="./cache_local",
             file_name_prefix="caption",
             cache_type="json",

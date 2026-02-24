@@ -18,7 +18,7 @@ class ContextVQAPipeline:
     def __init__(self, llm_serving: LLMServingABC = None):
         # ---------- 1. Storage ----------
         self.storage = FileStorage(
-            first_entry_file_name="dataflow/example/test_data/contextvqa.json",
+            first_entry_file_name="./example_data/image_contextvqa/sample_data.json",
             cache_path="./cache_local",
             file_name_prefix="context_vqa",
             cache_type="json",
