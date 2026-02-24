@@ -14,14 +14,14 @@ from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
 class ImageRegionCaptionPipeline:
     def __init__(
         self,
-        first_entry_file: str = "./data/image_region_caption/image_region_caption_demo.jsonl",
-        cache_path: str = "./cache/image_region_caption",
+        first_entry_file: str = "../example_data/image_region_caption/image_region_caption_demo.jsonl",
+        cache_path: str = "../cache/image_region_caption",
         file_name_prefix: str = "region_caption",
         cache_type: str = "jsonl",
         input_image_key: str = "image",
         input_bbox_key: str = "bbox",
         max_boxes: int = 10,
-        output_image_with_bbox_path: str = "./cache/image_region_caption/image_with_bbox_result.jsonl",
+        output_image_with_bbox_path: str = "../cache/image_region_caption/image_with_bbox_result.jsonl",
     ):
         self.bbox_storage = FileStorage(
             first_entry_file_name=first_entry_file,
