@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from .generate.video_caption_generator import VideoToCaptionGenerator
     from .generate.video_merged_caption_generator import VideoMergedCaptionGenerator
     from .generate.video_cotqa_generator import VideoCOTQAGenerator
-    from .generate.multirole_videoqa_generator import MultiroleVideoQAInitialGenerator, MultiroleVideoQAMultiAgentGenerator, MultiroleVideoQAFinalGenerator
     from .generate.batch_vqa_generator import BatchVQAGenerator
     from .generate.vlm_bbox_generator import VLMBBoxGenerator
     from .generate.visual_reasoning_generator import VisualReasoningGenerator
