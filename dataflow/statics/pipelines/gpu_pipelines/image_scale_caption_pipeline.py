@@ -268,27 +268,6 @@ class ImageScaleCaptionPipeline:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="ScaleCap Dense Captioning Pipeline")
-    
-    # Model
-    parser.add_argument("--model_path", default="Qwen/Qwen2.5-VL-3B-Instruct")
-    parser.add_argument("--hf_cache_dir", default="~/.cache/huggingface")
-    parser.add_argument("--download_dir", default="./ckpt/models")
-    parser.add_argument("--device", default="cuda")
-
-    # Storage / IO
-    parser.add_argument("--input_jsonl", default="./dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl", help="Input file with images")
-    parser.add_argument("--cache_path", default="./cache_scalecap_results")
-    parser.add_argument("--file_name_prefix", default="scalecap")
-    parser.add_argument("--input_image_key", default="image")
-    parser.add_argument("--output_key", default="final_caption")
-
-    # vLLM Config
-    parser.add_argument("--tp", type=int, default=1)
-    parser.add_argument("--max_tokens", type=int, default=1024)
-
-    args = parser.parse_args()
-
     pipe = ImageScaleCaptionPipeline(
         model_path="Qwen/Qwen2.5-VL-3B-Instruct",
         hf_cache_dir="~/.cache/huggingface",
