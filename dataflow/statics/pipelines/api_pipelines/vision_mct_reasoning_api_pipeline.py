@@ -1,18 +1,16 @@
+import os
+os.environ["DF_API_KEY"] = "sk-xxxx"
 from dataflow.utils.storage import FileStorage
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
 
 # 引入原子算子
 from dataflow.operators.core_text import MCTSTreeRefiner
 from dataflow.operators.core_vision import VisualReasoningGenerator
+from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
 
 class VisionMCTSReasoningPipeline:
     def __init__(
         self,
-        model_path: str,
-        *,
-        # Storage
-        hf_cache_dir: str | None = None,
-        download_dir: str = "./ckpt/models",
         first_entry_file: str,
         cache_path: str = "../cache/cache_mcts",
         file_name_prefix: str = "mcts_reason",
@@ -24,8 +22,7 @@ class VisionMCTSReasoningPipeline:
         input_image_key: str = "image",
         input_tree_key: str = "tree",
         output_key: str = "final_reasoning_chains",
-        # VLLM
-        vllm_max_tokens: int = 1024
+
     ):
         self.storage = FileStorage(
             first_entry_file_name=first_entry_file,
@@ -34,13 +31,13 @@ class VisionMCTSReasoningPipeline:
             cache_type="jsonl"
         )
         
-        self.serving = LocalModelVLMServing_vllm(
-            hf_cache_dir=hf_cache_dir,
-            hf_local_dir=download_dir,
-            hf_model_name_or_path=model_path,
-            vllm_tensor_parallel_size=1,
-            vllm_temperature=0.7,
-            vllm_max_tokens=vllm_max_tokens
+        self.vlm_serving = APIVLMServing_openai(
+            api_url="https://dashscope.aliyuncs.com/compatible-mode/v1", # Any API platform compatible with OpenAI format
+            model_name="gpt-4o-mini",
+            image_io=None,
+            send_request_stream=False,
+            max_workers=10,
+            timeout=1800
         )
         
         self.keys = {
@@ -60,7 +57,7 @@ class VisionMCTSReasoningPipeline:
         
         # 2. Generator: VLM -> Chains (Fallback)
         self.op_vlm_gen = VisualReasoningGenerator(
-            serving=self.serving,
+            serving=self.vlm_serving,
             prompt_type=prompt_type
         )
 
@@ -86,10 +83,7 @@ class VisionMCTSReasoningPipeline:
         
 if __name__ == "__main__":
     pipe = VisionMCTSReasoningPipeline(
-        model_path="Qwen/Qwen2.5-VL-3B-Instruct",
         first_entry_file="../example_data/capsbench_images/visual_mct_reasoning_demo.jsonl",
         prompt_type="spatial",
-        hf_cache_dir="~/.cache/huggingface",
-        download_dir="../ckpt/models/Qwen2.5-VL-3B-Instruct",
     )
     pipe.forward()
