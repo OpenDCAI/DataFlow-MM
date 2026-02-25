@@ -212,8 +212,8 @@ class ImageGCoTPipeline:
 
 if __name__ == "__main__":
     pipe = ImageGCoTPipeline(
-        model_path="../example_data/capsbench_images/image_gcot_demo.jsonl",
-        first_entry_file="Qwen/Qwen2.5-VL-3B-Instruct",
+        model_path="Qwen/Qwen2.5-VL-3B-Instruct",
+        first_entry_file="../example_data/capsbench_images/image_gcot_demo.jsonl",
         hf_cache_dir="~/.cache/huggingface",
         download_dir="../ckpt/models/Qwen2.5-VL-3B-Instruct",
     )

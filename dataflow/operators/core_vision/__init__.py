@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from .generate.multirole_videoqa_generator import MultiroleVideoQAInitialGenerator, MultiroleVideoQAMultiAgentGenerator, MultiroleVideoQAFinalGenerator
     from .generate.batch_vqa_generator import BatchVQAGenerator
     from .generate.vlm_bbox_generator import VLMBBoxGenerator
+    from .generate.visual_reasoning_generator import VisualReasoningGenerator
 
     # === Filter ===
     from .filter.video_clip_filter import VideoClipFilter

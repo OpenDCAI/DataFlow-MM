@@ -12,8 +12,10 @@ class VisionMCTSReasoningPipeline:
         model_path: str,
         *,
         # Storage
+        hf_cache_dir: str | None = None,
+        download_dir: str = "./ckpt/models",
         first_entry_file: str,
-        cache_path: str = "./cache_mcts",
+        cache_path: str = "../cache/cache_mcts",
         file_name_prefix: str = "mcts_reason",
         # Config
         prompt_type: str = "spatial",
@@ -34,6 +36,8 @@ class VisionMCTSReasoningPipeline:
         )
         
         self.serving = LocalModelVLMServing_vllm(
+            hf_cache_dir=hf_cache_dir,
+            hf_local_dir=download_dir,
             hf_model_name_or_path=model_path,
             vllm_tensor_parallel_size=1,
             vllm_temperature=0.7,
@@ -82,15 +86,11 @@ class VisionMCTSReasoningPipeline:
         
         
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input_file", default="dataflow/example/image_to_text_pipeline/mct_reasoning.jsonl")
-    parser.add_argument("--model_path", default="Qwen/Qwen2.5-VL-3B-Instruct")
-    parser.add_argument("--prompt_type", default="spatial")
-    args = parser.parse_args()
-    
     pipe = VisionMCTSReasoningPipeline(
-        model_path=args.model_path,
-        first_entry_file=args.input_file,
-        prompt_type=args.prompt_type
+        model_path="Qwen/Qwen2.5-VL-3B-Instruct",
+        first_entry_file="../example_data/capsbench_images/visual_mct_reasoning_demo.jsonl",
+        prompt_type="spatial",
+        hf_cache_dir="~/.cache/huggingface",
+        download_dir="../ckpt/models/Qwen2.5-VL-3B-Instruct",
     )
     pipe.forward()
