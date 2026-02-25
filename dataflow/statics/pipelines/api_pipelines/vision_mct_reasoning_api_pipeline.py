@@ -83,10 +83,7 @@ class VisionMCTSReasoningPipeline:
         
 if __name__ == "__main__":
     pipe = VisionMCTSReasoningPipeline(
-        model_path="Qwen/Qwen2.5-VL-3B-Instruct",
         first_entry_file="../example_data/capsbench_images/visual_mct_reasoning_demo.jsonl",
         prompt_type="spatial",
-        hf_cache_dir="~/.cache/huggingface",
-        download_dir="../ckpt/models/Qwen2.5-VL-3B-Instruct",
     )
     pipe.forward()
