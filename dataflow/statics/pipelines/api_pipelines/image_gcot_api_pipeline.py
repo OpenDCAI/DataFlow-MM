@@ -107,7 +107,7 @@ class ImageGCoTPipeline:
         self,
         *,
         first_entry_file: str,
-        cache_path: str = "./cache_gcot",
+        cache_path: str = "../cache/cache_gcot",
         file_name_prefix: str = "gcot",
         # Keys
         question_key: str = "question",
@@ -123,14 +123,7 @@ class ImageGCoTPipeline:
             file_name_prefix=file_name_prefix,
             cache_type="jsonl"
         )
-        
-        # [单一模型 Serving]
-        # self.vlm_serving = LocalModelVLMServing_vllm(
-        #     hf_model_name_or_path=model_path,
-        #     vllm_tensor_parallel_size=1,
-        #     vllm_temperature=0.7,
-        #     vllm_max_tokens=vllm_max_tokens
-        # )
+
         self.vlm_serving = APIVLMServing_openai(
             api_url="https://dashscope.aliyuncs.com/compatible-mode/v1", # Any API platform compatible with OpenAI format
             model_name="gpt-4o-mini",
@@ -217,12 +210,7 @@ class ImageGCoTPipeline:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input_file", default="dataflow/example/image_to_text_pipeline/image_qa_result.jsonl")
-    
-    args = parser.parse_args()
-    
     pipe = ImageGCoTPipeline(
-        first_entry_file=args.input_file
+        first_entry_file="../example_data/capsbench_images/image_gcot_demo.jsonl"
     )
     pipe.forward()

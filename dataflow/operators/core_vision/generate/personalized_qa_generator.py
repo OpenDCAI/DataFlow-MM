@@ -29,6 +29,10 @@ class PersQAGenerator(OperatorABC):
     Personalized QA generator.
     """
 
+    """
+    Personalized QA generator.
+    """
+
     def __init__(self, llm_serving: LLMServingABC):
         self.logger = get_logger()
         self.serving = llm_serving
@@ -229,30 +233,30 @@ class PersQAGenerator(OperatorABC):
 
 if __name__ == "__main__":
 
-    model = APIVLMServing_openai(
-        api_url="http://172.96.141.132:3001/v1", # Any API platform compatible with OpenAI format
-        key_name_of_api_key="DF_API_KEY", # Set the API key for the corresponding platform in the environment variable or line 4
-        model_name="gpt-5-nano-2025-08-07",
-        image_io=None,
-        send_request_stream=False,
-        max_workers=10,
-        timeout=1800
-    )
-
-    # model = LocalModelVLMServing_vllm(
-    #     hf_model_name_or_path="Qwen/Qwen2.5-VL-3B-Instruct",
-    #     vllm_tensor_parallel_size=1,
-    #     vllm_temperature=0.7,
-    #     vllm_top_p=0.9,
-    #     vllm_max_tokens=512,
+    # model = APIVLMServing_openai(
+    #     api_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    #     key_name_of_api_key="DF_API_KEY",
+    #     model_name="qwen3-vl-8b-instruct",
+    #     image_io=None,
+    #     send_request_stream=False,
+    #     max_workers=10,
+    #     timeout=1800
     # )
+
+    model = LocalModelVLMServing_vllm(
+        hf_model_name_or_path="Qwen/Qwen2.5-VL-3B-Instruct",
+        vllm_tensor_parallel_size=1,
+        vllm_temperature=0.7,
+        vllm_top_p=0.9,
+        vllm_max_tokens=512,
+    )
 
     generator = PersQAGenerator(
         llm_serving=model
     )
 
     storage = FileStorage(
-        first_entry_file_name="./dataflow/example/image_to_text_pipeline/sample_data.json",
+        first_entry_file_name="./dataflow/example/test_data/image_data.json",
         cache_path="./cache_local",
         file_name_prefix="pers_qa",
         cache_type="json",

@@ -104,8 +104,10 @@ class ImageGCoTPipeline:
         self,
         model_path: str,
         *,
+        hf_cache_dir: str | None = None,
+        download_dir: str = "./ckpt/models",
         first_entry_file: str,
-        cache_path: str = "./cache_gcot",
+        cache_path: str = "../cache/cache_gcot",
         file_name_prefix: str = "gcot",
         # Keys
         question_key: str = "question",
@@ -125,6 +127,8 @@ class ImageGCoTPipeline:
         # [单一模型 Serving]
         self.vlm_serving = LocalModelVLMServing_vllm(
             hf_model_name_or_path=model_path,
+            hf_cache_dir=hf_cache_dir,
+            hf_local_dir=download_dir,
             vllm_tensor_parallel_size=1,
             vllm_temperature=0.7,
             vllm_max_tokens=vllm_max_tokens
@@ -207,14 +211,10 @@ class ImageGCoTPipeline:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input_file", default="dataflow/example/image_to_text_pipeline/image_qa_result.jsonl")
-    parser.add_argument("--model_path", default="/data0/happykeyan/Models/Qwen2.5-VL-3B-Instruct")
-    
-    args = parser.parse_args()
-    
     pipe = ImageGCoTPipeline(
-        model_path=args.model_path,
-        first_entry_file=args.input_file
+        model_path="Qwen/Qwen2.5-VL-3B-Instruct",
+        first_entry_file="../example_data/capsbench_images/image_gcot_demo.jsonl",
+        hf_cache_dir="~/.cache/huggingface",
+        download_dir="../ckpt/models/Qwen2.5-VL-3B-Instruct",
     )
     pipe.forward()

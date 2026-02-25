@@ -1,8 +1,18 @@
+import pandas as pd
+from typing import List
+
 from dataflow.utils.registry import OPERATOR_REGISTRY
-from dataflow.utils.storage import DataFlowStorage
+from dataflow.utils.storage import FileStorage, DataFlowStorage
 from dataflow.core import OperatorABC, LLMServingABC
 from dataflow import get_logger
-from qwen_vl_utils import process_vision_info
+
+from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
+from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
+
+
+# 提取判断是否为 API Serving 的辅助函数
+def is_api_serving(serving):
+    return isinstance(serving, APIVLMServing_openai)
 
 
 @OPERATOR_REGISTRY.register()
@@ -32,7 +42,8 @@ class VisualGroundingRefiner(OperatorABC):
                 "  - output_key: 过滤后保留的文本列表\n"
                 "功能特点：\n"
                 "  - 自动构造 'Yes/No' 判别问题\n"
-                "  - 批量并行推理，高效过滤幻觉 (Hallucination)\n"
+                "  - 全局 Batch 展平处理，支持超大规模并发过滤\n"
+                "  - 统一支持 API 和本地 Local 模型部署模式\n"
             )
         else:
             return (
@@ -46,61 +57,91 @@ class VisualGroundingRefiner(OperatorABC):
                 "  - output_key: The filtered list of texts\n"
                 "Features:\n"
                 "  - Automatically constructs 'Yes/No' verification questions\n"
-                "  - Batch parallel inference for efficient hallucination filtering\n"
+                "  - Global batch flattening for massive concurrent filtering\n"
+                "  - Unifies support for API and Local model deployment modes\n"
             )
 
     def run(self, storage: DataFlowStorage, input_list_key: str, input_image_key: str, output_key: str):
+        if not output_key:
+            raise ValueError("'output_key' must be provided.")
+
         self.logger.info(f"Running VisualGroundingRefiner on {input_list_key}...")
-        df = storage.read("dataframe")
+        df: pd.DataFrame = storage.read("dataframe")
         
-        refined_results = []
-        
+        use_api_mode = is_api_serving(self.serving)
+        if use_api_mode:
+            self.logger.info("Using API serving mode")
+        else:
+            self.logger.info("Using local serving mode")
+
+        # ---------------------------------------------------------
+        # 1. 展平数据阶段 (Flatten Data)
+        # 将 N 张图片和对应 M 个待验证文本展平为一维请求列表
+        # ---------------------------------------------------------
+        flat_conversations = []
+        flat_images = []
+        row_mappings = []  # 记录这道 prompt 属于哪一行以及它的原始文本：{"row_idx": int, "item": str}
+
         for idx, row in df.iterrows():
             items = row.get(input_list_key, [])
             image_path = row.get(input_image_key)
             
-            if not items or not isinstance(items, list) or not image_path:
-                refined_results.append([])
+            # 清洗图片路径
+            if isinstance(image_path, str):
+                image_path = [image_path]
+            elif not image_path:
+                image_path = []
+
+            if not isinstance(items, list) or not items or not image_path:
                 continue
             
-            # 1. 构造 Batch Prompts
-            batch_prompts = []
-            batch_images = []
-            
+            # 为每一张图的每一个待验证文本构造对话
             for item in items:
-                text_prompt = self.template.format(text=item)
-                raw_prompt = [
-                    {"role": "system", "content": self.system_prompt},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": text_prompt},
-                            {"type": "image", "image": image_path}
-                        ]
-                    }
-                ]
-                image_inputs, _ = process_vision_info(raw_prompt)
-                final_prompt = self.serving.processor.apply_chat_template(
-                    raw_prompt, tokenize=False, add_generation_prompt=True
-                )
-                batch_prompts.append(final_prompt)
-                batch_images.append(image_inputs)
+                # 安全校验，防止传入非字符串导致 format 报错
+                if not isinstance(item, str):
+                    item = str(item)
+                    
+                prompt_text = self.template.format(text=item)
+                
+                if use_api_mode:
+                    content = prompt_text
+                else:
+                    img_tokens = "<image>" * len(image_path)
+                    content = f"{img_tokens}\n{prompt_text}" if img_tokens else prompt_text
+                
+                flat_conversations.append([{"role": "user", "content": content}])
+                flat_images.append(image_path)
+                row_mappings.append({"row_idx": idx, "item": item})
 
-            if not batch_prompts:
-                refined_results.append([])
-                continue
-
-            # 2. 批量推理
-            flags = self.serving.generate_from_input(
-                system_prompt=self.system_prompt,
-                user_inputs=batch_prompts,
-                image_inputs=batch_images
+        # ---------------------------------------------------------
+        # 2. 批量推理阶段 (Batch Inference)
+        # ---------------------------------------------------------
+        if flat_conversations:
+            self.logger.info(f"Verifying {len(flat_conversations)} items globally...")
+            flat_outputs = self.serving.generate_from_input_messages(
+                conversations=flat_conversations,
+                image_list=flat_images,
+                system_prompt=self.system_prompt
             )
+        else:
+            flat_outputs = []
+
+        # ---------------------------------------------------------
+        # 3. 重组解析阶段 (Unflatten & Parse Data)
+        # ---------------------------------------------------------
+        # 初始化一个与 df 等长的空列表字典
+        refined_results = [[] for _ in range(len(df))]
+        
+        for mapping, out_text in zip(row_mappings, flat_outputs):
+            idx = mapping["row_idx"]
+            original_item = mapping["item"]
             
-            # 3. 过滤逻辑 (保留 'yes')
-            kept = [item for item, flag in zip(items, flags) if "yes" in flag.lower()]
-            refined_results.append(kept)
+            # 过滤逻辑 (模型回复中包含 'yes' 视为验证通过，保留该文本)
+            if out_text and "yes" in str(out_text).lower():
+                refined_results[idx].append(original_item)
 
         df[output_key] = refined_results
-        storage.write(df)
+        output_file = storage.write(df)
+        self.logger.info(f"Results saved to {output_file}")
+        
         return [output_key]

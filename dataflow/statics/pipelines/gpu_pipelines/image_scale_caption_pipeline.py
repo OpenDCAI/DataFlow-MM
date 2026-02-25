@@ -268,42 +268,21 @@ class ImageScaleCaptionPipeline:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="ScaleCap Dense Captioning Pipeline")
-    
-    # Model
-    parser.add_argument("--model_path", default="Qwen/Qwen2.5-VL-3B-Instruct")
-    parser.add_argument("--hf_cache_dir", default="~/.cache/huggingface")
-    parser.add_argument("--download_dir", default="./ckpt/models")
-    parser.add_argument("--device", default="cuda")
-
-    # Storage / IO
-    parser.add_argument("--input_jsonl", default="./dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl", help="Input file with images")
-    parser.add_argument("--cache_path", default="./cache_scalecap_results")
-    parser.add_argument("--file_name_prefix", default="scalecap")
-    parser.add_argument("--input_image_key", default="image")
-    parser.add_argument("--output_key", default="final_caption")
-
-    # vLLM Config
-    parser.add_argument("--tp", type=int, default=1)
-    parser.add_argument("--max_tokens", type=int, default=1024)
-
-    args = parser.parse_args()
-
     pipe = ImageScaleCaptionPipeline(
-        model_path=args.model_path,
-        hf_cache_dir=args.hf_cache_dir,
-        download_dir=args.download_dir,
-        device=args.device,
+        model_path="Qwen/Qwen2.5-VL-3B-Instruct",
+        hf_cache_dir="~/.cache/huggingface",
+        download_dir="../ckpt/models/Qwen2.5-VL-3B-Instruct",
+        device="cuda",
         
-        first_entry_file=args.input_jsonl,
-        cache_path=args.cache_path,
-        file_name_prefix=args.file_name_prefix,
+        first_entry_file="../example_data/capsbench_images/image_scale_caption_demo.jsonl",
+        cache_path="../cache/image_scale_caption",
+        file_name_prefix="scalecap",
         
-        input_image_key=args.input_image_key,
-        output_key=args.output_key,
+        input_image_key="image",
+        output_key="final_caption",
         
-        vllm_tensor_parallel_size=args.tp,
-        vllm_max_tokens=args.max_tokens
+        vllm_tensor_parallel_size=1,
+        vllm_max_tokens=1024
     )
     
     pipe.forward()

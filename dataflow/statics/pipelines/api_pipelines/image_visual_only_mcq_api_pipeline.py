@@ -76,7 +76,7 @@ class VisualOnlyMCQPipeline:
         self,
         *,
         first_entry_file: str,
-        cache_path: str = "./cache_mcq",
+        cache_path: str = "../cache/cache_mcq",
         file_name_prefix: str = "vis_mcq",
         # Config
         rotate_num: int = 4,
@@ -167,18 +167,10 @@ class VisualOnlyMCQPipeline:
         print(f">>> [Pipeline] Done. Results in: {self.keys['final']}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input_file", default="./dataflow/example/image_to_text_pipeline/capsbench_captions.jsonl")
-    parser.add_argument("--rotate_num", type=int, default=4)
-    parser.add_argument("--pass_vis", type=float, default=1.0)
-    parser.add_argument("--pass_txt", type=float, default=0.25)
-    
-    args = parser.parse_args()
-    
     pipe = VisualOnlyMCQPipeline(
-        first_entry_file=args.input_file,
-        rotate_num=args.rotate_num,
-        pass_visual_min=args.pass_vis,
-        pass_textual_max=args.pass_txt
+        first_entry_file="../example_data/capsbench_images/image_visual_only_mcq_demo.jsonl",
+        rotate_num=4,
+        pass_visual_min=1.0,
+        pass_textual_max=0.25
     )
     pipe.forward()

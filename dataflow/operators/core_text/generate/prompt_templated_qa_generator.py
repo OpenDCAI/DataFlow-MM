@@ -1,13 +1,19 @@
 import pandas as pd
+from typing import List
+
 from dataflow.utils.registry import OPERATOR_REGISTRY
 from dataflow import get_logger
-
 from dataflow.utils.storage import FileStorage, DataFlowStorage
-from dataflow.core import OperatorABC
-from dataflow.core import LLMServingABC
 
+from dataflow.core import OperatorABC, LLMServingABC
 from dataflow.serving.local_model_vlm_serving import LocalModelVLMServing_vllm
+from dataflow.serving.api_vlm_serving_openai import APIVLMServing_openai
 from dataflow.prompts.prompt_template import NamedPlaceholderPromptTemplate
+
+
+# 提取判断是否为 API Serving 的辅助函数
+def is_api_serving(serving):
+    return isinstance(serving, APIVLMServing_openai)
 
 
 @OPERATOR_REGISTRY.register()
@@ -16,10 +22,7 @@ class PromptTemplatedQAGenerator(OperatorABC):
     PromptTemplatedQAGenerator:
     1) 从 DataFrame 读取若干字段（由 input_keys 指定）
     2) 使用 prompt_template.build_prompt(...) 生成纯文本 prompt
-    3) 将该 prompt 与 image/video 一起输入多模态模型，生成答案
-
-    其中 prompt_template 需要实现：
-        build_prompt(self, need_fields: set[str], **kwargs) -> str
+    3) 将该 prompt 输入大语言模型，生成纯文本答案
     """
 
     def __init__(
@@ -35,46 +38,27 @@ class PromptTemplatedQAGenerator(OperatorABC):
 
         if self.prompt_template is None:
             raise ValueError(
-                "prompt_template cannot be None for PromptTemplatedVQAGenerator."
+                "prompt_template cannot be None for PromptTemplatedQAGenerator."
             )
 
     @staticmethod
     def get_desc(lang: str = "zh"):
         if lang == "zh":
             return (
-                "PromptTemplatedQAGenerator：先用模板填充文本 prompt，再"
-                "进行问答的算子。\n"
-                "JSONL/DataFrame 中包含若干字段（例如 descriptions、type 等），"
-                "通过 input_keys 将 DataFrame 列映射到模板字段，由 prompt_template 生成最终的文本 Prompt。"
+                "基于模板的纯文本问答算子 (PromptTemplatedQAGenerator)。\n"
+                "JSONL/DataFrame 中包含若干字段，通过 input_keys 将列映射到模板字段，\n"
+                "由 prompt_template 动态生成纯文本 Prompt，进行批量问答。\n\n"
+                "特点：\n"
+                "  - 支持动态组装复杂的纯文本 Prompt\n"
+                "  - 统一支持 API 和本地 Local 模型部署模式\n"
+                "  - 全局 Batch 处理，极简代码结构\n"
             )
         else:
             return (
-                "PromptTemplatedQAGenerator: a QA operator that first builds "
-                "text prompts from a prompt template and multiple input fields, then "
-                "performs QA."
+                "PromptTemplatedQAGenerator: a pure text QA operator that builds "
+                "text prompts from a template and multiple input fields, then "
+                "performs QA inference."
             )
-
-    def _prepare_batch_inputs(self, prompts):
-
-        prompt_list = []
-
-        for p in prompts:
-            raw_prompt = [
-                {"role": "system", "content": self.system_prompt},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": p},
-                    ],
-                },
-            ]
-            prompt = self.serving.processor.apply_chat_template(
-                raw_prompt, tokenize=False, add_generation_prompt=True
-            )
-
-            prompt_list.append(prompt)
-
-        return prompt_list
 
     def run(
         self,
@@ -87,66 +71,88 @@ class PromptTemplatedQAGenerator(OperatorABC):
         - storage: DataFlowStorage
         - output_answer_key: 输出答案列名
         - **input_keys: 模板字段名 -> DataFrame 列名
-            例如：
-                descriptions="descriptions", type="type"
-
-        逻辑：
-        1. 从 DataFrame 每行抽取 input_keys 对应列，形成 key_dict
-        2. 用 prompt_template.build_prompt(need_fields, **key_dict) 得到文本 prompt
+            例如：descriptions="descriptions_col", type="type_col"
         """
-        if output_answer_key is None:
-            raise ValueError("output_answer_key must be provided.")
+        if not output_answer_key:
+            raise ValueError("'output_answer_key' must be provided.")
 
         if len(input_keys) == 0:
             raise ValueError(
-                "PromptTemplatedVQAGenerator requires at least one input key "
+                "PromptTemplatedQAGenerator requires at least one input key "
                 "to fill the prompt template (e.g., descriptions='descriptions')."
             )
 
         self.logger.info("Running PromptTemplatedQAGenerator...")
-        self.output_answer_key = output_answer_key
 
-        dataframe = storage.read("dataframe")
-        self.logger.info(f"Loading, number of rows: {len(dataframe)}")
+        # 1. 加载 DataFrame
+        dataframe: pd.DataFrame = storage.read("dataframe")
+        self.logger.info(f"Loaded dataframe with {len(dataframe)} rows")
 
+        use_api_mode = is_api_serving(self.serving)
+        if use_api_mode:
+            self.logger.info("Using API serving mode")
+        else:
+            self.logger.info("Using local serving mode")
+
+        # 2. 动态生成 Prompt 文本并组装标准对话结构
         need_fields = set(input_keys.keys())
-        prompt_column = []
+        conversations_list = []
 
         for idx, row in dataframe.iterrows():
             key_dict = {}
             for key in need_fields:
                 col_name = input_keys[key]  # 模板字段名 -> DataFrame 列名
-                key_dict[key] = row[col_name]
+                # 安全获取值，防止 NaN 导致字符串格式化异常
+                val = row.get(col_name)
+                key_dict[key] = val if pd.notna(val) else ""
+                
             prompt_text = self.prompt_template.build_prompt(need_fields, **key_dict)
-            prompt_column.append(prompt_text)
+            
+            # 统一组装为基类所需的消息格式
+            conversations_list.append([{"role": "user", "content": prompt_text}])
 
         self.logger.info(
-            f"Using prompt_template to build prompts with fields {need_fields}, "
-            f"prepared {len(prompt_column)} prompts."
+            f"Built {len(conversations_list)} prompts using fields: {need_fields}"
         )
 
-        prompt_list = self._prepare_batch_inputs(prompt_column)
-
-        outputs = self.serving.generate_from_input(
+        # 3. 统一调用基类接口进行纯文本推理 (无需传入 image_list/video_list)
+        outputs = self.serving.generate_from_input_messages(
+            conversations=conversations_list,
             system_prompt=self.system_prompt,
-            user_inputs=prompt_list
         )
 
-        dataframe[self.output_answer_key] = outputs
+        # 4. 保存结果
+        dataframe[output_answer_key] = outputs
         output_file = storage.write(dataframe)
         self.logger.info(f"Results saved to {output_file}")
 
-        return output_answer_key
+        return [output_answer_key]
 
 
+# ==========================================
+# 测试用例 (Main Block)
+# ==========================================
 if __name__ == "__main__":
-    model = LocalModelVLMServing_vllm(
-        hf_model_name_or_path="Qwen/Qwen2.5-VL-7B-Instruct",
-        vllm_tensor_parallel_size=1,
-        vllm_temperature=0.7,
-        vllm_top_p=0.9,
-        vllm_max_tokens=512,
+    
+    # 使用 API 模式测试
+    model = APIVLMServing_openai(
+        api_url="http://172.96.141.132:3001/v1",
+        key_name_of_api_key="DF_API_KEY",
+        model_name="gpt-5-nano-2025-08-07",
+        image_io=None,
+        send_request_stream=False,
+        max_workers=10,
+        timeout=1800
     )
+
+    # 如需测试 Local 模型，请解开注释 (VLM 模型同样能处理纯文本)
+    # model = LocalModelVLMServing_vllm(
+    #     hf_model_name_or_path="Qwen/Qwen2.5-VL-7B-Instruct",
+    #     vllm_tensor_parallel_size=1,
+    #     vllm_temperature=0.7,
+    #     vllm_top_p=0.9,
+    #     vllm_max_tokens=512,
+    # )
     
     TEMPLATE = (
         "Descriptions:\n"
@@ -164,14 +170,14 @@ if __name__ == "__main__":
         prompt_template=prompt_template,
     )
 
-    # Prepare input
+    # 准备输入数据
     storage = FileStorage(
         first_entry_file_name="./dataflow/example/text_to_text/prompt_templated_qa.jsonl", 
         cache_path="./cache_prompted_qa",
         file_name_prefix="prompt_templated_qa",
         cache_type="jsonl",
     )
-    storage.step()  # Load the data
+    storage.step()  # 加载数据
 
     generator.run(
         storage=storage,
