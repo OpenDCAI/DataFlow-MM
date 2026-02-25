@@ -14,7 +14,7 @@ class ImageRegionCaptionPipeline:
         self,
         model_path: str = "Qwen/Qwen2.5-VL-3B-Instruct",
         hf_cache_dir: str = "~/.cache/huggingface",
-        download_dir: str = "./ckpt/models",
+        download_dir: str = "../ckpt/models/Qwen2.5-VL-3B-Instruct",
         first_entry_file: str = "../example_data/image_region_caption/image_region_caption_demo.jsonl",
         cache_path: str = "../cache/image_region_caption",
         file_name_prefix: str = "region_caption",
