@@ -128,7 +128,7 @@ class PromptTemplatedVQAGenerator(OperatorABC):
         else:
             self.logger.info("Using local serving mode")
 
-        # 4. 构造多模态对话结构
+        # 4. 构造多模态对话结构（兼容 Local 和 API 模式）
         conversations_list = []
         image_inputs_list = None
         video_inputs_list = None
@@ -139,25 +139,29 @@ class PromptTemplatedVQAGenerator(OperatorABC):
                 valid_media_count = len([p for p in paths if p])
                 
                 if use_api_mode:
+                    # API 模式：使用 OpenAI 格式
                     content = prompt_text
+                    conversations_list.append([{"role": "user", "content": content}])
                 else:
+                    # Local 模式：使用 ShareGPT 格式，并注入 <image> tokens
                     img_tokens = "<image>" * valid_media_count
                     content = f"{img_tokens}\n{prompt_text}" if img_tokens else prompt_text
+                    conversations_list.append([{"from": "human", "value": content}])
                     
-                conversations_list.append([{"role": "user", "content": content}])
-                
         elif has_videos:
             video_inputs_list = video_column
             for prompt_text, paths in zip(prompt_column, video_column):
                 valid_media_count = len([p for p in paths if p])
                 
                 if use_api_mode:
+                    # API 模式：使用 OpenAI 格式
                     content = prompt_text
+                    conversations_list.append([{"role": "user", "content": content}])
                 else:
+                    # Local 模式：使用 ShareGPT 格式，并注入 <video> tokens
                     vid_tokens = "<video>" * valid_media_count
                     content = f"{vid_tokens}\n{prompt_text}" if vid_tokens else prompt_text
-                    
-                conversations_list.append([{"role": "user", "content": content}])
+                    conversations_list.append([{"from": "human", "value": content}])
 
         # 5. 统一调用基类接口
         outputs = self.serving.generate_from_input_messages(

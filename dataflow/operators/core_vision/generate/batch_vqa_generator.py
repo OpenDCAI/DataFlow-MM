@@ -97,7 +97,11 @@ class BatchVQAGenerator(OperatorABC):
                 else:
                     # Local 模式（如 vLLM）通常需要手动在文本前拼接 <image> 占位符
                     img_tokens = "<image>" * len(image_path)
-                    conversation = [{"role": "user", "content": img_tokens + q}]
+                    # 根据 serving 模式选择对话格式
+                    if use_api_mode:
+                        conversation = [{"role": "user", "content": img_tokens + q}]
+                    else:
+                        conversation = [{"from": "human", "value": img_tokens + q}]
 
                 flat_conversations.append(conversation)
                 flat_images.append(image_path)

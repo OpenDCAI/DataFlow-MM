@@ -119,8 +119,11 @@ class VLMBBoxGenerator(OperatorABC):
                 else:
                     img_tokens = "<image>" * len(img_path)
                     content = f"{img_tokens}\n{text_prompt}" if img_tokens else text_prompt
+                if use_api_mode:
+                    flat_conversations.append([{"role": "user", "content": content}])
+                else:
+                    flat_conversations.append([{"from": "human", "value": content}])
                 
-                flat_conversations.append([{"role": "user", "content": content}])
                 flat_images.append(img_path)
                 row_mappings.append({"row_idx": idx, "keyword": kw})
 

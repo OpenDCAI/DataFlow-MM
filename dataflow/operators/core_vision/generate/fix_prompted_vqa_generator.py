@@ -96,7 +96,10 @@ class FixPromptedVQAGenerator(OperatorABC):
                 else:
                     content = ("<image>" * valid_media_count) + self.user_prompt
                     
-                conversations_list.append([{"role": "user", "content": content}])
+                if use_api_mode:
+                    conversations_list.append([{"role": "user", "content": content}])
+                else:
+                    conversations_list.append([{"from": "human", "value": content}])
                 
         elif has_videos:
             video_inputs_list = video_column
@@ -108,7 +111,10 @@ class FixPromptedVQAGenerator(OperatorABC):
                 else:
                     content = ("<video>" * valid_media_count) + self.user_prompt
                     
-                conversations_list.append([{"role": "user", "content": content}])
+                if use_api_mode:
+                    conversations_list.append([{"role": "user", "content": content}])
+                else:
+                    conversations_list.append([{"from": "human", "value": content}])
 
         # 统一调用基类的消息生成接口
         outputs = self.serving.generate_from_input_messages(

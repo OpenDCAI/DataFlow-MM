@@ -109,7 +109,10 @@ class VisualGroundingRefiner(OperatorABC):
                     img_tokens = "<image>" * len(image_path)
                     content = f"{img_tokens}\n{prompt_text}" if img_tokens else prompt_text
                 
-                flat_conversations.append([{"role": "user", "content": content}])
+                if use_api_mode:
+                    flat_conversations.append([{"role": "user", "content": content}])
+                else:
+                    flat_conversations.append([{"from": "human", "value": content}])
                 flat_images.append(image_path)
                 row_mappings.append({"row_idx": idx, "item": item})
 
