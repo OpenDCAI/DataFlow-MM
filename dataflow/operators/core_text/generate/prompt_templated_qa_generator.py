@@ -107,9 +107,10 @@ class PromptTemplatedQAGenerator(OperatorABC):
                 key_dict[key] = val if pd.notna(val) else ""
                 
             prompt_text = self.prompt_template.build_prompt(need_fields, **key_dict)
-            
-            # 统一组装为基类所需的消息格式
-            conversations_list.append([{"role": "user", "content": prompt_text}])
+            if use_api_mode:
+                conversations_list.append([{"role": "user", "content": prompt_text}])
+            else:
+                conversations_list.append([{"from": "human", "value": prompt_text}])
 
         self.logger.info(
             f"Built {len(conversations_list)} prompts using fields: {need_fields}"

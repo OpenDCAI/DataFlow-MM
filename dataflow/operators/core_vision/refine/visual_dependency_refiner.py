@@ -143,7 +143,10 @@ class VisualDependencyRefiner(OperatorABC):
                         img_tokens = "<image>" * len(image_path)
                         content_v = f"{img_tokens}\n{prompt_v}" if img_tokens else prompt_v
                         
-                    vis_conversations.append([{"role": "user", "content": content_v}])
+                    if use_api_mode:
+                        vis_conversations.append([{"role": "user", "content": content_v}])
+                    else:
+                        vis_conversations.append([{"from": "human", "value": content_v}])
                     vis_images.append(image_path)
                     vis_mappings.append({"row_idx": row_idx, "qa_idx": qa_idx, "expected": ans_v})
 
@@ -151,7 +154,10 @@ class VisualDependencyRefiner(OperatorABC):
                     q_t, ans_t = shuffle_options_logic(qa_item, add_none_option=False)
                     prompt_t = self.inst_template.format(q_t)
                     
-                    txt_conversations.append([{"role": "user", "content": prompt_t}])
+                    if use_api_mode:
+                        txt_conversations.append([{"role": "user", "content": prompt_t}])
+                    else:
+                        txt_conversations.append([{"from": "human", "value": prompt_t}])
                     txt_mappings.append({"row_idx": row_idx, "qa_idx": qa_idx, "expected": ans_t})
 
         # =========================================================

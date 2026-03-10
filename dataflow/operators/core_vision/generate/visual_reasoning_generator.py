@@ -108,7 +108,10 @@ class VisualReasoningGenerator(OperatorABC):
                 img_tokens = "<image>" * len(valid_img_paths)
                 content = f"{img_tokens}\n{q}" if img_tokens else q
 
-            flat_conversations.append([{"role": "user", "content": content}])
+            if use_api_mode:
+                flat_conversations.append([{"role": "user", "content": content}])
+            else:
+                flat_conversations.append([{"from": "human", "value": content}])
             flat_images.append(valid_img_paths)
             indices_to_generate.append(idx)
 
