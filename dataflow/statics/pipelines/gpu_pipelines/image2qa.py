@@ -36,16 +36,26 @@ class ImageQAPipeline:
             system_prompt="You are a image question-answer generator. Your task is to generate a question-answer pair for the given image content.",
         )
 
-        self.media_key = "image"
-        self.output_key = "qa"
-
     # ------------------------- Pipeline 单步 ------------------------- #
     def forward(self):
+        input_image_key = "image"
+        output_step1_key = "question"
+        output_step2_key = "answer"
+
+        # Step 1: Generate the question for the image
         self.qa_generator.run(
             storage=self.storage.step(),
             input_conversation_key="conversation",
-            input_image_key=self.media_key,
-            output_answer_key=self.output_key,
+            input_image_key=input_image_key,
+            output_answer_key=output_step1_key,
+        )
+
+        # Step 2: Generate the answer for the question
+        self.qa_generator.run(
+            storage=self.storage.step(),
+            input_prompt_key=output_step1_key,
+            input_image_key=input_image_key,
+            output_answer_key=output_step2_key,
         )
 
 # ------------------------------ CLI ------------------------------ #
