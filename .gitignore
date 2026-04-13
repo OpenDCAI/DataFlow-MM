@@ -13,6 +13,7 @@ requirement_added.txt
 mineru.json
 
 test/example
+test_pipeline/
 reasoning_chains
 cache*
 ckpt*
